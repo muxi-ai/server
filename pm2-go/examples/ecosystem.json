@@ -1,0 +1,11 @@
+[
+    {
+        "name": "python-test",
+        "args": ["-u", "test.py"],
+        "autorestart": false,
+        "cwd": "./examples",
+        "scripts": ["logs_date"],
+        "executable_path": "python3",
+        "cron_restart": "* * * * *"
+    }
+]
