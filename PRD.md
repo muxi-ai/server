@@ -120,54 +120,54 @@ Think **"Docker + PM2 + Nginx"** in a single binary, purpose-built for MUXI form
 ### High-Level Overview
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│ Internet                                                │
-│  ↓                                                      │
-│ HTTPS (Caddy/Nginx - optional)                         │
-│  ↓                                                      │
-│ ╔═══════════════════════════════════════════════════╗  │
-│ ║ MUXI Server (Port 3000)                           ║  │
-│ ║                                                   ║  │
-│ ║  ┌─────────────────────────────────────┐         ║  │
-│ ║  │ Management API (for CLI)            │         ║  │
-│ ║  │  POST /formations/deploy             │         ║  │
-│ ║  │  GET  /formations                    │         ║  │
-│ ║  │  DELETE /formations/{id}             │         ║  │
-│ ║  └─────────────────────────────────────┘         ║  │
-│ ║                                                   ║  │
-│ ║  ┌─────────────────────────────────────┐         ║  │
-│ ║  │ HTTP Proxy (for users)              │         ║  │
-│ ║  │  /{formation_id}/* → localhost:PORT │         ║  │
-│ ║  └─────────────────────────────────────┘         ║  │
-│ ║                                                   ║  │
-│ ║  ┌─────────────────────────────────────┐         ║  │
-│ ║  │ Process Manager (from pm2-go)       │         ║  │
-│ ║  │  • Start/stop formations            │         ║  │
-│ ║  │  • Monitor health                   │         ║  │
-│ ║  │  • Auto-restart on crash            │         ║  │
-│ ║  │  • Log rotation                     │         ║  │
-│ ║  └─────────────────────────────────────┘         ║  │
-│ ║                                                   ║  │
-│ ║  ┌─────────────────────────────────────┐         ║  │
-│ ║  │ Formation Registry                  │         ║  │
-│ ║  │  formation-abc → Port 8001          │         ║  │
-│ ║  │  formation-def → Port 8002          │         ║  │
-│ ║  └─────────────────────────────────────┘         ║  │
-│ ╚═══════════════════════════════════════════════════╝  │
-│              ↓                    ↓                     │
-│  ┌──────────────────┐  ┌──────────────────┐           │
-│  │ Formation Runtime│  │ Formation Runtime│           │
-│  │ (Port 8001)      │  │ (Port 8002)      │           │
-│  │                  │  │                  │           │
-│  │ FastAPI Server   │  │ FastAPI Server   │           │
-│  │ /chat            │  │ /chat            │           │
-│  │ /workflow        │  │ /status          │           │
-│  │ /health          │  │ /health          │           │
-│  │                  │  │                  │           │
-│  │ _server_id: abc  │  │ _server_id: abc  │           │
-│  │ Sends telemetry  │  │ Sends telemetry  │           │
-│  └──────────────────┘  └──────────────────┘           │
-└─────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────┐
+│ Internet                                       │
+│  ↓                                             │
+│ HTTPS (Caddy/Nginx - optional)                 │
+│  ↓                                             │
+│ ╔════════════════════════════════════════════╗ │
+│ ║ MUXI Server (Port 3000)                    ║ │
+│ ║                                            ║ │
+│ ║  ┌──────────────────────────────────────┐  ║ │
+│ ║  │ Management API (for CLI)             │  ║ │
+│ ║  │  POST /formations/deploy             │  ║ │
+│ ║  │  GET  /formations                    │  ║ │
+│ ║  │  DELETE /formations/{id}             │  ║ │
+│ ║  └──────────────────────────────────────┘  ║ │
+│ ║                                            ║ │
+│ ║  ┌──────────────────────────────────────┐  ║ │
+│ ║  │ HTTP Proxy (for users)               │  ║ │
+│ ║  │  /{formation_id}/* → localhost:PORT  │  ║ │
+│ ║  └──────────────────────────────────────┘  ║ │
+│ ║                                            ║ │
+│ ║  ┌──────────────────────────────────────┐  ║ │
+│ ║  │ Process Manager (from pm2-go)        │  ║ │
+│ ║  │  • Start/stop formations             │  ║ │
+│ ║  │  • Monitor health                    │  ║ │
+│ ║  │  • Auto-restart on crash             │  ║ │
+│ ║  │  • Log rotation                      │  ║ │
+│ ║  └──────────────────────────────────────┘  ║ │
+│ ║                                            ║ │
+│ ║  ┌──────────────────────────────────────┐  ║ │
+│ ║  │ Formation Registry                   │  ║ │
+│ ║  │  formation-abc → Port 8001           │  ║ │
+│ ║  │  formation-def → Port 8002           │  ║ │
+│ ║  └──────────────────────────────────────┘  ║ │
+│ ╚════════════════════════════════════════════╝ │
+│              ↓                    ↓            │
+│  ┌──────────────────┐  ┌──────────────────┐    │
+│  │ Formation Runtime│  │ Formation Runtime│    │
+│  │ (Port 8001)      │  │ (Port 8002)      │    │
+│  │                  │  │                  │    │
+│  │ FastAPI Server   │  │ FastAPI Server   │    │
+│  │ /chat            │  │ /chat            │    │
+│  │ /workflow        │  │ /status          │    │
+│  │ /health          │  │ /health          │    │
+│  │                  │  │                  │    │
+│  │ _server_id: abc  │  │ _server_id: abc  │    │
+│  │ Sends telemetry  │  │ Sends telemetry  │    │
+│  └──────────────────┘  └──────────────────┘    │
+└────────────────────────────────────────────────┘
 ```
 
 ### Component Breakdown
@@ -1055,5 +1055,5 @@ X-Forwarded-Host: server.com
 
 **Document Version**: 1.0  
 **Last Updated**: 2024-01-16  
-**Owner**: @ran  
+**Owner**: @ranaroussi 
 **Status**: Ready for Implementation
