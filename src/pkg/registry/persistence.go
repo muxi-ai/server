@@ -40,7 +40,13 @@ func NewPersistence(registry *Registry, filePath string, logger *zerolog.Logger)
 
 // EnableAutoSave enables automatic saving when the registry changes
 func (p *Persistence) EnableAutoSave() {
+	if p.autoSave {
+		return // Already enabled
+	}
 	p.autoSave = true
+
+	// Recreate stop channel if it was closed
+	p.stopChan = make(chan struct{})
 
 	// Set up onChange callback
 	p.registry.OnChange(func() {
@@ -57,6 +63,9 @@ func (p *Persistence) EnableAutoSave() {
 
 // DisableAutoSave disables automatic saving
 func (p *Persistence) DisableAutoSave() {
+	if !p.autoSave {
+		return // Already disabled
+	}
 	p.autoSave = false
 	close(p.stopChan)
 }
