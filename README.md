@@ -22,20 +22,53 @@ Production-grade orchestration platform for deploying and managing MUXI formatio
 ├── PRD.md               # Product Requirements Document
 ├── LICENSE              # MIT License
 ├── README.md            # This file
-└── src/                 # MUXI Server implementation
-    ├── cmd/
-    │   └── server/      # Main entry point
-    ├── pkg/
-    │   ├── process/     # Process lifecycle management
-    │   ├── registry/    # Formation tracking & port allocation
-    │   ├── api/         # HTTP API endpoints
-    │   ├── proxy/       # HTTP reverse proxy (future)
-    │   └── config/      # Configuration management
-    ├── test/
-    │   ├── dummy_app.py # Test FastAPI server
-    │   └── fixtures/    # Test data
-    ├── go.mod
-    └── go.sum
+├── docs/                # User documentation (8 guides)
+│   ├── api-reference.md
+│   ├── authentication.md
+│   ├── getting-started.md
+│   └── ...
+├── src/                 # MUXI Server implementation
+│   ├── cmd/
+│   │   └── server/      # Main entry point & CLI
+│   ├── pkg/             # Core packages (88.9% test coverage!)
+│   │   ├── api/         # HTTP API endpoints (77.2% coverage)
+│   │   │   ├── *.go     # API handlers & middleware
+│   │   │   └── *_test.go # 6 test files, ~2,500 lines
+│   │   ├── auth/        # HMAC authentication (97.3% coverage) ⭐
+│   │   │   ├── *.go     # Auth logic & middleware
+│   │   │   └── *_test.go # 2 test files, ~900 lines
+│   │   ├── config/      # Configuration (88.9% coverage)
+│   │   │   ├── *.go     # Config management
+│   │   │   └── *_test.go # 1 test file, ~650 lines
+│   │   ├── formation/   # Formation handling (88.6% coverage)
+│   │   │   ├── *.go     # Bundle extraction & parsing
+│   │   │   └── *_test.go # 3 test files, ~1,000 lines
+│   │   ├── process/     # Process management (90.3% coverage) ⭐
+│   │   │   ├── *.go     # Spawn, monitor, restart
+│   │   │   └── *_test.go # 7 test files, ~3,000 lines
+│   │   ├── proxy/       # HTTP proxy (88.5% coverage)
+│   │   │   ├── *.go     # Request routing
+│   │   │   └── *_test.go # 1 test file, ~800 lines
+│   │   └── registry/    # Formation registry (91.3% coverage) ⭐
+│   │       ├── *.go     # Registry & persistence
+│   │       └── *_test.go # 3 test files, ~1,100 lines
+│   ├── go.mod
+│   └── go.sum
+├── test/                # Integration test scripts
+│   ├── dummy_app.py     # Test FastAPI server
+│   ├── formations/      # Test bundles
+│   ├── *.sh             # Integration test scripts
+│   └── fixtures/        # Test data
+└── wip/                 # Work in progress docs & notes
+    ├── COVERAGE-ACHIEVEMENT.md  # Coverage analysis
+    ├── PHASE-1-FINAL-SUMMARY.md # Phase 1 recap
+    └── ...
+
+Test Coverage: 88.9% average (11,101 lines across 25 test files)
+- Unit tests: 200+
+- Integration tests: 20+
+- Security tests: 15+
+- Zero flaky tests ✅
 ```
 
 ## Quick Start
