@@ -36,15 +36,15 @@ type DeployResponse struct {
 // Supports both JSON (legacy) and gzipped formation bundles
 func (s *Server) HandleDeploy(w http.ResponseWriter, r *http.Request) {
 	contentType := r.Header.Get("Content-Type")
-	
+
 	// Route based on content type
-	if strings.Contains(contentType, "application/gzip") || 
-	   strings.Contains(contentType, "application/x-gzip") ||
-	   strings.Contains(contentType, "application/octet-stream") {
+	if strings.Contains(contentType, "application/gzip") ||
+		strings.Contains(contentType, "application/x-gzip") ||
+		strings.Contains(contentType, "application/octet-stream") {
 		s.handleBundleDeploy(w, r)
 		return
 	}
-	
+
 	// Default to JSON for backward compatibility
 	s.handleJSONDeploy(w, r)
 }

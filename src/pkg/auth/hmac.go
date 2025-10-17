@@ -29,7 +29,7 @@ func ParseAuthHeader(header string) (key, timestamp, signature string, err error
 
 	// Remove prefix
 	params := strings.TrimPrefix(header, "MUXI-HMAC ")
-	
+
 	// Split by comma
 	parts := strings.Split(params, ", ")
 

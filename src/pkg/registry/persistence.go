@@ -12,13 +12,13 @@ import (
 
 // Persistence handles saving and loading the registry to/from disk
 type Persistence struct {
-	registry   *Registry
-	filePath   string
-	logger     *zerolog.Logger
-	autoSave   bool
+	registry     *Registry
+	filePath     string
+	logger       *zerolog.Logger
+	autoSave     bool
 	saveDebounce time.Duration
-	saveChan   chan struct{}
-	stopChan   chan struct{}
+	saveChan     chan struct{}
+	stopChan     chan struct{}
 }
 
 // NewPersistence creates a new persistence manager
@@ -41,7 +41,7 @@ func NewPersistence(registry *Registry, filePath string, logger *zerolog.Logger)
 // EnableAutoSave enables automatic saving when the registry changes
 func (p *Persistence) EnableAutoSave() {
 	p.autoSave = true
-	
+
 	// Set up onChange callback
 	p.registry.OnChange(func() {
 		select {

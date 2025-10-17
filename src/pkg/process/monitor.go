@@ -11,11 +11,11 @@ import (
 
 // Monitor watches a process and handles health checks and restarts
 type Monitor struct {
-	process *Process
-	logger  *zerolog.Logger
-	onCrash func(*Process) // Callback when process crashes
+	process   *Process
+	logger    *zerolog.Logger
+	onCrash   func(*Process) // Callback when process crashes
 	onHealthy func(*Process) // Callback when health check passes
-	stopChan chan struct{}
+	stopChan  chan struct{}
 }
 
 // NewMonitor creates a new process monitor
@@ -71,7 +71,7 @@ func (m *Monitor) run() {
 			m.logger.Info().
 				Str("id", m.process.ID).
 				Msg("✓ Health check passed")
-			
+
 			if m.onHealthy != nil {
 				m.onHealthy(m.process)
 			}

@@ -11,7 +11,7 @@ import (
 // Secret format: sk_{64 hex chars}
 func GenerateCredentials() (key, secret string, err error) {
 	// Generate random bytes
-	keyBytes := make([]byte, 8)  // 16 hex chars
+	keyBytes := make([]byte, 8)     // 16 hex chars
 	secretBytes := make([]byte, 32) // 64 hex chars
 
 	if _, err := rand.Read(keyBytes); err != nil {

@@ -60,9 +60,9 @@ func (r *Registry) Register(formation *Formation) error {
 	}
 
 	r.formations[formation.ID] = formation
-	
+
 	r.triggerChange()
-	
+
 	return nil
 }
 
@@ -81,9 +81,9 @@ func (r *Registry) Unregister(formationID string) error {
 
 	// Remove from registry
 	delete(r.formations, formationID)
-	
+
 	r.triggerChange()
-	
+
 	return nil
 }
 
@@ -111,9 +111,9 @@ func (r *Registry) Update(formationID string, updateFn func(*Formation)) error {
 	}
 
 	updateFn(formation)
-	
+
 	r.triggerChange()
-	
+
 	return nil
 }
 

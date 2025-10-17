@@ -77,7 +77,7 @@ func (s *Server) setupRoutes() {
 	// Management API (requires auth)
 	mgmt := s.router.PathPrefix("/formations").Subrouter()
 	mgmt.Use(s.authMiddleware.Authenticate)
-	
+
 	// Formation management
 	mgmt.HandleFunc("/deploy", s.HandleDeploy).Methods(http.MethodPost)
 	mgmt.HandleFunc("", s.HandleList).Methods(http.MethodGet)
@@ -121,10 +121,10 @@ func (s *Server) Stop(ctx context.Context) error {
 // HandleHealth handles GET /health
 func (s *Server) HandleHealth(w http.ResponseWriter, r *http.Request) {
 	available, allocated, total := s.registry.PortPoolStatus()
-	
+
 	health := map[string]interface{}{
-		"status":      "ok",
-		"formations":  s.registry.Count(),
+		"status":     "ok",
+		"formations": s.registry.Count(),
 		"port_pool": map[string]int{
 			"available": available,
 			"allocated": allocated,

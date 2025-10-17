@@ -21,7 +21,7 @@ func TestManagerIntegration(t *testing.T) {
 	// Setup
 	logger := zerolog.New(os.Stderr).With().Timestamp().Logger()
 	tmpDir := t.TempDir()
-	
+
 	manager, err := process.NewManager(tmpDir, &logger)
 	if err != nil {
 		t.Fatalf("Failed to create manager: %v", err)
@@ -111,7 +111,7 @@ func TestManagerIntegration(t *testing.T) {
 
 		// Verify process is stopped (give uvicorn time to shut down)
 		time.Sleep(2 * time.Second)
-		
+
 		resp, err := http.Get("http://localhost:8099/health")
 		if err == nil {
 			resp.Body.Close()
@@ -130,7 +130,7 @@ func TestAutoRestart(t *testing.T) {
 
 	logger := zerolog.New(os.Stderr).With().Timestamp().Logger()
 	tmpDir := t.TempDir()
-	
+
 	manager, err := process.NewManager(tmpDir, &logger)
 	if err != nil {
 		t.Fatalf("Failed to create manager: %v", err)

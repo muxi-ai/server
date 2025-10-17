@@ -78,7 +78,7 @@ func (m *Manager) Start(config SpawnConfig) (*Process, error) {
 
 	// Create monitor
 	monitor := NewMonitor(proc, m.logger)
-	
+
 	// Set up crash handler
 	monitor.OnCrash(func(p *Process) {
 		m.handleCrash(p)
@@ -135,7 +135,7 @@ func (m *Manager) Stop(id string) error {
 // Restart stops and restarts a process
 func (m *Manager) Restart(id string) (*Process, error) {
 	m.mu.Lock()
-	
+
 	managed, exists := m.processes[id]
 	if !exists {
 		m.mu.Unlock()
@@ -204,7 +204,7 @@ func (m *Manager) StopAll() error {
 	var lastErr error
 	for id, managed := range m.processes {
 		managed.monitor.Stop()
-		
+
 		if err := Stop(managed.process, m.logger); err != nil {
 			m.logger.Error().
 				Err(err).
@@ -284,7 +284,7 @@ func (m *Manager) handleCrash(proc *Process) {
 	// Update monitor
 	managed := m.processes[proc.ID]
 	managed.process = newProc
-	
+
 	// Create new monitor
 	newMonitor := NewMonitor(newProc, m.logger)
 	newMonitor.OnCrash(func(p *Process) {

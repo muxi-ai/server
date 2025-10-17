@@ -43,11 +43,11 @@ type Process struct {
 type ProcessStatus string
 
 const (
-	StatusStopped   ProcessStatus = "stopped"   // Not running
-	StatusStarting  ProcessStatus = "starting"  // Being started
-	StatusRunning   ProcessStatus = "running"   // Running normally
-	StatusStopping  ProcessStatus = "stopping"  // Being stopped
-	StatusCrashed   ProcessStatus = "crashed"   // Exited unexpectedly
+	StatusStopped    ProcessStatus = "stopped"    // Not running
+	StatusStarting   ProcessStatus = "starting"   // Being started
+	StatusRunning    ProcessStatus = "running"    // Running normally
+	StatusStopping   ProcessStatus = "stopping"   // Being stopped
+	StatusCrashed    ProcessStatus = "crashed"    // Exited unexpectedly
 	StatusRestarting ProcessStatus = "restarting" // Being restarted after crash
 )
 

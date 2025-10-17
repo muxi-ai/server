@@ -57,7 +57,7 @@ func (s *Server) HandleLogs(w http.ResponseWriter, r *http.Request) {
 			Str("formation_id", formationID).
 			Str("log_path", logPath).
 			Msg("Log file not found")
-		
+
 		// Return empty logs instead of error (formation might be new)
 		RespondSuccess(w, map[string]interface{}{
 			"id":          formationID,
@@ -108,7 +108,7 @@ func readLastNLines(filePath string, n int) ([]string, int, error) {
 	// But this works for now
 	var allLines []string
 	scanner := bufio.NewScanner(file)
-	
+
 	// Increase buffer size for long log lines
 	buf := make([]byte, 0, 64*1024)
 	scanner.Buffer(buf, 1024*1024) // 1MB max line size

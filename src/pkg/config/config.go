@@ -10,7 +10,7 @@ import (
 
 // Config represents the server configuration
 type Config struct {
-	ServerID   string           `yaml:"server_id"`   // Unique server identifier
+	ServerID   string           `yaml:"server_id"` // Unique server identifier
 	Server     ServerConfig     `yaml:"server"`
 	Auth       AuthConfig       `yaml:"auth"`
 	Formations FormationsConfig `yaml:"formations"`
@@ -34,27 +34,27 @@ type ServerConfig struct {
 type FormationsConfig struct {
 	// Runtime settings
 	RuntimeType string `yaml:"runtime_type"` // "native", "docker", "singularity" (default: native)
-	
+
 	// Directories (relative to ~/.muxi/server/)
-	LogsDir       string `yaml:"logs_dir"`        // Logs directory (default: logs)
-	PIDsDir       string `yaml:"pids_dir"`        // PID files directory (default: pids)
-	FormationsDir string `yaml:"formations_dir"`  // Formations config directory (default: formations)
-	
+	LogsDir       string `yaml:"logs_dir"`       // Logs directory (default: logs)
+	PIDsDir       string `yaml:"pids_dir"`       // PID files directory (default: pids)
+	FormationsDir string `yaml:"formations_dir"` // Formations config directory (default: formations)
+
 	// Port allocation
 	PortRangeStart int `yaml:"port_range_start"` // Start of port range (default: 8000)
 	PortRangeEnd   int `yaml:"port_range_end"`   // End of port range (default: 9000)
 	MaxFormations  int `yaml:"max_formations"`   // Max formations (default: 100)
-	
+
 	// Process management
-	AutoRestart    bool `yaml:"auto_restart"`     // Enable auto-restart (default: true)
-	MaxRestarts    int  `yaml:"max_restarts"`     // Max restart attempts (default: 10)
-	RestartDelay   int  `yaml:"restart_delay"`    // Delay between restarts in seconds (default: 1)
-	
+	AutoRestart  bool `yaml:"auto_restart"`  // Enable auto-restart (default: true)
+	MaxRestarts  int  `yaml:"max_restarts"`  // Max restart attempts (default: 10)
+	RestartDelay int  `yaml:"restart_delay"` // Delay between restarts in seconds (default: 1)
+
 	// Health checks
 	HealthCheckInterval int `yaml:"health_check_interval"` // Health check interval in seconds (default: 30)
 	HealthCheckTimeout  int `yaml:"health_check_timeout"`  // Health check timeout in seconds (default: 5)
 	StartupHealthDelay  int `yaml:"startup_health_delay"`  // Delay before first health check (default: 2)
-	
+
 	// Log rotation
 	LogRotationEnabled bool   `yaml:"log_rotation_enabled"` // Enable log rotation (default: true)
 	LogMaxSize         string `yaml:"log_max_size"`         // Max log file size (default: "10M")

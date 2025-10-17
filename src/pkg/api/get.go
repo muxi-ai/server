@@ -44,17 +44,17 @@ func (s *Server) HandleGet(w http.ResponseWriter, r *http.Request) {
 
 	// Build detailed response
 	response := map[string]interface{}{
-		"id":         formation.ID,
-		"name":       formation.Name,
-		"status":     formation.Status,
-		"port":       formation.Port,
-		"pid":        formation.ProcessID,
-		"url":        formatFormationURL(s.config.Server.Port, formation.ID),
-		"command":    formation.Command,
-		"args":       formation.Args,
-		"healthy":    formation.Healthy,
-		"created_at": formation.DeployedAt,
-		"started_at": formation.StartedAt,
+		"id":            formation.ID,
+		"name":          formation.Name,
+		"status":        formation.Status,
+		"port":          formation.Port,
+		"pid":           formation.ProcessID,
+		"url":           formatFormationURL(s.config.Server.Port, formation.ID),
+		"command":       formation.Command,
+		"args":          formation.Args,
+		"healthy":       formation.Healthy,
+		"created_at":    formation.DeployedAt,
+		"started_at":    formation.StartedAt,
 		"restart_count": formation.RestartCount,
 	}
 

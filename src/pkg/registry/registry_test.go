@@ -34,7 +34,7 @@ func TestPortPool(t *testing.T) {
 
 	t.Run("AllocateMultiple", func(t *testing.T) {
 		ports := make(map[int]bool)
-		
+
 		for i := 1; i < 10; i++ {
 			port, err := pool.Allocate(fmt.Sprintf("formation-%d", i+1))
 			if err != nil {
@@ -169,7 +169,7 @@ func TestPersistence(t *testing.T) {
 
 	// Create registry with some formations
 	reg, _ := registry.NewRegistry(8000, 8100)
-	
+
 	formations := []*registry.Formation{
 		{
 			ID:         "formation-1",
@@ -196,7 +196,7 @@ func TestPersistence(t *testing.T) {
 
 	t.Run("Save", func(t *testing.T) {
 		persist := registry.NewPersistence(reg, registryFile, &logger)
-		
+
 		err := persist.Save()
 		if err != nil {
 			t.Fatalf("Failed to save registry: %v", err)

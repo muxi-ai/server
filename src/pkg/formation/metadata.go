@@ -13,8 +13,9 @@ import (
 
 // InjectMetadata adds server metadata to formation.yaml
 // Adds:
-//   _server_id: "server-abc-123"
-//   _deployment_mode: "server"
+//
+//	_server_id: "server-abc-123"
+//	_deployment_mode: "server"
 func InjectMetadata(formationDir string, serverID string) error {
 	formationPath := filepath.Join(formationDir, "formation.yaml")
 

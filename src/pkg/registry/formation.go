@@ -18,9 +18,9 @@ type Formation struct {
 	Status    string `json:"status"`     // "running", "stopped", "crashed"
 
 	// Configuration
-	ConfigPath string `json:"config_path"` // Path to formation YAML (future)
-	Command    string `json:"command"`     // Command used to start
-	Args       []string `json:"args"`      // Command arguments
+	ConfigPath string   `json:"config_path"` // Path to formation YAML (future)
+	Command    string   `json:"command"`     // Command used to start
+	Args       []string `json:"args"`        // Command arguments
 
 	// Timestamps
 	StartedAt    time.Time `json:"started_at"`
@@ -28,15 +28,15 @@ type Formation struct {
 	RestartCount int       `json:"restart_count"`
 
 	// Health
-	HealthURL      string    `json:"health_url,omitempty"`
+	HealthURL       string    `json:"health_url,omitempty"`
 	LastHealthCheck time.Time `json:"last_health_check,omitempty"`
-	Healthy        bool      `json:"healthy"`
+	Healthy         bool      `json:"healthy"`
 }
 
 // FromProcess creates a Formation from a process.Process
 func FromProcess(proc *process.Process, port int) *Formation {
 	status := string(proc.Status)
-	
+
 	return &Formation{
 		ID:           proc.ID,
 		Name:         proc.Name,

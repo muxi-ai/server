@@ -15,17 +15,17 @@ import (
 
 // SpawnConfig contains configuration for spawning a new process
 type SpawnConfig struct {
-	ID         string            // Formation ID
-	Name       string            // Display name
-	Command    string            // Executable (e.g., "python")
-	Args       []string          // Arguments (e.g., ["test/dummy_app.py", "--port", "8001"])
-	WorkDir    string            // Working directory
-	Env        map[string]string // Environment variables
-	Port       int               // Port number (for health checks)
-	LogsDir    string            // Directory for logs
-	PIDsDir    string            // Directory for PID files
-	AutoRestart bool             // Enable auto-restart
-	Logger     *zerolog.Logger   // Logger instance
+	ID          string            // Formation ID
+	Name        string            // Display name
+	Command     string            // Executable (e.g., "python")
+	Args        []string          // Arguments (e.g., ["test/dummy_app.py", "--port", "8001"])
+	WorkDir     string            // Working directory
+	Env         map[string]string // Environment variables
+	Port        int               // Port number (for health checks)
+	LogsDir     string            // Directory for logs
+	PIDsDir     string            // Directory for PID files
+	AutoRestart bool              // Enable auto-restart
+	Logger      *zerolog.Logger   // Logger instance
 }
 
 // Spawn creates and starts a new process based on the configuration

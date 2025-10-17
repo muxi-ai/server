@@ -9,11 +9,11 @@ import (
 
 // Formation represents a parsed formation.yaml file
 type Formation struct {
-	Schema      string       `yaml:"schema"`
-	ID          string       `yaml:"id"`
-	Name        string       `yaml:"name"`
-	Description string       `yaml:"description"`
-	Version     string       `yaml:"version"`
+	Schema      string        `yaml:"schema"`
+	ID          string        `yaml:"id"`
+	Name        string        `yaml:"name"`
+	Description string        `yaml:"description"`
+	Version     string        `yaml:"version"`
 	Runtime     RuntimeConfig `yaml:"runtime"`
 	// We can add more fields as needed, but ID is the critical one
 }
@@ -57,12 +57,12 @@ func (f *Formation) GetDefaultArgs() []string {
 // GetEnvironmentVars returns environment variables for the formation
 func (f *Formation) GetEnvironmentVars(port int, serverURL string) map[string]string {
 	env := make(map[string]string)
-	
+
 	// Required by CLI-PROTOCOL.md
 	env["PORT"] = fmt.Sprintf("%d", port)
 	env["FORMATION_ID"] = f.ID
 	env["MUXI_SERVER_URL"] = serverURL
 	env["MUXI_ENV"] = "production"
-	
+
 	return env
 }
