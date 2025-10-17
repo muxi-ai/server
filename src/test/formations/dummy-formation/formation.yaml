@@ -1,0 +1,14 @@
+id: dummy-api
+name: "Dummy Test Formation"
+version: "1.0.0"
+runtime: "python:3.13"
+
+metadata:
+  description: "Simple test formation for MUXI Server development"
+  author: "muxi-ai"
+  tags: ["test", "development"]
+
+# Optional environment variables
+env:
+  TEST_MODE: "true"
+  LOG_LEVEL: "debug"

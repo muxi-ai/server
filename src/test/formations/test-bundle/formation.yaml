@@ -1,0 +1,41 @@
+schema: "1.0.0"
+id: "test-chat-api"
+name: "Test Chat API"
+description: "Simple test formation for bundle upload testing"
+version: "1.0.0"
+
+runtime:
+  built_in_mcps: false
+
+llm:
+  settings:
+    temperature: 0.7
+    max_tokens: 1000
+  api_keys:
+    openai: "${{ secrets.OPENAI_API_KEY }}"
+  models:
+    - text: "openai/gpt-4o-mini"
+
+agents:
+  - id: "chat-agent"
+    name: "Chat Agent"
+    description: "Simple chat agent for testing"
+    model: "openai/gpt-4o-mini"
+    specialty: "general"
+    system_message: |
+      You are a helpful AI assistant.
+      Provide clear and concise responses.
+
+memory:
+  buffer:
+    size: 20
+  working:
+    max_memory_mb: 50
+
+overlord:
+  agent_assignment:
+    strategy: "simple"
+  config:
+    response:
+      timeout: 30
+      async_threshold: 50000

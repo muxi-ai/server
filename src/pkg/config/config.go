@@ -1,0 +1,190 @@
+package config
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+
+	"gopkg.in/yaml.v3"
+)
+
+// Config represents the server configuration
+type Config struct {
+	ServerID   string           `yaml:"server_id"`   // Unique server identifier
+	Server     ServerConfig     `yaml:"server"`
+	Auth       AuthConfig       `yaml:"auth"`
+	Formations FormationsConfig `yaml:"formations"`
+}
+
+// AuthConfig contains authentication settings
+type AuthConfig struct {
+	Enabled            bool   `yaml:"enabled"`             // Enable authentication (default: false for dev)
+	Key                string `yaml:"key"`                 // Public key identifier (e.g., MUXI_abc123)
+	Secret             string `yaml:"secret"`              // Secret key for HMAC (e.g., sk_xyz789)
+	TimestampTolerance int    `yaml:"timestamp_tolerance"` // Tolerance in seconds (default: 300 = 5 min)
+}
+
+// ServerConfig contains HTTP server settings
+type ServerConfig struct {
+	Port int    `yaml:"port"` // HTTP server port (default: 3000)
+	Host string `yaml:"host"` // Bind host (default: 0.0.0.0)
+}
+
+// FormationsConfig contains formation management settings
+type FormationsConfig struct {
+	// Runtime settings
+	RuntimeType string `yaml:"runtime_type"` // "native", "docker", "singularity" (default: native)
+	
+	// Directories (relative to ~/.muxi/server/)
+	LogsDir       string `yaml:"logs_dir"`        // Logs directory (default: logs)
+	PIDsDir       string `yaml:"pids_dir"`        // PID files directory (default: pids)
+	FormationsDir string `yaml:"formations_dir"`  // Formations config directory (default: formations)
+	
+	// Port allocation
+	PortRangeStart int `yaml:"port_range_start"` // Start of port range (default: 8000)
+	PortRangeEnd   int `yaml:"port_range_end"`   // End of port range (default: 9000)
+	MaxFormations  int `yaml:"max_formations"`   // Max formations (default: 100)
+	
+	// Process management
+	AutoRestart    bool `yaml:"auto_restart"`     // Enable auto-restart (default: true)
+	MaxRestarts    int  `yaml:"max_restarts"`     // Max restart attempts (default: 10)
+	RestartDelay   int  `yaml:"restart_delay"`    // Delay between restarts in seconds (default: 1)
+	
+	// Health checks
+	HealthCheckInterval int `yaml:"health_check_interval"` // Health check interval in seconds (default: 30)
+	HealthCheckTimeout  int `yaml:"health_check_timeout"`  // Health check timeout in seconds (default: 5)
+	StartupHealthDelay  int `yaml:"startup_health_delay"`  // Delay before first health check (default: 2)
+	
+	// Log rotation
+	LogRotationEnabled bool   `yaml:"log_rotation_enabled"` // Enable log rotation (default: true)
+	LogMaxSize         string `yaml:"log_max_size"`         // Max log file size (default: "10M")
+	LogMaxFiles        int    `yaml:"log_max_files"`        // Max log files to keep (default: 10)
+}
+
+// DefaultConfig returns a configuration with sensible defaults
+func DefaultConfig() *Config {
+	return &Config{
+		Server: ServerConfig{
+			Port: 3000,
+			Host: "0.0.0.0",
+		},
+		Auth: AuthConfig{
+			Enabled:            false, // Disabled by default for development
+			TimestampTolerance: 300,   // 5 minutes
+		},
+		Formations: FormationsConfig{
+			RuntimeType:         "native",
+			LogsDir:             "logs",
+			PIDsDir:             "pids",
+			FormationsDir:       "formations",
+			PortRangeStart:      8000,
+			PortRangeEnd:        9000,
+			MaxFormations:       100,
+			AutoRestart:         true,
+			MaxRestarts:         10,
+			RestartDelay:        1,
+			HealthCheckInterval: 30,
+			HealthCheckTimeout:  5,
+			StartupHealthDelay:  2,
+			LogRotationEnabled:  true,
+			LogMaxSize:          "10M",
+			LogMaxFiles:         10,
+		},
+	}
+}
+
+// Load loads configuration from file
+// If file doesn't exist, returns default config
+func Load(path string) (*Config, error) {
+	// Check if file exists
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		// File doesn't exist, return defaults
+		return DefaultConfig(), nil
+	}
+
+	// Read file
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read config file: %w", err)
+	}
+
+	// Start with defaults
+	config := DefaultConfig()
+
+	// Unmarshal YAML (will override defaults with values from file)
+	if err := yaml.Unmarshal(data, config); err != nil {
+		return nil, fmt.Errorf("failed to parse config file: %w", err)
+	}
+
+	return config, nil
+}
+
+// Save saves configuration to file
+func (c *Config) Save(path string) error {
+	// Ensure directory exists
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory: %w", err)
+	}
+
+	// Marshal to YAML
+	data, err := yaml.Marshal(c)
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	// Write to file
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		return fmt.Errorf("failed to write config file: %w", err)
+	}
+
+	return nil
+}
+
+// GetMuxiDir returns the MUXI server directory (~/.muxi/server)
+func GetMuxiDir() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get user home directory: %w", err)
+	}
+
+	return filepath.Join(home, ".muxi", "server"), nil
+}
+
+// GetConfigPath returns the default config file path
+func GetConfigPath() (string, error) {
+	muxiDir, err := GetMuxiDir()
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(muxiDir, "config.yaml"), nil
+}
+
+// GetRegistryPath returns the default registry file path
+func GetRegistryPath() (string, error) {
+	muxiDir, err := GetMuxiDir()
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(muxiDir, "registry.json"), nil
+}
+
+// EnsureDirectories creates all necessary directories
+func EnsureDirectories(baseDir string, config *Config) error {
+	dirs := []string{
+		baseDir,
+		filepath.Join(baseDir, config.Formations.LogsDir),
+		filepath.Join(baseDir, config.Formations.PIDsDir),
+		filepath.Join(baseDir, config.Formations.FormationsDir),
+	}
+
+	for _, dir := range dirs {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("failed to create directory %s: %w", dir, err)
+		}
+	}
+
+	return nil
+}
