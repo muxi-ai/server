@@ -2,8 +2,8 @@
 
 **Project:** MUXI Server  
 **Version:** 1.0.0-dev  
-**Status:** Phase 1 Complete ✅ - Ready for Phase 2 (Client CLI)  
-**Last Updated:** 2025-10-17
+**Status:** API Architecture Refactor Complete ✅ - Production Ready  
+**Last Updated:** 2025-10-19
 
 ---
 
@@ -26,24 +26,53 @@ MUXI Server is a production-grade orchestration platform for deploying and manag
 ## Architecture Overview
 
 ```
-┌─────────────────────────────────────────────┐
-│ MUXI Server (Go Binary)                     │
-│  - HTTP API (port 3000)                     │
-│  - HTTP Proxy (/{formation_id}/*)           │
-│  - Formation Registry (in-memory + persist) │
-│  - Process Manager (spawning & monitoring)  │
-│  - Port Allocator (8000-9000 pool)          │
-└─────────────────────────────────────────────┘
-              ↓
-    Spawns formation runtimes
-              ↓
-┌──────────────┐ ┌──────────────┐ ┌──────────────┐
-│ Formation 1  │ │ Formation 2  │ │ Formation 3  │
-│ Port: 8001   │ │ Port: 8002   │ │ Port: 8003   │
-│ FastAPI      │ │ FastAPI      │ │ FastAPI      │
-│ /chat        │ │ /chat        │ │ /workflow    │
-│ /health      │ │ /health      │ │ /health      │
-└──────────────┘ └──────────────┘ └──────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│ MUXI Server (Go Binary) - Port 7890                              │
+│                                                                  │
+│  Public Endpoints (no auth):                                    │
+│    GET /health              - Server health check               │
+│    GET /ping                - Simple ping                       │
+│                                                                  │
+│  Management API (HMAC auth): /rpc/*                             │
+│    POST   /rpc/formations/deploy      - Deploy formation        │
+│    GET    /rpc/formations             - List formations         │
+│    GET    /rpc/formations/{id}        - Get formation           │
+│    PUT    /rpc/formations/{id}        - Update formation        │
+│    POST   /rpc/formations/{id}/stop   - Stop formation          │
+│    POST   /rpc/formations/{id}/restart - Restart formation      │
+│    POST   /rpc/formations/{id}/rollback - Rollback version      │
+│    DELETE /rpc/formations/{id}        - Delete formation        │
+│    GET    /rpc/formations/{id}/logs   - Get logs                │
+│    GET    /rpc/server/status          - Server statistics       │
+│    GET    /rpc/server/logs            - Audit logs              │
+│                                                                  │
+│  Formation Proxy (no auth): /api/*                              │
+│    ALL   /api/{formation_id}/*        - Proxy to formation      │
+│                                                                  │
+│  Components:                                                     │
+│    - Formation Registry (in-memory + persistence)               │
+│    - Process Manager (spawning & auto-restart)                  │
+│    - Port Allocator (8000-9000 pool)                            │
+│    - Version Manager (current/previous)                         │
+│    - Audit Logger (JSON lines)                                  │
+└──────────────────────────────────────────────────────────────────┘
+                              ↓
+              Spawns formation runtimes
+                 (bind to 127.0.0.1)
+                              ↓
+  ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
+  │ Formation 1     │ │ Formation 2     │ │ Formation 3     │
+  │ 127.0.0.1:8001  │ │ 127.0.0.1:8002  │ │ 127.0.0.1:8003  │
+  │                 │ │                 │ │                 │
+  │ current/        │ │ current/        │ │ current/        │
+  │ previous/       │ │ previous/       │ │ previous/       │
+  │ version.json    │ │ version.json    │ │ version.json    │
+  │                 │ │                 │ │                 │
+  │ FastAPI         │ │ FastAPI         │ │ FastAPI         │
+  │ /chat           │ │ /chat           │ │ /workflow       │
+  │ /health         │ │ /health         │ │ /health         │
+  └─────────────────┘ └─────────────────┘ └─────────────────┘
+     ↑ Only accessible via MUXI proxy (security)
 ```
 
 ---
@@ -71,6 +100,28 @@ MUXI Server is a production-grade orchestration platform for deploying and manag
 - **Server:** Go (single binary, no runtime dependencies)
 - **Formations:** Python (FastAPI servers)
 - **Minimal deps:** gorilla/mux (routing), zerolog (logging), yaml.v3 (parsing)
+
+### 5. API Architecture (Latest: 2025-10-19)
+- **Port:** 7890 (official "MUXI Port" - memorable and unique)
+- **RESTful Routes:**
+  - `/health`, `/ping` - Public health checks (no auth)
+  - `/rpc/formations/*` - Management API (HMAC auth required)
+  - `/api/{id}/*` - Formation proxy (no server auth, formation handles its own)
+- **Security:** Formations bind to `127.0.0.1` only (localhost), accessible via proxy
+- **Versioning:** current/ and previous/ directories with version.json tracking
+- **Audit Logging:** All /rpc/* requests logged to audit.log
+
+### 6. Formation Versioning System
+- **Directory Structure:**
+  ```
+  formations/{id}/
+    ├── current/          # Active version
+    ├── previous/         # Backup for rollback
+    └── version.json      # Version metadata
+  ```
+- **Update Flow:** Upload → Stop → Backup current → Extract new → Start
+- **Rollback Flow:** Stop → Swap current↔previous → Update metadata → Start
+- **Bundle Hashing:** SHA256 hash tracking for integrity verification
 
 ---
 
@@ -143,7 +194,7 @@ MUXI Server is a production-grade orchestration platform for deploying and manag
 - [x] Issue #4: Process management core
 - [x] Issue #5: Formation registry & port allocation
 - [x] Issue #6: HTTP API (8 endpoints - full CRUD)
-- [x] HTTP proxy routing (`/v1/{formation_id}/*`)
+- [x] HTTP proxy routing
 - [x] HMAC authentication
 - [x] Server CLI commands (`init`, `version`, `config show`)
 - [x] Formation bundle upload (gzip tarball support)
@@ -151,6 +202,31 @@ MUXI Server is a production-grade orchestration platform for deploying and manag
 - [x] Comprehensive documentation (8 user docs + 3 implementation summaries)
 
 **Deliverables:** Production-ready server with ~5,000+ lines of code
+
+### ✅ API Architecture Refactor (COMPLETE!)
+**Goal:** RESTful API, versioning, audit logging, production security
+
+- [x] Port 7890 (official MUXI Port)
+- [x] RESTful routes: `/rpc/formations/*` for management
+- [x] Proxy routes: `/api/{id}/*` for formation access
+- [x] Formation versioning (PUT /rpc/formations/{id})
+- [x] Rollback support (POST /rpc/formations/{id}/rollback)
+- [x] Server management endpoints (status, logs)
+- [x] Audit logging middleware
+- [x] Localhost-only formation binding (security)
+- [x] Reserved formation ID validation
+- [x] 42 new tests (88.3% coverage)
+- [x] All documentation updated
+- [x] CHANGELOG.md and MIGRATION.md created
+
+**Deliverables:** 11 new files, 28 modified files, ~3,000 lines added
+
+**Key Features:**
+- 14 API endpoints (vs 8 in Phase 1)
+- Formation update & rollback
+- Version tracking with SHA256 hashing
+- Audit logging (JSON lines format)
+- Enhanced security (formations on 127.0.0.1)
 
 ### 🔜 Phase 2: Client CLI Tool (Separate Project)
 Build standalone `muxi` CLI tool for formation management:
@@ -231,18 +307,25 @@ type FormationNotFoundError struct {
 ```yaml
 # ~/.muxi-server/config.yaml
 server:
-  port: 3000
-  host: "0.0.0.0"
+  port: 7890              # MUXI Port (default)
+  host: "0.0.0.0"         # Server externally accessible
 
 formations:
   runtime_type: "singularity"  # singularity|docker|native
   port_range_start: 8000
   port_range_end: 9000
   logs_dir: "~/.muxi-server/logs"
+  formations_dir: "~/.muxi/server/formations"
+  
+  bind_host: "127.0.0.1"  # Formations bind to localhost only (security)
+  keep_backups: 1         # Number of version backups to keep
   
   auto_restart: true
   max_restart_count: 10
   restart_delay: 1
+
+logging:
+  audit_log: "logs/audit.log"  # Audit log for /rpc/* requests
 ```
 
 ---
