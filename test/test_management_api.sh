@@ -3,13 +3,13 @@
 # Test script for MUXI Server Management API
 #
 # Tests all CRUD endpoints:
-# - POST /formations/deploy
+# - POST /rpc/formations/deploy
 # - GET /formations
-# - GET /formations/{id}
-# - POST /formations/{id}/stop
-# - POST /formations/{id}/restart
-# - DELETE /formations/{id}
-# - GET /formations/{id}/logs
+# - GET /rpc/formations/{id}
+# - POST /rpc/formations/{id}/stop
+# - POST /rpc/formations/{id}/restart
+# - DELETE /rpc/formations/{id}
+# - GET /rpc/formations/{id}/logs
 #
 
 set -e
@@ -22,7 +22,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-SERVER_URL="http://localhost:3000"
+SERVER_URL="http://localhost:7890"
 FORMATION_ID="test-mgmt-api"
 
 echo -e "${BLUE}========================================${NC}"
@@ -42,10 +42,10 @@ echo ""
 
 # Test 1: Deploy Formation
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${YELLOW}Test 1: POST /formations/deploy${NC}"
+echo -e "${YELLOW}Test 1: POST /rpc/formations/deploy${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
-DEPLOY_RESPONSE=$(curl -s -X POST "${SERVER_URL}/formations/deploy" \
+DEPLOY_RESPONSE=$(curl -s -X POST "${SERVER_URL}/rpc/formations/deploy" \
     -H "Content-Type: application/json" \
     -d "{
         \"id\": \"${FORMATION_ID}\",
@@ -87,10 +87,10 @@ echo ""
 
 # Test 3: Get Formation Details
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${YELLOW}Test 3: GET /formations/${FORMATION_ID}${NC}"
+echo -e "${YELLOW}Test 3: GET /rpc/formations/${FORMATION_ID}${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
-GET_RESPONSE=$(curl -s "${SERVER_URL}/formations/${FORMATION_ID}")
+GET_RESPONSE=$(curl -s "${SERVER_URL}/rpc/formations/${FORMATION_ID}")
 echo "${GET_RESPONSE}" | python3 -m json.tool 2>/dev/null || echo "${GET_RESPONSE}"
 
 if echo "${GET_RESPONSE}" | grep -q '"status"' && echo "${GET_RESPONSE}" | grep -q '"port"'; then
@@ -103,10 +103,10 @@ echo ""
 
 # Test 4: Get Formation Logs
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${YELLOW}Test 4: GET /formations/${FORMATION_ID}/logs${NC}"
+echo -e "${YELLOW}Test 4: GET /rpc/formations/${FORMATION_ID}/logs${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
-LOGS_RESPONSE=$(curl -s "${SERVER_URL}/formations/${FORMATION_ID}/logs?lines=50")
+LOGS_RESPONSE=$(curl -s "${SERVER_URL}/rpc/formations/${FORMATION_ID}/logs?lines=50")
 echo "${LOGS_RESPONSE}" | python3 -m json.tool 2>/dev/null || echo "${LOGS_RESPONSE}"
 
 if echo "${LOGS_RESPONSE}" | grep -q '"logs"'; then
@@ -118,10 +118,10 @@ echo ""
 
 # Test 5: Stop Formation
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${YELLOW}Test 5: POST /formations/${FORMATION_ID}/stop${NC}"
+echo -e "${YELLOW}Test 5: POST /rpc/formations/${FORMATION_ID}/stop${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
-STOP_RESPONSE=$(curl -s -X POST "${SERVER_URL}/formations/${FORMATION_ID}/stop")
+STOP_RESPONSE=$(curl -s -X POST "${SERVER_URL}/rpc/formations/${FORMATION_ID}/stop")
 echo "${STOP_RESPONSE}" | python3 -m json.tool 2>/dev/null || echo "${STOP_RESPONSE}"
 
 if echo "${STOP_RESPONSE}" | grep -q '"status".*stopped'; then
@@ -140,7 +140,7 @@ echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━�
 echo -e "${YELLOW}Test 6: Verify formation status = stopped${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
-GET_AFTER_STOP=$(curl -s "${SERVER_URL}/formations/${FORMATION_ID}")
+GET_AFTER_STOP=$(curl -s "${SERVER_URL}/rpc/formations/${FORMATION_ID}")
 echo "${GET_AFTER_STOP}" | python3 -m json.tool 2>/dev/null || echo "${GET_AFTER_STOP}"
 
 if echo "${GET_AFTER_STOP}" | grep -q '"status".*stopped'; then
@@ -152,10 +152,10 @@ echo ""
 
 # Test 7: Try to stop already stopped formation (should 409)
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${YELLOW}Test 7: POST /formations/${FORMATION_ID}/stop (already stopped - should 409)${NC}"
+echo -e "${YELLOW}Test 7: POST /rpc/formations/${FORMATION_ID}/stop (already stopped - should 409)${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
-STOP_AGAIN=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST "${SERVER_URL}/formations/${FORMATION_ID}/stop")
+STOP_AGAIN=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST "${SERVER_URL}/rpc/formations/${FORMATION_ID}/stop")
 HTTP_CODE=$(echo "${STOP_AGAIN}" | grep "HTTP_CODE" | cut -d: -f2)
 RESPONSE=$(echo "${STOP_AGAIN}" | grep -v "HTTP_CODE")
 
@@ -170,10 +170,10 @@ echo ""
 
 # Test 8: Restart Formation
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${YELLOW}Test 8: POST /formations/${FORMATION_ID}/restart${NC}"
+echo -e "${YELLOW}Test 8: POST /rpc/formations/${FORMATION_ID}/restart${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
-RESTART_RESPONSE=$(curl -s -X POST "${SERVER_URL}/formations/${FORMATION_ID}/restart")
+RESTART_RESPONSE=$(curl -s -X POST "${SERVER_URL}/rpc/formations/${FORMATION_ID}/restart")
 echo "${RESTART_RESPONSE}" | python3 -m json.tool 2>/dev/null || echo "${RESTART_RESPONSE}"
 
 if echo "${RESTART_RESPONSE}" | grep -q '"status"'; then
@@ -192,7 +192,7 @@ echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━�
 echo -e "${YELLOW}Test 9: Verify formation is running after restart${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
-GET_AFTER_RESTART=$(curl -s "${SERVER_URL}/formations/${FORMATION_ID}")
+GET_AFTER_RESTART=$(curl -s "${SERVER_URL}/rpc/formations/${FORMATION_ID}")
 echo "${GET_AFTER_RESTART}" | python3 -m json.tool 2>/dev/null || echo "${GET_AFTER_RESTART}"
 
 if echo "${GET_AFTER_RESTART}" | grep -q '"status".*running'; then
@@ -204,10 +204,10 @@ echo ""
 
 # Test 10: Access via proxy to verify it's actually running
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${YELLOW}Test 10: GET /v1/${FORMATION_ID}/health (via proxy)${NC}"
+echo -e "${YELLOW}Test 10: GET /api/${FORMATION_ID}/health (via proxy)${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
-HEALTH_VIA_PROXY=$(curl -s "${SERVER_URL}/v1/${FORMATION_ID}/health")
+HEALTH_VIA_PROXY=$(curl -s "${SERVER_URL}/api/${FORMATION_ID}/health")
 echo "${HEALTH_VIA_PROXY}" | python3 -m json.tool 2>/dev/null || echo "${HEALTH_VIA_PROXY}"
 
 if echo "${HEALTH_VIA_PROXY}" | grep -q '"status"'; then
@@ -219,10 +219,10 @@ echo ""
 
 # Test 11: Delete Formation
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${YELLOW}Test 11: DELETE /formations/${FORMATION_ID}${NC}"
+echo -e "${YELLOW}Test 11: DELETE /rpc/formations/${FORMATION_ID}${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
-DELETE_RESPONSE=$(curl -s -X DELETE "${SERVER_URL}/formations/${FORMATION_ID}")
+DELETE_RESPONSE=$(curl -s -X DELETE "${SERVER_URL}/rpc/formations/${FORMATION_ID}")
 echo "${DELETE_RESPONSE}" | python3 -m json.tool 2>/dev/null || echo "${DELETE_RESPONSE}"
 
 if echo "${DELETE_RESPONSE}" | grep -q 'deleted'; then
@@ -235,10 +235,10 @@ echo ""
 
 # Test 12: Verify formation is gone
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${YELLOW}Test 12: GET /formations/${FORMATION_ID} (should 404)${NC}"
+echo -e "${YELLOW}Test 12: GET /rpc/formations/${FORMATION_ID} (should 404)${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
-GET_AFTER_DELETE=$(curl -s -w "\nHTTP_CODE:%{http_code}" "${SERVER_URL}/formations/${FORMATION_ID}")
+GET_AFTER_DELETE=$(curl -s -w "\nHTTP_CODE:%{http_code}" "${SERVER_URL}/rpc/formations/${FORMATION_ID}")
 HTTP_CODE=$(echo "${GET_AFTER_DELETE}" | grep "HTTP_CODE" | cut -d: -f2)
 RESPONSE=$(echo "${GET_AFTER_DELETE}" | grep -v "HTTP_CODE")
 
@@ -259,17 +259,17 @@ echo -e "${BLUE}========================================${NC}"
 echo ""
 
 echo -e "${BLUE}Tested Endpoints:${NC}"
-echo -e "  ✅ POST   /formations/deploy"
+echo -e "  ✅ POST   /rpc/formations/deploy"
 echo -e "  ✅ GET    /formations"
-echo -e "  ✅ GET    /formations/{id}"
-echo -e "  ✅ POST   /formations/{id}/stop"
-echo -e "  ✅ POST   /formations/{id}/restart"
-echo -e "  ✅ DELETE /formations/{id}"
-echo -e "  ✅ GET    /formations/{id}/logs"
+echo -e "  ✅ GET    /rpc/formations/{id}"
+echo -e "  ✅ POST   /rpc/formations/{id}/stop"
+echo -e "  ✅ POST   /rpc/formations/{id}/restart"
+echo -e "  ✅ DELETE /rpc/formations/{id}"
+echo -e "  ✅ GET    /rpc/formations/{id}/logs"
 echo ""
 
 echo -e "${BLUE}Plus proxy routing:${NC}"
-echo -e "  ✅ GET /v1/{formation_id}/health"
+echo -e "  ✅ GET /api/{formation_id}/health"
 echo ""
 
 echo -e "${GREEN}Management API is fully functional! 🎉${NC}"

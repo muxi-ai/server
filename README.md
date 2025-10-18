@@ -8,10 +8,12 @@ Production-grade orchestration platform for deploying and managing MUXI formatio
 
 - 🚀 **One-Command Deploy** - Bundle upload with automatic metadata injection
 - 🔐 **HMAC Authentication** - AWS-style key/secret authentication
-- 🎯 **HTTP Proxy** - Automatic routing to formations (`/v1/{formation_id}/*`)
+- 🎯 **HTTP Proxy** - Automatic routing to formations (`/api/{formation_id}/*`)
+- 🔄 **Formation Versioning** - Update formations with rollback support
+- 📝 **Audit Logging** - Track all API requests to formations
 - 📊 **Server Telemetry** - Automatic `_server_id` and `_deployment_mode` injection
 - 🔄 **Auto-Restart** - Crashed formations automatically restart
-- 📝 **Complete API** - Full CRUD operations on formations
+- 📝 **Complete API** - 14 endpoints for formations, versioning, and server management
 - 🎨 **Simple CLI** - `muxi-server init`, `version`, `config show`
 
 ## Repository Structure
@@ -64,7 +66,7 @@ Production-grade orchestration platform for deploying and managing MUXI formatio
     ├── PHASE-1-FINAL-SUMMARY.md # Phase 1 recap
     └── ...
 
-Test Coverage: 88.9% average (11,101 lines across 25 test files)
+Test Coverage: 88.3% average (11,500+ lines across 30 test files)
 - Unit tests: 200+
 - Integration tests: 20+
 - Security tests: 15+
@@ -108,18 +110,18 @@ cd my-formation
 tar -czf formation.tar.gz .
 
 # Deploy it
-curl -X POST http://localhost:3000/formations/deploy \
+curl -X POST http://localhost:7890/rpc/formations/deploy \
   -H "Authorization: MUXI-HMAC key=$KEY, timestamp=$TIMESTAMP, signature=$SIGNATURE" \
   -H "Content-Type: application/gzip" \
   --data-binary "@formation.tar.gz"
 
 # Access via proxy
-curl http://localhost:3000/v1/my-formation/health
+curl http://localhost:7890/api/my-formation/health
 ```
 
 ### Test
 
-**Coverage: 88.9% average** (11,101 lines of test code across 25 test files)
+**Coverage: 88.3% average** (11,500+ lines of test code across 30 test files)
 
 ```bash
 cd src
@@ -143,12 +145,12 @@ go test ./... -v
 
 **Coverage Breakdown:**
 - `auth`: 97.3% ⭐
-- `registry`: 91.3% ⭐
+- `registry`: 91.7% ⭐
 - `process`: 90.3% ⭐
+- `formation`: 89.2% ✅
 - `config`: 88.9% ✅
-- `formation`: 88.6% ✅
 - `proxy`: 88.5% ✅
-- `api`: 77.2% ✅
+- `api`: 72.5% ✅
 
 ### Development
 
@@ -193,15 +195,18 @@ curl -X POST http://localhost:8001/chat \
 
 ## Current Status
 
-- ✅ **Phase 1 Complete** - Core server functionality
+- ✅ **Phase 1 Complete** - Production-ready server
   - Process management with auto-restart
   - Formation registry with port allocation
-  - HTTP API (8 endpoints)
+  - RESTful API (14 endpoints)
+  - Formation versioning & rollback
   - HTTP proxy routing
   - HMAC authentication
+  - Audit logging
   - Server CLI commands
   - Formation bundle upload
   - Server ID generation & metadata injection
+  - Localhost-only formation binding (security)
   
 - 🔜 **Phase 2** - Client CLI tool (separate project)
 - 🔜 **Phase 3** - Singularity/Apptainer SIF runtime

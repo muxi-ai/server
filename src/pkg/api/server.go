@@ -71,27 +71,55 @@ func (s *Server) setupRoutes() {
 	// Add CORS middleware (all routes, for development)
 	s.router.Use(s.corsMiddleware)
 
-	// Health check (no auth)
+	// ====================================
+	// PUBLIC ENDPOINTS (no auth)
+	// ====================================
 	s.router.HandleFunc("/health", s.HandleHealth).Methods(http.MethodGet)
+	s.router.HandleFunc("/ping", s.HandlePing).Methods(http.MethodGet)
 
-	// Management API (requires auth)
-	mgmt := s.router.PathPrefix("/formations").Subrouter()
-	mgmt.Use(s.authMiddleware.Authenticate)
+	// ====================================
+	// MANAGEMENT API /rpc/* (requires auth)
+	// ====================================
+	rpc := s.router.PathPrefix("/rpc").Subrouter()
+	rpc.Use(s.authMiddleware.Authenticate)
+	rpc.Use(s.auditMiddleware) // Audit logging for all /rpc/* requests
 
 	// Formation management
-	mgmt.HandleFunc("/deploy", s.HandleDeploy).Methods(http.MethodPost)
-	mgmt.HandleFunc("", s.HandleList).Methods(http.MethodGet)
-	mgmt.HandleFunc("/{id}", s.HandleGet).Methods(http.MethodGet)
-	mgmt.HandleFunc("/{id}", s.HandleDelete).Methods(http.MethodDelete)
-	mgmt.HandleFunc("/{id}/stop", s.HandleStop).Methods(http.MethodPost)
-	mgmt.HandleFunc("/{id}/restart", s.HandleRestart).Methods(http.MethodPost)
-	mgmt.HandleFunc("/{id}/logs", s.HandleLogs).Methods(http.MethodGet)
+	rpc.HandleFunc("/formations", s.HandleDeploy).Methods(http.MethodPost)
+	rpc.HandleFunc("/formations", s.HandleList).Methods(http.MethodGet)
+	rpc.HandleFunc("/formations/{id}", s.HandleGet).Methods(http.MethodGet)
+	rpc.HandleFunc("/formations/{id}", s.HandleUpdate).Methods(http.MethodPut)
+	rpc.HandleFunc("/formations/{id}", s.HandleDelete).Methods(http.MethodDelete)
+	
+	// Formation actions
+	rpc.HandleFunc("/formations/{id}/stop", s.HandleStop).Methods(http.MethodPost)
+	rpc.HandleFunc("/formations/{id}/restart", s.HandleRestart).Methods(http.MethodPost)
+	rpc.HandleFunc("/formations/{id}/rollback", s.HandleRollback).Methods(http.MethodPost)
 
-	// Proxy API (no auth - transparent pass-through)
-	// Pattern: /v1/{formation_id}/{path:.*}
-	// Example: /v1/my-api/chat → http://localhost:8001/chat
-	s.router.PathPrefix("/v1/{formation_id}/{path:.*}").HandlerFunc(s.proxyHandler.ProxyRequest)
-	s.router.PathPrefix("/v1/{formation_id}").HandlerFunc(s.proxyHandler.ProxyRequest)
+	// Server management
+	rpc.HandleFunc("/server/status", s.HandleServerStatus).Methods(http.MethodGet)
+	rpc.HandleFunc("/server/logs", s.HandleServerLogs).Methods(http.MethodGet)
+
+	// ====================================
+	// FORMATION PROXY /api/* (no auth)
+	// ====================================
+	// Pattern: /api/{formation_id}/*
+	// Example: /api/my-api/v1/chat → http://127.0.0.1:8001/v1/chat
+	s.router.PathPrefix("/api/{formation_id}/{path:.*}").HandlerFunc(s.proxyHandler.ProxyRequest)
+	s.router.PathPrefix("/api/{formation_id}").HandlerFunc(s.proxyHandler.ProxyRequest)
+	
+	// /api with no formation ID → 404
+	s.router.HandleFunc("/api", s.handle404).Methods(http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete)
+
+	// ====================================
+	// CATCH-ALL (404)
+	// ====================================
+	s.router.NotFoundHandler = http.HandlerFunc(s.handle404)
+}
+
+// handle404 returns a 404 error
+func (s *Server) handle404(w http.ResponseWriter, r *http.Request) {
+	RespondError(w, http.StatusNotFound, "Endpoint not found")
 }
 
 // Start starts the HTTP server

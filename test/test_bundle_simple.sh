@@ -13,8 +13,8 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-SERVER_URL="http://localhost:3000"
-BUNDLE_PATH="./test/formations/test-bundle.tar.gz"
+SERVER_URL="http://localhost:7890"
+BUNDLE_PATH="./test/rpc/formations/test-bundle.tar.gz"
 CONFIG_FILE="$HOME/.muxi/server/config.yaml"
 
 echo -e "${BLUE}========================================${NC}"
@@ -57,7 +57,7 @@ echo ""
 # Generate HMAC signature using openssl
 TIMESTAMP=$(date +%s)
 METHOD="POST"
-PATH="/formations/deploy"
+PATH="/rpc/formations/deploy"
 
 echo -e "${YELLOW}→ Generating HMAC signature...${NC}"
 MESSAGE="${TIMESTAMP};${METHOD};${PATH}"
@@ -68,12 +68,12 @@ echo ""
 
 # Upload bundle
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${YELLOW}Test: POST /formations/deploy (Bundle Upload)${NC}"
+echo -e "${YELLOW}Test: POST /rpc/formations/deploy (Bundle Upload)${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
 echo -e "${YELLOW}→ Uploading bundle...${NC}"
 RESPONSE=$(/usr/bin/curl -s -w "\nHTTP_STATUS:%{http_code}" \
-    -X POST "${SERVER_URL}/formations/deploy" \
+    -X POST "${SERVER_URL}/rpc/formations/deploy" \
     -H "Authorization: MUXI-HMAC key=$KEY, timestamp=$TIMESTAMP, signature=$SIGNATURE" \
     -H "Content-Type: application/gzip" \
     --data-binary "@$BUNDLE_PATH")

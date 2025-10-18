@@ -161,18 +161,22 @@ func TestFormation_GetEnvironmentVars(t *testing.T) {
 	}
 
 	port := 8080
-	serverURL := "http://localhost:3000"
+	serverURL := "http://localhost:7890"
+	bindHost := "127.0.0.1"
 
-	env := f.GetEnvironmentVars(port, serverURL)
+	env := f.GetEnvironmentVars(port, serverURL, bindHost)
 
 	tests := []struct {
 		key   string
 		value string
 	}{
 		{"PORT", "8080"},
+		{"HOST", "127.0.0.1"},
 		{"FORMATION_ID", "test-formation-123"},
-		{"MUXI_SERVER_URL", "http://localhost:3000"},
+		{"MUXI_SERVER_URL", "http://localhost:7890"},
 		{"MUXI_ENV", "production"},
+		{"_bind_host", "127.0.0.1"},
+		{"_port", "8080"},
 	}
 
 	for _, tt := range tests {
@@ -189,8 +193,8 @@ func TestFormation_GetEnvironmentVars(t *testing.T) {
 	}
 
 	// Ensure we have exactly the expected number of variables
-	if len(env) != 4 {
-		t.Errorf("GetEnvironmentVars() returned %d variables, want 4", len(env))
+	if len(env) != 7 {
+		t.Errorf("GetEnvironmentVars() returned %d variables, want 7", len(env))
 		t.Logf("Variables: %+v", env)
 	}
 }
@@ -210,7 +214,7 @@ func TestFormation_GetEnvironmentVars_DifferentPorts(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.want, func(t *testing.T) {
-			env := f.GetEnvironmentVars(tt.port, "http://localhost:3000")
+			env := f.GetEnvironmentVars(tt.port, "http://localhost:7890", "127.0.0.1")
 			if env["PORT"] != tt.want {
 				t.Errorf("PORT = %q, want %q", env["PORT"], tt.want)
 			}
@@ -232,7 +236,7 @@ func TestFormation_GetEnvironmentVars_DifferentServerURLs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			env := f.GetEnvironmentVars(8080, tt.serverURL)
+			env := f.GetEnvironmentVars(8080, tt.serverURL, "127.0.0.1")
 			if env["MUXI_SERVER_URL"] != tt.serverURL {
 				t.Errorf("MUXI_SERVER_URL = %q, want %q", env["MUXI_SERVER_URL"], tt.serverURL)
 			}

@@ -55,14 +55,21 @@ func (f *Formation) GetDefaultArgs() []string {
 }
 
 // GetEnvironmentVars returns environment variables for the formation
-func (f *Formation) GetEnvironmentVars(port int, serverURL string) map[string]string {
+func (f *Formation) GetEnvironmentVars(port int, serverURL string, bindHost string) map[string]string {
 	env := make(map[string]string)
 
-	// Required by CLI-PROTOCOL.md
+	// Network binding (CRITICAL for security)
 	env["PORT"] = fmt.Sprintf("%d", port)
+	env["HOST"] = bindHost // Formations must bind to this host
+
+	// Formation metadata
 	env["FORMATION_ID"] = f.ID
 	env["MUXI_SERVER_URL"] = serverURL
 	env["MUXI_ENV"] = "production"
+
+	// Metadata for formation.yaml injection
+	env["_bind_host"] = bindHost
+	env["_port"] = fmt.Sprintf("%d", port)
 
 	return env
 }

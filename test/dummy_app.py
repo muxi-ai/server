@@ -98,8 +98,9 @@ async def root() -> Dict[str, str]:
 
 def main():
     """Main entry point."""
-    # Check for PORT environment variable (formation mode)
+    # Check for environment variables (formation mode)
     port_from_env = os.getenv('PORT')
+    host_from_env = os.getenv('HOST')  # CRITICAL: MUXI Server provides this for security
     formation_id = os.getenv('FORMATION_ID', 'unknown')
     
     parser = argparse.ArgumentParser(description="MUXI Dummy Formation")
@@ -112,8 +113,8 @@ def main():
     parser.add_argument(
         "--host",
         type=str,
-        default="0.0.0.0",
-        help="Host to bind to (default: 0.0.0.0)",
+        default=host_from_env if host_from_env else "0.0.0.0",
+        help="Host to bind to (default: 0.0.0.0, or HOST env var)",
     )
     args = parser.parse_args()
 

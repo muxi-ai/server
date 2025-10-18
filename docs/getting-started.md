@@ -73,10 +73,10 @@ muxi-server start
 ✅ Process manager initialized
 ✅ Formation registry initialized
 🔐 Authentication enabled (key: MUXI_e8f3a9b2c4d1)
-✅ MUXI Server ready (port: 3000)
+✅ MUXI Server ready (port: 7890)
 ```
 
-The server is now running on `http://localhost:3000`.
+The server is now running on `http://localhost:7890`.
 
 ---
 
@@ -85,7 +85,7 @@ The server is now running on `http://localhost:3000`.
 Open a new terminal and check the health endpoint:
 
 ```bash
-curl http://localhost:3000/health
+curl http://localhost:7890/health
 ```
 
 **Expected Response:**
@@ -190,13 +190,13 @@ KEY="MUXI_e8f3a9b2c4d1"
 SECRET="sk_9f2e8d7c6b5a4f3e2d1c0b9a8f7e6d5c"
 
 # Generate signature
-python3 sign_request.py "$SECRET" "POST" "/formations/deploy"
+python3 sign_request.py "$SECRET" "POST" "/rpc/formations/deploy"
 
 # Use the output in curl
 TIMESTAMP="1705484123"  # from script output
 SIGNATURE="base64_signature_here"  # from script output
 
-curl -X POST http://localhost:3000/formations/deploy \
+curl -X POST http://localhost:7890/rpc/formations/deploy \
   -H "Authorization: MUXI-HMAC key=$KEY, timestamp=$TIMESTAMP, signature=$SIGNATURE" \
   -H "Content-Type: application/json" \
   -d '{
@@ -214,7 +214,7 @@ curl -X POST http://localhost:3000/formations/deploy \
     "formation_id": "my-first-formation",
     "port": 8001,
     "status": "starting",
-    "url": "http://localhost:3000",
+    "url": "http://localhost:7890",
     "health_url": "http://localhost:8001/health",
     "pid": 12345
   }
@@ -230,7 +230,7 @@ curl -X POST http://localhost:3000/formations/deploy \
 curl http://localhost:8001/health
 
 # List all formations (requires auth)
-curl http://localhost:3000/formations \
+curl http://localhost:7890/rpc/formations \
   -H "Authorization: MUXI-HMAC key=$KEY, timestamp=$TIMESTAMP, signature=$SIGNATURE"
 ```
 
@@ -272,7 +272,7 @@ muxi-server start
 Now you can deploy without authentication:
 
 ```bash
-curl -X POST http://localhost:3000/formations/deploy \
+curl -X POST http://localhost:7890/rpc/formations/deploy \
   -H "Content-Type: application/json" \
   -d '{
     "id": "test-formation",
@@ -300,14 +300,14 @@ Now that your server is running:
 
 ### Server Won't Start
 
-**Error:** `Failed to bind to port 3000`
+**Error:** `Failed to bind to port 7890`
 
-**Solution:** Port 3000 is already in use. Either:
-- Stop the process using port 3000
+**Solution:** Port 7890 (MUXI Port) is already in use. Either:
+- Stop the process using port 7890
 - Change the port in `~/.muxi/server/config.yaml`:
   ```yaml
   server:
-    port: 3001
+    port: 7891
   ```
 
 ### Can't Deploy Formation

@@ -14,7 +14,7 @@ Common issues and solutions for MUXI Server.
 ```
 
 **Causes:**
-1. Port 3000 is already in use
+1. Port 7890 is already in use
 2. Another instance of muxi-server is running
 3. Permission denied on port < 1024
 
@@ -23,7 +23,7 @@ Common issues and solutions for MUXI Server.
 **1. Check if port is in use:**
 ```bash
 # macOS/Linux
-lsof -i :3000
+lsof -i :7890
 
 # Or
 netstat -an | grep 3000
@@ -83,7 +83,7 @@ muxi-server config validate
 **2. Missing directories:**
 ```bash
 mkdir -p ~/.muxi/server/logs
-mkdir -p ~/.muxi/server/formations
+mkdir -p ~/.muxi/server/rpc/formations
 ```
 
 **3. Permission issues:**
@@ -242,7 +242,7 @@ python3 <<EOF
 import hmac, hashlib, base64, time
 secret = "sk_your_secret"
 timestamp = str(int(time.time()))
-message = f"{timestamp};GET;/formations"
+message = f"{timestamp};GET;/rpc/formations"
 sig = base64.b64encode(hmac.new(secret.encode(), message.encode(), hashlib.sha256).digest()).decode()
 print(f"Authorization: MUXI-HMAC key=MUXI_your_key, timestamp={timestamp}, signature={sig}")
 EOF
@@ -438,7 +438,7 @@ top -p <PID>
 
 **Symptoms:**
 ```
-❌ curl: (7) Failed to connect to localhost port 3000
+❌ curl: (7) Failed to connect to localhost port 7890
 ```
 
 **Solutions:**
@@ -461,7 +461,7 @@ curl http://localhost:8001/health
 
 **4. Test proxy:**
 ```bash
-curl http://localhost:3000/my-api/health
+curl http://localhost:7890/my-api/health
 ```
 
 **5. Check firewall:**
@@ -715,7 +715,7 @@ EOF
 ps aux | grep muxi-server
 
 # Port
-lsof -i :3000
+lsof -i :7890
 ```
 
 **2. Check bind address:**
@@ -736,12 +736,12 @@ sudo /usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate
 
 **4. Test locally first:**
 ```bash
-curl http://localhost:3000/health
+curl http://localhost:7890/health
 ```
 
 **5. Test remote:**
 ```bash
-curl http://<server-ip>:3000/health
+curl http://<server-ip>:7890/health
 ```
 
 ---
@@ -809,12 +809,12 @@ tail -f ~/.muxi/server/logs/my-api.log
 
 **Use verbose curl:**
 ```bash
-curl -v http://localhost:3000/formations
+curl -v http://localhost:7890/rpc/formations
 ```
 
 **Use httpie:**
 ```bash
-http -v http://localhost:3000/formations
+http -v http://localhost:7890/rpc/formations
 ```
 
 ### Check System Resources
@@ -913,7 +913,7 @@ server {
     listen 80;
     server_name myapi.com;
     location / {
-        proxy_pass http://localhost:3000/my-api;
+        proxy_pass http://localhost:7890/my-api;
     }
 }
 ```

@@ -10,7 +10,7 @@
 - **[Installation](./installation.md)** - Install MUXI Server on your system
 - **[Configuration](./configuration.md)** - Configure server settings
 - **[Authentication](./authentication.md)** - Secure your server
-- **[Managing Formations](./formations.md)** - Deploy and manage formations
+- **[Managing Formations](./rpc/formations.md)** - Deploy and manage formations
 - **[API Reference](./api-reference.md)** - HTTP API documentation
 - **[Troubleshooting](./troubleshooting.md)** - Common issues and solutions
 
@@ -33,13 +33,13 @@ MUXI Server is a single-binary orchestration platform that makes deploying and m
 
 ```
 ┌─────────────────────────────────────────────┐
-│ MUXI Server (Port 3000)                     │
+│ MUXI Server (Port 7890)                     │
 │                                             │
 │ ┌─────────────────────────────────────┐   │
 │ │ Management API (Protected)          │   │
-│ │  POST /formations/deploy            │   │
-│ │  GET  /formations                   │   │
-│ │  DELETE /formations/{id}            │   │
+│ │  POST /rpc/rpc/formations/deploy            │   │
+│ │  GET  /rpc/formations                   │   │
+│ │  DELETE /rpc/rpc/formations/{id}            │   │
 │ └─────────────────────────────────────┘   │
 │                                             │
 │ ┌─────────────────────────────────────┐   │

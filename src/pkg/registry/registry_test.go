@@ -245,8 +245,8 @@ func TestConfig(t *testing.T) {
 	t.Run("Default", func(t *testing.T) {
 		cfg := config.DefaultConfig()
 
-		if cfg.Server.Port != 3000 {
-			t.Errorf("Expected default port 3000, got %d", cfg.Server.Port)
+		if cfg.Server.Port != 7890 {
+			t.Errorf("Expected default port 7890, got %d", cfg.Server.Port)
 		}
 
 		if cfg.Formations.PortRangeStart != 8000 {

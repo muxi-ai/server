@@ -4,7 +4,7 @@
 #
 # This script tests the complete flow:
 # 1. Deploy formation
-# 2. Access via proxy (/v1/{formation_id}/*)
+# 2. Access via proxy (/api/{formation_id}/*)
 # 3. Verify responses
 #
 
@@ -18,7 +18,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-SERVER_URL="http://localhost:3000"
+SERVER_URL="http://localhost:7890"
 FORMATION_ID="test-formation"
 
 echo -e "${BLUE}========================================${NC}"
@@ -38,7 +38,7 @@ echo ""
 
 # Deploy formation
 echo -e "${YELLOW}→ Deploying test formation...${NC}"
-DEPLOY_RESPONSE=$(curl -s -X POST "${SERVER_URL}/formations/deploy" \
+DEPLOY_RESPONSE=$(curl -s -X POST "${SERVER_URL}/rpc/formations/deploy" \
     -H "Content-Type: application/json" \
     -d "{
         \"id\": \"${FORMATION_ID}\",
@@ -61,8 +61,8 @@ echo -e "${GREEN}✓ Formation should be ready${NC}"
 echo ""
 
 # Test 1: Health check via proxy
-echo -e "${YELLOW}→ Test 1: GET /v1/${FORMATION_ID}/health (via proxy)${NC}"
-PROXY_HEALTH=$(curl -s "${SERVER_URL}/v1/${FORMATION_ID}/health")
+echo -e "${YELLOW}→ Test 1: GET /api/${FORMATION_ID}/health (via proxy)${NC}"
+PROXY_HEALTH=$(curl -s "${SERVER_URL}/api/${FORMATION_ID}/health")
 echo "Response: ${PROXY_HEALTH}"
 
 if echo "${PROXY_HEALTH}" | grep -q '"status"'; then
@@ -74,8 +74,8 @@ fi
 echo ""
 
 # Test 2: Root endpoint via proxy
-echo -e "${YELLOW}→ Test 2: GET /v1/${FORMATION_ID}/ (via proxy)${NC}"
-PROXY_ROOT=$(curl -s "${SERVER_URL}/v1/${FORMATION_ID}/")
+echo -e "${YELLOW}→ Test 2: GET /api/${FORMATION_ID}/ (via proxy)${NC}"
+PROXY_ROOT=$(curl -s "${SERVER_URL}/api/${FORMATION_ID}/")
 echo "Response: ${PROXY_ROOT}"
 
 if echo "${PROXY_ROOT}" | grep -q '"service"'; then
@@ -87,8 +87,8 @@ fi
 echo ""
 
 # Test 3: Chat endpoint via proxy (POST)
-echo -e "${YELLOW}→ Test 3: POST /v1/${FORMATION_ID}/chat (via proxy)${NC}"
-PROXY_CHAT=$(curl -s -X POST "${SERVER_URL}/v1/${FORMATION_ID}/chat" \
+echo -e "${YELLOW}→ Test 3: POST /api/${FORMATION_ID}/chat (via proxy)${NC}"
+PROXY_CHAT=$(curl -s -X POST "${SERVER_URL}/api/${FORMATION_ID}/chat" \
     -H "Content-Type: application/json" \
     -d '{"message": "Hello from proxy test!", "user_id": "test-user"}')
 echo "Response: ${PROXY_CHAT}"
@@ -109,7 +109,7 @@ DIRECT_HEALTH=$(curl -s "http://localhost:${PORT}/health")
 echo "Direct response: ${DIRECT_HEALTH}"
 
 # Proxy access
-PROXY_HEALTH=$(curl -s "${SERVER_URL}/v1/${FORMATION_ID}/health")
+PROXY_HEALTH=$(curl -s "${SERVER_URL}/api/${FORMATION_ID}/health")
 echo "Proxy response:  ${PROXY_HEALTH}"
 
 if [ "${DIRECT_HEALTH}" = "${PROXY_HEALTH}" ]; then
@@ -120,8 +120,8 @@ fi
 echo ""
 
 # Test 5: 404 for non-existent formation
-echo -e "${YELLOW}→ Test 5: GET /v1/nonexistent/health (should 404)${NC}"
-NOT_FOUND=$(curl -s -w "\nHTTP_CODE:%{http_code}" "${SERVER_URL}/v1/nonexistent/health")
+echo -e "${YELLOW}→ Test 5: GET /api/nonexistent/health (should 404)${NC}"
+NOT_FOUND=$(curl -s -w "\nHTTP_CODE:%{http_code}" "${SERVER_URL}/api/nonexistent/health")
 HTTP_CODE=$(echo "${NOT_FOUND}" | grep "HTTP_CODE" | cut -d: -f2)
 
 if [ "${HTTP_CODE}" = "404" ]; then
@@ -154,15 +154,15 @@ echo -e "${BLUE}Formation Details:${NC}"
 echo -e "  ID:        ${FORMATION_ID}"
 echo -e "  Port:      ${PORT}"
 echo -e "  Direct:    http://localhost:${PORT}/"
-echo -e "  Via Proxy: ${SERVER_URL}/v1/${FORMATION_ID}/"
+echo -e "  Via Proxy: ${SERVER_URL}/api/${FORMATION_ID}/"
 echo ""
 echo -e "${YELLOW}Try these commands:${NC}"
-echo -e "  curl ${SERVER_URL}/v1/${FORMATION_ID}/health"
-echo -e "  curl ${SERVER_URL}/v1/${FORMATION_ID}/"
-echo -e "  curl -X POST ${SERVER_URL}/v1/${FORMATION_ID}/chat \\"
+echo -e "  curl ${SERVER_URL}/api/${FORMATION_ID}/health"
+echo -e "  curl ${SERVER_URL}/api/${FORMATION_ID}/"
+echo -e "  curl -X POST ${SERVER_URL}/api/${FORMATION_ID}/chat \\"
 echo -e "    -H 'Content-Type: application/json' \\"
 echo -e "    -d '{\"message\": \"Hello!\"}'"
 echo ""
 echo -e "${YELLOW}Cleanup:${NC}"
-echo -e "  curl -X DELETE ${SERVER_URL}/formations/${FORMATION_ID}"
+echo -e "  curl -X DELETE ${SERVER_URL}/rpc/formations/${FORMATION_ID}"
 echo ""

@@ -330,7 +330,7 @@ launchctl unload ~/Library/LaunchAgents/ai.muxi.server.plist
 # Run server
 docker run -d \
   --name muxi-server \
-  -p 3000:3000 \
+  -p 7890:7890 \
   -p 8000-8100:8000-8100 \
   -v ~/.muxi:/root/.muxi \
   muxiai/server:latest
@@ -347,7 +347,7 @@ services:
     container_name: muxi-server
     restart: unless-stopped
     ports:
-      - "3000:3000"        # Management API
+      - "7890:7890"        # Management API
       - "8000-8100:8000-8100"  # Formation ports
     volumes:
       - ~/.muxi:/root/.muxi
@@ -355,7 +355,7 @@ services:
     environment:
       - MUXI_LOG_LEVEL=info
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:7890/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -387,7 +387,7 @@ muxi-server init
 muxi-server start
 
 # Check health (in another terminal)
-curl http://localhost:3000/health
+curl http://localhost:7890/health
 ```
 
 Expected output:

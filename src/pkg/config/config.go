@@ -14,6 +14,13 @@ type Config struct {
 	Server     ServerConfig     `yaml:"server"`
 	Auth       AuthConfig       `yaml:"auth"`
 	Formations FormationsConfig `yaml:"formations"`
+	Logging    LoggingConfig    `yaml:"logging"`
+}
+
+// LoggingConfig contains logging settings
+type LoggingConfig struct {
+	Level    string `yaml:"level"`     // Log level: debug, info, warn, error (default: info)
+	AuditLog string `yaml:"audit_log"` // Audit log file path (default: logs/audit.log)
 }
 
 // AuthConfig contains authentication settings
@@ -26,7 +33,7 @@ type AuthConfig struct {
 
 // ServerConfig contains HTTP server settings
 type ServerConfig struct {
-	Port int    `yaml:"port"` // HTTP server port (default: 3000)
+	Port int    `yaml:"port"` // HTTP server port (default: 7890)
 	Host string `yaml:"host"` // Bind host (default: 0.0.0.0)
 }
 
@@ -41,9 +48,11 @@ type FormationsConfig struct {
 	FormationsDir string `yaml:"formations_dir"` // Formations config directory (default: formations)
 
 	// Port allocation
-	PortRangeStart int `yaml:"port_range_start"` // Start of port range (default: 8000)
-	PortRangeEnd   int `yaml:"port_range_end"`   // End of port range (default: 9000)
-	MaxFormations  int `yaml:"max_formations"`   // Max formations (default: 100)
+	PortRangeStart int    `yaml:"port_range_start"` // Start of port range (default: 8000)
+	PortRangeEnd   int    `yaml:"port_range_end"`   // End of port range (default: 9000)
+	BindHost       string `yaml:"bind_host"`        // Host formations bind to (default: 127.0.0.1)
+	MaxFormations  int    `yaml:"max_formations"`   // Max formations (default: 100)
+	KeepBackups    int    `yaml:"keep_backups"`     // Number of version backups to keep (default: 1)
 
 	// Process management
 	AutoRestart  bool `yaml:"auto_restart"`  // Enable auto-restart (default: true)
@@ -65,7 +74,7 @@ type FormationsConfig struct {
 func DefaultConfig() *Config {
 	return &Config{
 		Server: ServerConfig{
-			Port: 3000,
+			Port: 7890,
 			Host: "0.0.0.0",
 		},
 		Auth: AuthConfig{
@@ -79,7 +88,9 @@ func DefaultConfig() *Config {
 			FormationsDir:       "formations",
 			PortRangeStart:      8000,
 			PortRangeEnd:        9000,
+			BindHost:            "127.0.0.1",
 			MaxFormations:       100,
+			KeepBackups:         1,
 			AutoRestart:         true,
 			MaxRestarts:         10,
 			RestartDelay:        1,
@@ -89,6 +100,10 @@ func DefaultConfig() *Config {
 			LogRotationEnabled:  true,
 			LogMaxSize:          "10M",
 			LogMaxFiles:         10,
+		},
+		Logging: LoggingConfig{
+			Level:    "info",
+			AuditLog: "logs/audit.log",
 		},
 	}
 }

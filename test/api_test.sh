@@ -32,7 +32,7 @@ trap cleanup EXIT
 echo ""
 echo "Test 1: Health Check"
 echo "--------------------"
-HEALTH=$(curl -s http://localhost:3000/health)
+HEALTH=$(curl -s http://localhost:7890/health)
 echo "Response: $HEALTH"
 
 if echo "$HEALTH" | grep -q '"status":"ok"'; then
@@ -46,7 +46,7 @@ fi
 echo ""
 echo "Test 2: Deploy Formation"
 echo "------------------------"
-DEPLOY_RESPONSE=$(curl -s -X POST http://localhost:3000/formations/deploy \
+DEPLOY_RESPONSE=$(curl -s -X POST http://localhost:7890/rpc/formations/deploy \
   -H "Content-Type: application/json" \
   -d '{
     "id": "test-api",
@@ -88,7 +88,7 @@ fi
 echo ""
 echo "Test 4: List Formations"
 echo "----------------------"
-LIST_RESPONSE=$(curl -s http://localhost:3000/formations)
+LIST_RESPONSE=$(curl -s http://localhost:7890/formations)
 echo "Response: $LIST_RESPONSE"
 
 if echo "$LIST_RESPONSE" | grep -q '"test-api"'; then

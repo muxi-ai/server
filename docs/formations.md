@@ -29,9 +29,9 @@ tar -czf formation.tar.gz my-formation/
 
 # Deploy with HMAC authentication
 TIMESTAMP=$(date +%s)
-SIGNATURE=$(echo -n "${TIMESTAMP};POST;/formations/deploy" | openssl dgst -sha256 -hmac "$SECRET" -binary | base64)
+SIGNATURE=$(echo -n "${TIMESTAMP};POST;/rpc/formations/deploy" | openssl dgst -sha256 -hmac "$SECRET" -binary | base64)
 
-curl -X POST http://localhost:3000/formations/deploy \
+curl -X POST http://localhost:7890/rpc/formations/deploy \
   -H "Authorization: MUXI-HMAC key=$KEY, timestamp=$TIMESTAMP, signature=$SIGNATURE" \
   -H "Content-Type: application/gzip" \
   --data-binary "@formation.tar.gz"
@@ -60,7 +60,7 @@ muxi formation deploy my-formation.yaml --profile=production
 ### Using HTTP API (JSON - Legacy)
 
 ```bash
-curl -X POST http://localhost:3000/formations/deploy \
+curl -X POST http://localhost:7890/rpc/formations/deploy \
   -H "Authorization: MUXI-HMAC key=..., timestamp=..., signature=..." \
   -H "Content-Type: application/json" \
   -d '{
@@ -97,7 +97,7 @@ curl -X POST http://localhost:3000/formations/deploy \
     "MODEL_NAME": "gpt-4",
     "API_KEY": "sk-xxx"
   },
-  "working_dir": "/home/user/formations/chat-api"
+  "working_dir": "/home/user/rpc/formations/chat-api"
 }
 ```
 
@@ -110,7 +110,7 @@ curl -X POST http://localhost:3000/formations/deploy \
   "status": "running",
   "port": 8001,
   "pid": 12345,
-  "url": "http://localhost:3000/chat-api",
+  "url": "http://localhost:7890/chat-api",
   "created_at": "2025-01-17T10:30:00Z"
 }
 ```
@@ -143,7 +143,7 @@ muxi formation list --status=running
 ### Using HTTP API
 
 ```bash
-curl http://localhost:3000/formations \
+curl http://localhost:7890/formations \
   -H "Authorization: MUXI-HMAC key=..., timestamp=..., signature=..."
 ```
 
@@ -157,7 +157,7 @@ curl http://localhost:3000/formations \
       "status": "running",
       "port": 8001,
       "pid": 12345,
-      "url": "http://localhost:3000/chat-api",
+      "url": "http://localhost:7890/chat-api",
       "created_at": "2025-01-17T10:30:00Z",
       "updated_at": "2025-01-17T10:30:00Z",
       "restart_count": 0,
@@ -168,7 +168,7 @@ curl http://localhost:3000/formations \
       "status": "running",
       "port": 8002,
       "pid": 12346,
-      "url": "http://localhost:3000/workflow-engine",
+      "url": "http://localhost:7890/workflow-engine",
       "created_at": "2025-01-17T10:31:00Z",
       "updated_at": "2025-01-17T10:31:00Z",
       "restart_count": 2,
@@ -211,7 +211,7 @@ muxi formation get chat-api
 ### Using HTTP API
 
 ```bash
-curl http://localhost:3000/formations/chat-api \
+curl http://localhost:7890/rpc/formations/chat-api \
   -H "Authorization: MUXI-HMAC key=..., timestamp=..., signature=..."
 ```
 
@@ -221,14 +221,14 @@ curl http://localhost:3000/formations/chat-api \
 {
   "id": "chat-api",
   "command": "python app.py",
-  "working_dir": "/home/user/formations/chat-api",
+  "working_dir": "/home/user/rpc/formations/chat-api",
   "env": {
     "MODEL_NAME": "gpt-4"
   },
   "status": "running",
   "port": 8001,
   "pid": 12345,
-  "url": "http://localhost:3000/chat-api",
+  "url": "http://localhost:7890/chat-api",
   "created_at": "2025-01-17T10:30:00Z",
   "updated_at": "2025-01-17T10:30:00Z",
   "started_at": "2025-01-17T10:30:05Z",
@@ -253,7 +253,7 @@ muxi formation stop chat-api
 ### Using HTTP API
 
 ```bash
-curl -X POST http://localhost:3000/formations/chat-api/stop \
+curl -X POST http://localhost:7890/rpc/formations/chat-api/stop \
   -H "Authorization: MUXI-HMAC key=..., timestamp=..., signature=..."
 ```
 
@@ -282,7 +282,7 @@ muxi formation restart chat-api
 ### Using HTTP API
 
 ```bash
-curl -X POST http://localhost:3000/formations/chat-api/restart \
+curl -X POST http://localhost:7890/rpc/formations/chat-api/restart \
   -H "Authorization: MUXI-HMAC key=..., timestamp=..., signature=..."
 ```
 
@@ -315,7 +315,7 @@ muxi formation delete chat-api --yes
 ### Using HTTP API
 
 ```bash
-curl -X DELETE http://localhost:3000/formations/chat-api \
+curl -X DELETE http://localhost:7890/rpc/formations/chat-api \
   -H "Authorization: MUXI-HMAC key=..., timestamp=..., signature=..."
 ```
 
@@ -390,7 +390,7 @@ http://{server}/{formation_id}/{path}
 curl http://localhost:8001/chat -d '{"message": "Hello"}'
 
 # Through proxy (recommended)
-curl http://localhost:3000/chat-api/chat -d '{"message": "Hello"}'
+curl http://localhost:7890/chat-api/chat -d '{"message": "Hello"}'
 ```
 
 ### Benefits of Proxy
@@ -636,7 +636,7 @@ muxi formation status my-api
 
 **Verify proxy:**
 ```bash
-curl http://localhost:3000/my-api/health
+curl http://localhost:7890/my-api/health
 ```
 
 **Check formation directly:**

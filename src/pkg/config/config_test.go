@@ -11,8 +11,8 @@ func TestDefaultConfig(t *testing.T) {
 	cfg := DefaultConfig()
 
 	// Test server defaults
-	if cfg.Server.Port != 3000 {
-		t.Errorf("Server.Port = %d, want 3000", cfg.Server.Port)
+	if cfg.Server.Port != 7890 {
+		t.Errorf("Server.Port = %d, want 7890", cfg.Server.Port)
 	}
 	if cfg.Server.Host != "0.0.0.0" {
 		t.Errorf("Server.Host = %s, want 0.0.0.0", cfg.Server.Host)
@@ -36,6 +36,9 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Formations.PortRangeEnd != 9000 {
 		t.Errorf("Formations.PortRangeEnd = %d, want 9000", cfg.Formations.PortRangeEnd)
 	}
+	if cfg.Formations.BindHost != "127.0.0.1" {
+		t.Errorf("Formations.BindHost = %s, want 127.0.0.1", cfg.Formations.BindHost)
+	}
 	if cfg.Formations.MaxFormations != 100 {
 		t.Errorf("Formations.MaxFormations = %d, want 100", cfg.Formations.MaxFormations)
 	}
@@ -47,6 +50,17 @@ func TestDefaultConfig(t *testing.T) {
 	}
 	if cfg.Formations.RestartDelay != 1 {
 		t.Errorf("Formations.RestartDelay = %d, want 1", cfg.Formations.RestartDelay)
+	}
+	if cfg.Formations.KeepBackups != 1 {
+		t.Errorf("Formations.KeepBackups = %d, want 1", cfg.Formations.KeepBackups)
+	}
+
+	// Test logging defaults
+	if cfg.Logging.Level != "info" {
+		t.Errorf("Logging.Level = %s, want info", cfg.Logging.Level)
+	}
+	if cfg.Logging.AuditLog != "logs/audit.log" {
+		t.Errorf("Logging.AuditLog = %s, want logs/audit.log", cfg.Logging.AuditLog)
 	}
 }
 
@@ -61,7 +75,7 @@ func TestLoadConfig(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Load() error = %v, want nil", err)
 		}
-		if cfg.Server.Port != 3000 {
+		if cfg.Server.Port != 7890 {
 			t.Errorf("Expected default config, got Port = %d", cfg.Server.Port)
 		}
 	})

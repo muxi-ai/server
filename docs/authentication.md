@@ -62,7 +62,7 @@ Add server credentials to CLI profile:
 muxi config add-profile default \
   --key="MUXI_e8f3a9b2c4d1f5e6" \
   --secret="sk_9f2e8d7c6b5a4f3e2d1c0b9a8f7e6d5c" \
-  --server="http://localhost:3000"
+  --server="http://localhost:7890"
 ```
 
 ### 3. Verify Authentication
@@ -151,7 +151,7 @@ default:
   key: "MUXI_abc123def456"
   secret: "sk_xyz789abc012"
   servers:
-    - "http://localhost:3000"
+    - "http://localhost:7890"
 
 production:
   key: "MUXI_prod_key_123"
@@ -184,7 +184,7 @@ muxi config list-profiles
 **Output:**
 ```
 Profiles:
-  • default (http://localhost:3000)
+  • default (http://localhost:7890)
   • production (https://api.myserver.com)
   • staging (https://staging.myserver.com)
 ```
@@ -237,14 +237,14 @@ muxi formation deploy app.yaml --profile=production --all-servers
 
 1. **CLI prepares request:**
    - Method: `POST`
-   - Path: `/formations/deploy`
+   - Path: `/rpc/formations/deploy`
    - Timestamp: Current Unix time
 
 2. **CLI creates signing string:**
    ```
    {timestamp};{method};{path}
    ```
-   Example: `1705484123;POST;/formations/deploy`
+   Example: `1705484123;POST;/rpc/formations/deploy`
 
 3. **CLI computes HMAC-SHA256:**
    ```
@@ -279,13 +279,13 @@ These endpoints require server credentials:
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/formations/deploy` | POST | Deploy formation |
-| `/formations` | GET | List formations |
-| `/formations/{id}` | GET | Get formation details |
-| `/formations/{id}/restart` | POST | Restart formation |
-| `/formations/{id}/stop` | POST | Stop formation |
-| `/formations/{id}` | DELETE | Delete formation |
-| `/formations/{id}/logs` | GET | Get formation logs |
+| `/rpc/formations/deploy` | POST | Deploy formation |
+| `/rpc/formations` | GET | List formations |
+| `/rpc/formations/{id}` | GET | Get formation details |
+| `/rpc/formations/{id}/restart` | POST | Restart formation |
+| `/rpc/formations/{id}/stop` | POST | Stop formation |
+| `/rpc/formations/{id}` | DELETE | Delete formation |
+| `/rpc/formations/{id}/logs` | GET | Get formation logs |
 
 ### Proxy API (No Server Auth)
 
@@ -564,14 +564,14 @@ def compute_signature(secret, method, path):
 timestamp, signature = compute_signature(
     "sk_xyz789abc012",
     "POST",
-    "/formations/deploy"
+    "/rpc/formations/deploy"
 )
 ```
 
 ### 2. Send Request
 
 ```bash
-curl -X POST http://localhost:3000/formations/deploy \
+curl -X POST http://localhost:7890/rpc/formations/deploy \
   -H "Authorization: MUXI-HMAC key=MUXI_abc123, timestamp=1705484123, signature=YWJj..." \
   -H "Content-Type: application/json" \
   -d '{"id": "my-api", "command": "python app.py"}'

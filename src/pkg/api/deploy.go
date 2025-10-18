@@ -69,6 +69,12 @@ func (s *Server) handleJSONDeploy(w http.ResponseWriter, r *http.Request) {
 	if req.ID == "" {
 		req.ID = generateFormationID()
 	}
+	
+	// Validate formation ID
+	if err := registry.ValidateFormationID(req.ID); err != nil {
+		RespondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 
 	s.logger.Info().
 		Str("id", req.ID).
@@ -237,7 +243,7 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 
 	// Get environment variables from formation
 	serverURL := fmt.Sprintf("http://localhost:%d", s.config.Server.Port)
-	envVars := formationConfig.GetEnvironmentVars(port, serverURL)
+	envVars := formationConfig.GetEnvironmentVars(port, serverURL, s.config.Formations.BindHost)
 
 	// Spawn process with environment variables
 	proc, err := s.processManager.Start(process.SpawnConfig{

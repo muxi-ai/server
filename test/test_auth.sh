@@ -32,7 +32,7 @@ KEY="MUXI_test123"
 SECRET="sk_testsecret456"
 TIMESTAMP=$(date +%s)
 METHOD="POST"
-PATH="/formations/deploy"
+PATH="/rpc/formations/deploy"
 
 echo "Test Configuration:"
 echo "  Key: $KEY"
@@ -51,7 +51,7 @@ echo ""
 echo "Test 1: No Authorization Header"
 echo "--------------------------------"
 RESPONSE=$(curl -s -w "\\nHTTP_STATUS:%{http_code}" \
-  -X POST http://localhost:3000/formations/deploy \
+  -X POST http://localhost:7890/rpc/formations/deploy \
   -H "Content-Type: application/json" \
   -d '{"command":"echo","args":["test"]}')
 
@@ -73,7 +73,7 @@ echo ""
 echo "Test 2: With Valid Authorization"
 echo "---------------------------------"
 RESPONSE=$(curl -s -w "\\nHTTP_STATUS:%{http_code}" \
-  -X POST http://localhost:3000/formations/deploy \
+  -X POST http://localhost:7890/rpc/formations/deploy \
   -H "Authorization: MUXI-HMAC key=$KEY, timestamp=$TIMESTAMP, signature=$SIGNATURE" \
   -H "Content-Type: application/json" \
   -d '{"id":"test-auth","command":"python3","args":["test/dummy_app.py","--port","8099"]}')
@@ -98,7 +98,7 @@ echo ""
 echo "Test 3: Invalid Key"
 echo "-------------------"
 RESPONSE=$(curl -s -w "\\nHTTP_STATUS:%{http_code}" \
-  -X POST http://localhost:3000/formations/deploy \
+  -X POST http://localhost:7890/rpc/formations/deploy \
   -H "Authorization: MUXI-HMAC key=WRONG_KEY, timestamp=$TIMESTAMP, signature=$SIGNATURE" \
   -H "Content-Type: application/json" \
   -d '{"command":"echo","args":["test"]}')
@@ -119,7 +119,7 @@ echo ""
 echo "Test 4: Health Check (No Auth Required)"
 echo "----------------------------------------"
 RESPONSE=$(curl -s -w "\\nHTTP_STATUS:%{http_code}" \
-  http://localhost:3000/health)
+  http://localhost:7890/health)
 
 HTTP_STATUS=$(echo "$RESPONSE" | grep HTTP_STATUS | cut -d: -f2)
 BODY=$(echo "$RESPONSE" | grep -v HTTP_STATUS)

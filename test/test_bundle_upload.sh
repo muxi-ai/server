@@ -3,7 +3,7 @@
 # Test script for MUXI Server formation bundle upload
 #
 # Tests:
-# - POST /formations/deploy with application/gzip content-type
+# - POST /rpc/formations/deploy with application/gzip content-type
 # - Extract → Parse → Deploy → Spawn flow
 #
 
@@ -17,8 +17,8 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-SERVER_URL="http://localhost:3000"
-BUNDLE_PATH="./test/formations/test-bundle.tar.gz"
+SERVER_URL="http://localhost:7890"
+BUNDLE_PATH="./test/rpc/formations/test-bundle.tar.gz"
 
 echo -e "${BLUE}========================================${NC}"
 echo -e "${BLUE}MUXI Server Bundle Upload Test${NC}"
@@ -97,18 +97,18 @@ echo ""
 
 # Test: Deploy Formation Bundle
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${YELLOW}Test: POST /formations/deploy (Bundle Upload)${NC}"
+echo -e "${YELLOW}Test: POST /rpc/formations/deploy (Bundle Upload)${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
 # Generate signature for authentication
 TIMESTAMP=$(date +%s)
 METHOD="POST"
-PATH="/formations/deploy"
+PATH="/rpc/formations/deploy"
 SIGNATURE=$(generate_signature "$SECRET" "$TIMESTAMP" "$METHOD" "$PATH")
 
 echo -e "${YELLOW}→ Uploading bundle...${NC}"
 DEPLOY_RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" \
-    -X POST "${SERVER_URL}/formations/deploy" \
+    -X POST "${SERVER_URL}/rpc/formations/deploy" \
     -H "Authorization: MUXI-HMAC key=$KEY, timestamp=$TIMESTAMP, signature=$SIGNATURE" \
     -H "Content-Type: application/gzip" \
     --data-binary "@$BUNDLE_PATH")

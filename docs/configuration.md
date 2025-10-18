@@ -14,7 +14,7 @@ The configuration file is created automatically when you run `muxi-server init`.
 
 ```yaml
 server:
-  port: 3000
+  port: 7890
   host: "0.0.0.0"
   log_level: "info"
 
@@ -51,7 +51,7 @@ Controls the HTTP server behavior.
 
 ```yaml
 server:
-  port: 3000              # HTTP port for server
+  port: 7890              # HTTP port for server
   host: "0.0.0.0"         # Bind address (0.0.0.0 = all interfaces)
   log_level: "info"       # Log level: debug, info, warn, error
 ```
@@ -60,7 +60,7 @@ server:
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `port` | int | `3000` | HTTP port for management API and proxy |
+| `port` | int | `7890` | HTTP port for management API and proxy |
 | `host` | string | `"0.0.0.0"` | Bind address (`0.0.0.0` for all, `127.0.0.1` for localhost) |
 | `log_level` | string | `"info"` | Logging level: `debug`, `info`, `warn`, `error` |
 
@@ -70,7 +70,7 @@ server:
 # Bind to localhost only (more secure)
 server:
   host: "127.0.0.1"
-  port: 3000
+  port: 7890
 
 # Enable debug logging
 server:
@@ -295,7 +295,7 @@ MUXI_SERVER_PORT=8080 MUXI_LOG_LEVEL=debug muxi-server start
 
 ```yaml
 server:
-  port: 3000
+  port: 7890
   host: "127.0.0.1"  # Localhost only
   log_level: "debug"
 
@@ -313,7 +313,7 @@ formations:
 
 ```yaml
 server:
-  port: 3000
+  port: 7890
   host: "0.0.0.0"  # Accept external connections
   log_level: "info"
 
@@ -346,7 +346,7 @@ persistence:
 
 ```yaml
 server:
-  port: 3000
+  port: 7890
   host: "0.0.0.0"
 
 auth:
@@ -454,12 +454,12 @@ muxi-server config validate
 ### Port Already in Use
 
 ```
-❌ Error: bind: address already in use (port 3000)
+❌ Error: bind: address already in use (port 7890)
 ```
 
 **Solutions:**
 1. Change port in config: `server.port: 8080`
-2. Stop other process using port 3000
+2. Stop other process using port 7890
 3. Use environment variable: `MUXI_SERVER_PORT=8080 muxi-server start`
 
 ### Authentication Not Working
