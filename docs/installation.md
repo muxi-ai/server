@@ -9,7 +9,7 @@ Complete installation guide for MUXI Server on different platforms.
 ### One-Command Install (Recommended)
 
 ```bash
-curl -sSL https://muxi.org/install.sh | bash
+curl -sSL https://muxi.org/install.sh | sudo bash
 ```
 
 **Installs:**
@@ -28,6 +28,7 @@ curl -sSL https://muxi.org/install.sh | bash
 ### Download Binary
 
 **macOS (Apple Silicon):**
+
 ```bash
 curl -L https://github.com/muxi-ai/server/releases/latest/download/muxi-server-darwin-arm64 \
   -o muxi-server
@@ -36,6 +37,7 @@ sudo mv muxi-server /usr/local/bin/
 ```
 
 **macOS (Intel):**
+
 ```bash
 curl -L https://github.com/muxi-ai/server/releases/latest/download/muxi-server-darwin-amd64 \
   -o muxi-server
@@ -44,6 +46,7 @@ sudo mv muxi-server /usr/local/bin/
 ```
 
 **Linux (x86_64):**
+
 ```bash
 curl -L https://github.com/muxi-ai/server/releases/latest/download/muxi-server-linux-amd64 \
   -o muxi-server
@@ -52,6 +55,7 @@ sudo mv muxi-server /usr/local/bin/
 ```
 
 **Linux (ARM64):**
+
 ```bash
 curl -L https://github.com/muxi-ai/server/releases/latest/download/muxi-server-linux-arm64 \
   -o muxi-server
