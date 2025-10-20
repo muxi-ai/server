@@ -76,6 +76,7 @@ func (s *Server) setupRoutes() {
 	// ====================================
 	s.router.HandleFunc("/health", s.HandleHealth).Methods(http.MethodGet)
 	s.router.HandleFunc("/ping", s.HandlePing).Methods(http.MethodGet)
+	s.router.HandleFunc("/docs", s.HandleDocs).Methods(http.MethodGet)
 
 	// ====================================
 	// MANAGEMENT API /rpc/* (requires auth)

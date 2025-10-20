@@ -31,6 +31,7 @@ MUXI Server provides three distinct routing namespaces:
 │                                                        │
 │ /health                → Server health (public)        │
 │ /ping                  → Connectivity test (public)    │
+│ /docs                  → Documentation redirect        │
 │                                                        │
 │ /rpc/formations/*      → Formation management (auth)   │
 │ /rpc/server/*          → Server management (auth)      │
@@ -48,6 +49,7 @@ MUXI Server provides three distinct routing namespaces:
 ```
 GET  /health                            → Server health check
 GET  /ping                              → Connectivity test
+GET  /docs                              → Documentation (redirect)
 ```
 
 ### **Formation Management (HMAC auth):**
@@ -112,6 +114,7 @@ These endpoints require **no authentication**:
 
 - `GET /health` - Server health check
 - `GET /ping` - Connectivity test
+- `GET /docs` - Documentation (redirects to muxi.org/docs)
 
 ---
 
@@ -219,6 +222,37 @@ pong
 - Quick connectivity test
 - Minimal overhead health check
 - Network troubleshooting
+
+---
+
+### Documentation
+
+Access comprehensive MUXI Server documentation.
+
+**Endpoint:**
+
+```
+GET /docs
+```
+
+**Example Request:**
+
+```bash
+curl http://localhost:7890/docs
+```
+
+**Response (302 Found):**
+
+Redirects to: `https://muxi.org/docs`
+
+**Use Cases:**
+- Access complete documentation
+- API reference
+- Getting started guides
+- Configuration examples
+- Troubleshooting
+
+**Note:** This endpoint redirects to the canonical documentation at muxi.org, which includes API references, guides, and examples.
 
 ---
 
@@ -1058,7 +1092,11 @@ auth:
 curl http://localhost:7890/health
 # {"status": "healthy", "formations": 0}
 
-# 2. Deploy formation (requires HMAC auth)
+# 2. Access documentation (redirects to muxi.org/docs)
+curl http://localhost:7890/docs
+# 302 redirect to https://muxi.org/docs
+
+# 3. Deploy formation (requires HMAC auth)
 curl -X POST http://localhost:7890/rpc/formations \
   -H "Authorization: MUXI-HMAC key=MUXI_abc123, timestamp=1705484123, signature=..." \
   -H "Content-Type: application/json" \
@@ -1070,37 +1108,37 @@ curl -X POST http://localhost:7890/rpc/formations \
   }'
 # {"id": "my-api", "port": 8001, "version": 1, ...}
 
-# 3. Access formation via proxy (formation handles auth)
+# 4. Access formation via proxy (formation handles auth)
 curl http://localhost:7890/api/my-api/v1/chat \
   -H "Authorization: Bearer <formation-token>" \
   -d '{"message": "Hello!"}'
 
-# 4. Update formation (new version)
+# 5. Update formation (new version)
 curl -X PUT http://localhost:7890/rpc/formations/my-api \
   -H "Authorization: MUXI-HMAC ..." \
   -F "bundle=@./my-api-v2.tar.gz"
 # {"id": "my-api", "version": 2, "previous_version": 1}
 
-# 5. Rollback if needed
+# 6. Rollback if needed
 curl -X POST http://localhost:7890/rpc/formations/my-api/rollback \
   -H "Authorization: MUXI-HMAC ..."
 # {"id": "my-api", "version": 1, "previous_version": 2}
 
-# 6. Check server status
+# 7. Check server status
 curl http://localhost:7890/rpc/server/status \
   -H "Authorization: MUXI-HMAC ..."
 # {"server": {...}, "formations": {"total": 1, "running": 1}, ...}
 
-# 7. View audit logs
+# 8. View audit logs
 curl http://localhost:7890/rpc/server/logs?lines=50 \
   -H "Authorization: MUXI-HMAC ..."
 # (JSON lines audit log)
 
-# 8. Stop formation
+# 9. Stop formation
 curl -X POST http://localhost:7890/rpc/formations/my-api/stop \
   -H "Authorization: MUXI-HMAC ..."
 
-# 9. Delete formation
+# 10. Delete formation
 curl -X DELETE http://localhost:7890/rpc/formations/my-api \
   -H "Authorization: MUXI-HMAC ..."
 ```
