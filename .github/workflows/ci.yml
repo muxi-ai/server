@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [develop]
+  pull_request:
+    branches: [develop]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+      
+      - name: Cache Go modules
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+      
+      - name: Install dependencies
+        run: |
+          cd src
+          go mod download
+      
+      - name: Run linters
+        run: |
+          cd src
+          go fmt ./...
+          go vet ./...
+      
+      - name: Run tests
+        run: |
+          cd src
+          go test ./... -v -race -coverprofile=coverage.out -covermode=atomic
+      
+      - name: Check coverage
+        run: |
+          cd src
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+          echo "Total coverage: ${COVERAGE}%"
+          
+          # Require minimum 70% coverage
+          if (( $(echo "$COVERAGE < 70" | bc -l) )); then
+            echo "❌ Coverage ${COVERAGE}% is below 70% threshold"
+            exit 1
+          else
+            echo "✓ Coverage ${COVERAGE}% meets 70% threshold"
+          fi
+      
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./src/coverage.out
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false

@@ -1,0 +1,150 @@
+name: RC - Build & Test
+
+on:
+  push:
+    branches: [rc]
+
+jobs:
+  build-and-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+          - os: ubuntu-latest
+            goos: linux
+            goarch: arm64
+          - os: macos-latest
+            goos: darwin
+            goarch: amd64
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+    
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+      
+      - name: Get version info
+        id: version
+        run: |
+          VERSION=$(cat .version)
+          COMMIT=$(git rev-parse --short HEAD)
+          BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "COMMIT=$COMMIT" >> $GITHUB_OUTPUT
+          echo "BUILD_TIME=$BUILD_TIME" >> $GITHUB_OUTPUT
+      
+      - name: Build binary
+        run: |
+          echo "🔨 Building ${{ matrix.goos }}-${{ matrix.goarch }}..."
+          
+          cd src
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} \
+          go build -ldflags "\
+            -X 'main.Version=${{ steps.version.outputs.VERSION }}' \
+            -X 'main.GitCommit=${{ steps.version.outputs.COMMIT }}' \
+            -X 'main.BuildTime=${{ steps.version.outputs.BUILD_TIME }}'" \
+            -o ../muxi-server-${{ matrix.goos }}-${{ matrix.goarch }} \
+            ./cmd/server
+          
+          cd ..
+          ls -lh muxi-server-${{ matrix.goos }}-${{ matrix.goarch }}
+      
+      - name: Test binary version
+        if: matrix.goarch == runner.arch || (matrix.goos == 'darwin' && matrix.goarch == 'arm64')
+        run: |
+          chmod +x muxi-server-${{ matrix.goos }}-${{ matrix.goarch }}
+          ./muxi-server-${{ matrix.goos }}-${{ matrix.goarch }} version
+      
+      - name: Run unit tests
+        run: |
+          cd src
+          go test ./... -v -race -timeout 10m
+      
+      - name: Run integration tests
+        if: matrix.goos == runner.os && matrix.goarch == runner.arch
+        run: |
+          echo "🧪 Running integration tests..."
+          
+          # Create temporary directory
+          TEST_DIR=$(mktemp -d)
+          
+          # Copy binary
+          cp muxi-server-${{ matrix.goos }}-${{ matrix.goarch }} $TEST_DIR/muxi-server
+          chmod +x $TEST_DIR/muxi-server
+          
+          cd $TEST_DIR
+          
+          # Initialize
+          ./muxi-server init <<EOF
+          test-server
+          7890
+          test@example.com
+          EOF
+          
+          # Start server in background
+          ./muxi-server serve &
+          SERVER_PID=$!
+          
+          # Wait for startup
+          sleep 3
+          
+          # Test health endpoint
+          if curl -f http://localhost:7890/health; then
+            echo "✓ Health check passed"
+          else
+            echo "❌ Health check failed"
+            kill $SERVER_PID 2>/dev/null || true
+            exit 1
+          fi
+          
+          # Test ping endpoint
+          if curl -f http://localhost:7890/ping; then
+            echo "✓ Ping check passed"
+          else
+            echo "❌ Ping check failed"
+            kill $SERVER_PID 2>/dev/null || true
+            exit 1
+          fi
+          
+          # Cleanup
+          kill $SERVER_PID 2>/dev/null || true
+          cd ..
+          rm -rf $TEST_DIR
+          
+          echo "✓ Integration tests passed"
+      
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: muxi-server-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: muxi-server-${{ matrix.goos }}-${{ matrix.goarch }}
+          retention-days: 7
+  
+  summary:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: RC Build Summary
+        run: |
+          echo "🎉 RC Build Complete!"
+          echo ""
+          echo "All platforms built and tested successfully:"
+          echo "  ✓ linux-amd64"
+          echo "  ✓ linux-arm64"
+          echo "  ✓ darwin-amd64"
+          echo "  ✓ darwin-arm64"
+          echo ""
+          echo "Ready to merge to main for release!"

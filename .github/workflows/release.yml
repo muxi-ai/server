@@ -1,0 +1,155 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Need full history for versioning
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Calculate next version (ScalVer)
+        id: version
+        run: |
+          # Get last tag
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.20000101.0")
+          
+          # Parse: v0.20251023.0 → 0 20251023 0
+          LAST_TAG=${LAST_TAG#v}  # Remove v prefix
+          MAJOR=$(echo $LAST_TAG | cut -d. -f1)
+          LAST_DATE=$(echo $LAST_TAG | cut -d. -f2)
+          LAST_PATCH=$(echo $LAST_TAG | cut -d. -f3)
+          
+          # Today's date
+          TODAY=$(date +%Y%m%d)
+          
+          # Calculate next version (ScalVer: MAJOR.YYYYMMDD.PATCH)
+          if [ "$LAST_DATE" = "$TODAY" ]; then
+            # Same day - increment patch
+            NEXT_PATCH=$((LAST_PATCH + 1))
+            NEXT_VERSION="${MAJOR}.${TODAY}.${NEXT_PATCH}"
+          else
+            # New day - reset patch
+            NEXT_VERSION="${MAJOR}.${TODAY}.0"
+          fi
+          
+          echo "VERSION=$NEXT_VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Next version: v$NEXT_VERSION"
+      
+      - name: Update .version file
+        run: |
+          echo "${{ steps.version.outputs.VERSION }}" > .version
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .version
+          git commit -m "chore: bump version to ${{ steps.version.outputs.VERSION }}"
+          git push
+      
+      - name: Create git tag
+        run: |
+          git tag "v${{ steps.version.outputs.VERSION }}"
+          git push origin "v${{ steps.version.outputs.VERSION }}"
+      
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+      
+      - name: Build release binaries
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          COMMIT=$(git rev-parse --short HEAD)
+          BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          
+          mkdir -p dist
+          
+          echo "🔨 Building binaries for all platforms..."
+          
+          for OS in linux darwin; do
+            for ARCH in amd64 arm64; do
+              echo "  → Building $OS-$ARCH..."
+              cd src
+              GOOS=$OS GOARCH=$ARCH go build -ldflags "\
+                -X 'main.Version=$VERSION' \
+                -X 'main.GitCommit=$COMMIT' \
+                -X 'main.BuildTime=$BUILD_TIME'" \
+                -o ../dist/muxi-server-$OS-$ARCH ./cmd/server
+              cd ..
+            done
+          done
+          
+          echo "✓ All binaries built"
+          ls -lh dist/
+      
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.version.outputs.VERSION }}
+          name: MUXI Server v${{ steps.version.outputs.VERSION }}
+          draft: false
+          prerelease: false
+          body: |
+            ## MUXI Server v${{ steps.version.outputs.VERSION }}
+            
+            **Release Date:** $(date -u +%Y-%m-%d)
+            **Git Commit:** ${{ github.sha }}
+            
+            ### Installation
+            
+            ```bash
+            # One-command install
+            curl -sSL https://install.muxi.ai | sudo bash
+            
+            # Or download binary directly
+            wget https://github.com/muxi-ai/server/releases/download/v${{ steps.version.outputs.VERSION }}/muxi-server-linux-amd64
+            chmod +x muxi-server-linux-amd64
+            sudo mv muxi-server-linux-amd64 /usr/local/bin/muxi-server
+            ```
+            
+            ### Changes
+            
+            See [CHANGELOG.md](https://github.com/muxi-ai/server/blob/main/CHANGELOG.md) for details.
+            
+            ### Binaries
+            
+            - `muxi-server-linux-amd64` - Linux x86_64
+            - `muxi-server-linux-arm64` - Linux ARM64
+            - `muxi-server-darwin-amd64` - macOS Intel
+            - `muxi-server-darwin-arm64` - macOS Apple Silicon
+          files: dist/muxi-server-*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Merge main back to develop
+        run: |
+          echo "🔄 Merging main back to develop..."
+          
+          git fetch origin develop
+          git checkout develop
+          git merge --no-ff main -m "chore: merge main back to develop (v${{ steps.version.outputs.VERSION }})"
+          git push origin develop
+          
+          echo "✓ Merged main → develop"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Summary
+        run: |
+          echo "🎉 Release complete!"
+          echo ""
+          echo "Version:  v${{ steps.version.outputs.VERSION }}"
+          echo "Commit:   $(git rev-parse --short HEAD)"
+          echo "Released: $(date -u)"
+          echo ""
+          echo "✓ Binaries built"
+          echo "✓ GitHub release created"
+          echo "✓ main merged back to develop"
