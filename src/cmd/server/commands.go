@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/muxi-ai/server/pkg/config"
@@ -131,14 +132,31 @@ func cmdInit() error {
 	fmt.Println("   Never commit it to version control or share it publicly.")
 	fmt.Println()
 	
-	// Runtime runner info for non-Linux systems
+	// Runtime runner setup for non-Linux systems
 	fmt.Println("🐳 Runtime Execution:")
 	fmt.Println("   MUXI Server can run SIF formations using:")
 	fmt.Println("   - Linux: Native Singularity execution")
 	fmt.Println("   - macOS/Windows: Docker wrapper (runtime-runner)")
 	fmt.Println()
-	fmt.Println("   To enable SIF support on macOS/Windows, pull the runtime-runner:")
-	fmt.Println("   docker pull ghcr.io/muxi-ai/runtime-runner:latest")
+	
+	// Check if Docker is available and pull runtime-runner if needed
+	if checkDockerAvailable() {
+		if !checkRuntimeRunnerExists() {
+			fmt.Println("   📦 Pulling runtime-runner image...")
+			if err := pullRuntimeRunner(); err != nil {
+				fmt.Printf("   ⚠️  Failed to pull runtime-runner: %v\n", err)
+				fmt.Println("   You can pull it manually later with:")
+				fmt.Println("   docker pull ghcr.io/muxi-ai/runtime-runner:latest")
+			} else {
+				fmt.Println("   ✅ Runtime-runner image ready!")
+			}
+		} else {
+			fmt.Println("   ✅ Runtime-runner image already available")
+		}
+	} else {
+		fmt.Println("   ⚠️  Docker not found. To enable SIF support, install Docker and run:")
+		fmt.Println("   docker pull ghcr.io/muxi-ai/runtime-runner:latest")
+	}
 	fmt.Println()
 	
 	fmt.Println("📝 Next steps:")
@@ -231,7 +249,7 @@ func generateKey() (string, error) {
 	if _, err := rand.Read(bytes); err != nil {
 		return "", err
 	}
-	return "MUXI_" + hex.EncodeToString(bytes), nil
+	return "muxi_pk_" + hex.EncodeToString(bytes), nil
 }
 
 // generateSecret generates a random secret key
@@ -249,4 +267,25 @@ func maskSecret(secret string) string {
 		return "***"
 	}
 	return secret[:8] + "..." + secret[len(secret)-4:]
+}
+
+// checkDockerAvailable checks if Docker is installed and available
+func checkDockerAvailable() bool {
+	cmd := exec.Command("docker", "info")
+	return cmd.Run() == nil
+}
+
+// checkRuntimeRunnerExists checks if the runtime-runner image is already pulled
+func checkRuntimeRunnerExists() bool {
+	cmd := exec.Command("docker", "images", "-q", "ghcr.io/muxi-ai/runtime-runner:latest")
+	output, err := cmd.Output()
+	return err == nil && len(output) > 0
+}
+
+// pullRuntimeRunner pulls the runtime-runner image from GHCR
+func pullRuntimeRunner() error {
+	cmd := exec.Command("docker", "pull", "ghcr.io/muxi-ai/runtime-runner:latest")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
