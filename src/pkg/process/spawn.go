@@ -223,8 +223,8 @@ func Stop(proc *Process, logger *zerolog.Logger) error {
 		Int("pid", proc.PID).
 		Msg("Stopping process")
 
-	proc.Status = StatusStopping
-	proc.StopSignal = true
+	proc.SetStatus(StatusStopping)
+	proc.SetStopSignal(true)
 
 	// Send SIGTERM for graceful shutdown
 	if err := proc.cmd.Process.Signal(syscall.SIGTERM); err != nil {
@@ -247,7 +247,7 @@ func Stop(proc *Process, logger *zerolog.Logger) error {
 			Msg("Process exited")
 	}
 
-	proc.Status = StatusStopped
+	proc.SetStatus(StatusStopped)
 	proc.PID = 0
 	proc.cmd = nil
 

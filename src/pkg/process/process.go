@@ -2,11 +2,14 @@ package process
 
 import (
 	"os/exec"
+	"sync"
 	"time"
 )
 
 // Process represents a managed process (formation runtime)
 type Process struct {
+	mu sync.Mutex // Protects concurrent access to process state
+
 	// Identification
 	ID   string // Formation ID (e.g., "my-api")
 	Name string // Display name
@@ -17,7 +20,7 @@ type Process struct {
 	Args    []string // Arguments (e.g., ["test/dummy_app.py", "--port", "8001"])
 	WorkDir string   // Working directory
 
-	// State
+	// State (protected by mu)
 	Status       ProcessStatus // Current status
 	StartedAt    time.Time     // When process started
 	RestartCount int           // Number of restarts
@@ -51,18 +54,65 @@ const (
 	StatusRestarting ProcessStatus = "restarting" // Being restarted after crash
 )
 
+// GetStatus returns the current status (thread-safe)
+func (p *Process) GetStatus() ProcessStatus {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.Status
+}
+
+// SetStatus sets the current status (thread-safe)
+func (p *Process) SetStatus(status ProcessStatus) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.Status = status
+}
+
+// GetStopSignal returns the stop signal flag (thread-safe)
+func (p *Process) GetStopSignal() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.StopSignal
+}
+
+// SetStopSignal sets the stop signal flag (thread-safe)
+func (p *Process) SetStopSignal(signal bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.StopSignal = signal
+}
+
+// GetRestartCount returns the restart count (thread-safe)
+func (p *Process) GetRestartCount() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.RestartCount
+}
+
+// IncrementRestartCount increments the restart count (thread-safe)
+func (p *Process) IncrementRestartCount() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.RestartCount++
+	return p.RestartCount
+}
+
 // IsRunning returns true if the process is in a running state
 func (p *Process) IsRunning() bool {
-	return p.Status == StatusRunning || p.Status == StatusStarting
+	status := p.GetStatus()
+	return status == StatusRunning || status == StatusStarting
 }
 
 // IsStopped returns true if the process is stopped
 func (p *Process) IsStopped() bool {
-	return p.Status == StatusStopped || p.Status == StatusCrashed
+	status := p.GetStatus()
+	return status == StatusStopped || status == StatusCrashed
 }
 
 // ShouldRestart returns true if the process should be auto-restarted
 func (p *Process) ShouldRestart() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	return p.AutoRestart &&
 		p.RestartCount < p.MaxRestarts &&
 		!p.StopSignal &&
@@ -92,9 +142,12 @@ type ProcessInfo struct {
 
 // ToInfo converts a Process to ProcessInfo for API responses
 func (p *Process) ToInfo() ProcessInfo {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	uptime := "0s"
-	if !p.StartedAt.IsZero() && p.IsRunning() {
-		uptime = p.Uptime().Round(time.Second).String()
+	if !p.StartedAt.IsZero() && (p.Status == StatusRunning || p.Status == StatusStarting) {
+		uptime = time.Since(p.StartedAt).Round(time.Second).String()
 	}
 
 	return ProcessInfo{

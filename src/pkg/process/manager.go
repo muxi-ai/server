@@ -238,11 +238,11 @@ func (m *Manager) handleCrash(proc *Process) {
 	}
 
 	// Increment restart count
-	proc.RestartCount++
+	restartCount := proc.IncrementRestartCount()
 
 	m.logger.Info().
 		Str("id", proc.ID).
-		Int("restart_count", proc.RestartCount).
+		Int("restart_count", restartCount).
 		Msg("Auto-restarting process...")
 
 	// Get original config

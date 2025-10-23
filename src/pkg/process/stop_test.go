@@ -36,8 +36,8 @@ func TestStop_WithRunningProcess(t *testing.T) {
 	}
 
 	// Verify process stopped
-	if proc.Status != StatusStopped {
-		t.Errorf("Status = %s, want %s", proc.Status, StatusStopped)
+	if proc.GetStatus() != StatusStopped {
+		t.Errorf("Status = %s, want %s", proc.GetStatus(), StatusStopped)
 	}
 
 	if proc.PID != 0 {
@@ -144,7 +144,7 @@ func TestStop_StopSignalSet(t *testing.T) {
 	}
 
 	// Verify StopSignal was set
-	if !proc.StopSignal {
+	if !proc.GetStopSignal() {
 		t.Error("StopSignal should be true after Stop()")
 	}
 }
@@ -330,8 +330,8 @@ func TestStop_ProcessStatusTransitions(t *testing.T) {
 	}
 
 	// Should transition through Stopping to Stopped
-	if proc.Status != StatusRunning {
-		t.Errorf("Initial status = %s, want %s", proc.Status, StatusRunning)
+	if proc.GetStatus() != StatusRunning {
+		t.Errorf("Initial status = %s, want %s", proc.GetStatus(), StatusRunning)
 	}
 
 	err := Stop(proc, &logger)
@@ -339,8 +339,8 @@ func TestStop_ProcessStatusTransitions(t *testing.T) {
 		t.Errorf("Stop() error = %v", err)
 	}
 
-	if proc.Status != StatusStopped {
-		t.Errorf("Final status = %s, want %s", proc.Status, StatusStopped)
+	if proc.GetStatus() != StatusStopped {
+		t.Errorf("Final status = %s, want %s", proc.GetStatus(), StatusStopped)
 	}
 }
 

@@ -188,7 +188,7 @@ func TestManager_HandleCrash_AutoRestart(t *testing.T) {
 	time.Sleep(2 * time.Second)
 
 	// Should have attempted restart (may fail, but should try)
-	t.Logf("After handleCrash, process status: %s", proc.Status)
+	t.Logf("After handleCrash, process status: %s", proc.GetStatus())
 }
 
 func TestManager_HandleCrash_NoAutoRestart(t *testing.T) {
@@ -216,8 +216,8 @@ func TestManager_HandleCrash_NoAutoRestart(t *testing.T) {
 	time.Sleep(1 * time.Second)
 
 	// Should not restart
-	if proc.Status != StatusCrashed {
-		t.Logf("Process status changed to: %s", proc.Status)
+	if proc.GetStatus() != StatusCrashed {
+		t.Logf("Process status changed to: %s", proc.GetStatus())
 	}
 }
 
@@ -248,8 +248,8 @@ func TestManager_HandleCrash_MaxRestartsReached(t *testing.T) {
 	time.Sleep(1 * time.Second)
 
 	// Should not restart when max reached
-	if proc.RestartCount > 3 {
-		t.Errorf("RestartCount = %d, should not exceed max", proc.RestartCount)
+	if proc.GetRestartCount() > 3 {
+		t.Errorf("RestartCount = %d, should not exceed max", proc.GetRestartCount())
 	}
 }
 

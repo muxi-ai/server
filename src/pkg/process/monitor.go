@@ -67,7 +67,7 @@ func (m *Monitor) run() {
 				Str("id", m.process.ID).
 				Msg("Initial health check failed")
 		} else {
-			m.process.Status = StatusRunning
+			m.process.SetStatus(StatusRunning)
 			m.logger.Info().
 				Str("id", m.process.ID).
 				Msg("✓ Health check passed")
@@ -78,7 +78,7 @@ func (m *Monitor) run() {
 		}
 	} else {
 		// No health check, assume running
-		m.process.Status = StatusRunning
+			m.process.SetStatus(StatusRunning)
 	}
 
 	// Monitor loop
@@ -107,19 +107,19 @@ func (m *Monitor) check() {
 			Msg("Process not running")
 
 		// Check if it was intentionally stopped
-		if m.process.StopSignal {
+		if m.process.GetStopSignal() {
 			m.logger.Debug().
 				Str("id", m.process.ID).
 				Msg("Process was intentionally stopped")
-			m.process.Status = StatusStopped
+			m.process.SetStatus(StatusStopped)
 			return
 		}
 
 		// Process crashed
-		m.process.Status = StatusCrashed
+		m.process.SetStatus(StatusCrashed)
 		m.logger.Error().
 			Str("id", m.process.ID).
-			Int("restart_count", m.process.RestartCount).
+			Int("restart_count", m.process.GetRestartCount()).
 			Msg("Process crashed")
 
 		if m.onCrash != nil {
@@ -129,7 +129,7 @@ func (m *Monitor) check() {
 	}
 
 	// Process is running, do periodic health check
-	if m.process.HealthCheckURL != "" && m.process.Status == StatusRunning {
+	if m.process.HealthCheckURL != "" && m.process.GetStatus() == StatusRunning {
 		if err := m.healthCheck(); err != nil {
 			m.logger.Warn().
 				Err(err).

@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"fmt"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -162,9 +163,12 @@ func TestMonitor_ProcessCrash(t *testing.T) {
 
 	monitor := NewMonitor(proc, &logger)
 
+	var mu sync.Mutex
 	crashCalled := false
 	crashedProc := (*Process)(nil)
 	monitor.OnCrash(func(p *Process) {
+		mu.Lock()
+		defer mu.Unlock()
 		crashCalled = true
 		crashedProc = p
 	})
@@ -177,16 +181,21 @@ func TestMonitor_ProcessCrash(t *testing.T) {
 	monitor.Stop()
 
 	// Should have detected crash
-	if !crashCalled {
+	mu.Lock()
+	called := crashCalled
+	crashed := crashedProc
+	mu.Unlock()
+
+	if !called {
 		t.Error("OnCrash callback should have been called for non-running process")
 	}
 
-	if crashedProc != proc {
+	if crashed != proc {
 		t.Error("Crashed process should match original process")
 	}
 
-	if proc.Status != StatusCrashed {
-		t.Errorf("Process status = %s, want %s", proc.Status, StatusCrashed)
+	if proc.GetStatus() != StatusCrashed {
+		t.Errorf("Process status = %s, want %s", proc.GetStatus(), StatusCrashed)
 	}
 }
 
@@ -201,8 +210,11 @@ func TestMonitor_IntentionalStop(t *testing.T) {
 
 	monitor := NewMonitor(proc, &logger)
 
+	var mu sync.Mutex
 	crashCalled := false
 	monitor.OnCrash(func(p *Process) {
+		mu.Lock()
+		defer mu.Unlock()
 		crashCalled = true
 	})
 
@@ -214,12 +226,16 @@ func TestMonitor_IntentionalStop(t *testing.T) {
 	monitor.Stop()
 
 	// Should NOT call crash callback for intentional stop
-	if crashCalled {
+	mu.Lock()
+	called := crashCalled
+	mu.Unlock()
+
+	if called {
 		t.Error("OnCrash should not be called for intentional stop")
 	}
 
-	if proc.Status != StatusStopped {
-		t.Logf("Process status = %s (expected stopped for intentional stop)", proc.Status)
+	if proc.GetStatus() != StatusStopped {
+		t.Logf("Process status = %s (expected stopped for intentional stop)", proc.GetStatus())
 	}
 }
 
@@ -340,8 +356,8 @@ func TestMonitor_NoHealthCheck(t *testing.T) {
 	// Without health check URL, should immediately transition to running
 	time.Sleep(100 * time.Millisecond)
 
-	if proc.Status != StatusRunning {
-		t.Errorf("Status = %s, want %s (should auto-transition without health check)", proc.Status, StatusRunning)
+	if proc.GetStatus() != StatusRunning {
+		t.Errorf("Status = %s, want %s (should auto-transition without health check)", proc.GetStatus(), StatusRunning)
 	}
 
 	monitor.Stop()

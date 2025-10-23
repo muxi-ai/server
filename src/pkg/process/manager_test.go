@@ -83,7 +83,7 @@ func TestManagerIntegration(t *testing.T) {
 		}
 
 		t.Logf("✓ Found process: %s (PID %d, Status: %s)",
-			proc.ID, proc.PID, proc.Status)
+			proc.ID, proc.PID, proc.GetStatus())
 	})
 
 	// Test 3: Get process
@@ -177,12 +177,12 @@ func TestAutoRestart(t *testing.T) {
 		t.Error("Process was not restarted (PID unchanged)")
 	}
 
-	if proc.RestartCount == 0 {
+	if proc.GetRestartCount() == 0 {
 		t.Error("Restart count should be > 0")
 	}
 
 	t.Logf("✓ Process auto-restarted with new PID %d (restart count: %d)",
-		proc.PID, proc.RestartCount)
+		proc.PID, proc.GetRestartCount())
 
 	// Verify it's healthy again
 	resp, err := http.Get("http://localhost:8098/health")
