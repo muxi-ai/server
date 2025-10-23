@@ -42,3 +42,4 @@ temp/
 # MUXI Server specific
 .muxi-server/
 *.pid
+.claude/

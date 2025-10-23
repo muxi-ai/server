@@ -1,0 +1,27 @@
+# Foundation test base formation - shared by all Area 1 tests
+schema: "1.0.0"
+id: foundation-test-base
+description: "Base formation for foundation tests"
+version: "1.0.0"
+runtime: "0.1.0"  # Use our dummy SIF runtime for testing
+
+llm:
+  api_keys:
+    openai: "${{ secrets.OPENAI_API_KEY }}"
+  models:
+    - text: "openai/gpt-4o-mini"
+    - embedding: "openai/text-embedding-3-small"
+
+runtime_config:
+  built_in_mcps: false  # Disable built-in MCPs for faster test startup
+
+memory:
+  buffer:
+    size: 10
+    vector_search: true
+
+agents:
+  - id: assistant
+    name: "Foundation Assistant"
+    description: "Default assistant for foundation tests"
+    system_message: "You are a helpful test assistant. Keep responses brief and focused."

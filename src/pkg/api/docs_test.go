@@ -8,7 +8,7 @@ import (
 
 func TestHandleDocs(t *testing.T) {
 	// Create test server
-	s := setupTestServer(t)
+	s := createTestServer(t)
 
 	// Create request
 	req := httptest.NewRequest(http.MethodGet, "/docs", nil)

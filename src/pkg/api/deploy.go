@@ -13,6 +13,7 @@ import (
 	"github.com/muxi-ai/server/pkg/formation"
 	"github.com/muxi-ai/server/pkg/process"
 	"github.com/muxi-ai/server/pkg/registry"
+	"github.com/muxi-ai/server/pkg/runtime"
 )
 
 // DeployRequest represents the request body for deploying a formation
@@ -245,8 +246,8 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 	serverURL := fmt.Sprintf("http://localhost:%d", s.config.Server.Port)
 	envVars := formationConfig.GetEnvironmentVars(port, serverURL, s.config.Formations.BindHost)
 
-	// Spawn process with environment variables
-	proc, err := s.processManager.Start(process.SpawnConfig{
+	// Prepare spawn configuration
+	spawnConfig := process.SpawnConfig{
 		ID:          formationID,
 		Name:        formationConfig.Name,
 		Command:     formationConfig.GetDefaultCommand(),
@@ -255,7 +256,102 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 		WorkDir:     permanentDir,
 		Env:         envVars,
 		AutoRestart: s.config.Formations.AutoRestart,
-	})
+		RuntimeType: "native", // Default to native execution
+	}
+
+	// Handle runtime resolution if specified in formation.yaml
+	if formationConfig.Runtime != "" {
+		s.logger.Info().
+			Str("id", formationID).
+			Str("runtime_constraint", formationConfig.Runtime).
+			Msg("Resolving runtime version")
+
+		// Initialize runtime components
+		muxiDir, err := getMuxiDir()
+		if err != nil {
+			s.logger.Error().Err(err).Msg("Failed to get MUXI directory")
+			s.registry.ReleasePort(port)
+			os.RemoveAll(permanentDir)
+			RespondError(w, http.StatusInternalServerError, "Failed to get MUXI directory")
+			return
+		}
+
+		runtimesDir := filepath.Join(muxiDir, "runtimes")
+		if err := os.MkdirAll(runtimesDir, 0755); err != nil {
+			s.logger.Error().Err(err).Msg("Failed to create runtimes directory")
+			s.registry.ReleasePort(port)
+			os.RemoveAll(permanentDir)
+			RespondError(w, http.StatusInternalServerError, "Failed to create runtimes directory")
+			return
+		}
+
+		// Create runtime registry
+		runtimeRegistryPath := filepath.Join(runtimesDir, "registry.json")
+		runtimeRegistry := runtime.NewRegistry(runtimeRegistryPath)
+		if err := runtimeRegistry.Load(); err != nil {
+			s.logger.Warn().Err(err).Msg("Failed to load runtime registry (continuing with empty registry)")
+		}
+
+		// Create resolver with available versions
+		availableVersions := runtimeRegistry.List()
+		resolver := runtime.NewResolver(availableVersions)
+
+		// Resolve version constraint
+		resolvedVersion, err := resolver.Resolve(formationConfig.Runtime)
+		if err != nil {
+			s.logger.Error().
+				Err(err).
+				Str("constraint", formationConfig.Runtime).
+				Msg("Failed to resolve runtime version")
+			s.registry.ReleasePort(port)
+			os.RemoveAll(permanentDir)
+			RespondError(w, http.StatusBadRequest, fmt.Sprintf("Failed to resolve runtime version: %v", err))
+			return
+		}
+
+		s.logger.Info().
+			Str("constraint", formationConfig.Runtime).
+			Str("resolved", resolvedVersion).
+			Msg("Resolved runtime version")
+
+		// Get SIF path
+		downloader := runtime.NewDownloader(runtimesDir, runtimeRegistry)
+		sifPath := downloader.GetSIFPath(resolvedVersion)
+
+		// Check if SIF exists
+		if _, err := os.Stat(sifPath); os.IsNotExist(err) {
+			s.logger.Error().
+				Str("version", resolvedVersion).
+				Str("path", sifPath).
+				Msg("Runtime SIF file not found")
+			s.registry.ReleasePort(port)
+			os.RemoveAll(permanentDir)
+			RespondError(w, http.StatusNotFound,
+				fmt.Sprintf("Runtime %s not found at %s. Please ensure runtime SIF is installed.", resolvedVersion, sifPath))
+			return
+		}
+
+		// Update spawn config for Singularity execution
+		spawnConfig.RuntimeType = "singularity"
+		spawnConfig.SIFPath = sifPath
+
+		s.logger.Info().
+			Str("id", formationID).
+			Str("runtime_version", resolvedVersion).
+			Str("sif_path", sifPath).
+			Msg("Using Singularity runtime")
+
+		// Add formation reference to runtime registry
+		if err := runtimeRegistry.AddFormation(resolvedVersion, formationID); err != nil {
+			s.logger.Warn().Err(err).Msg("Failed to add formation reference to runtime registry")
+		}
+		if err := runtimeRegistry.Save(); err != nil {
+			s.logger.Warn().Err(err).Msg("Failed to save runtime registry")
+		}
+	}
+
+	// Spawn process with environment variables
+	proc, err := s.processManager.Start(spawnConfig)
 	if err != nil {
 		s.logger.Error().Err(err).Str("id", formationID).Msg("Failed to spawn process")
 		s.registry.ReleasePort(port)

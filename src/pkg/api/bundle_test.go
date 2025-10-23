@@ -205,9 +205,8 @@ func createTestBundle(t *testing.T, formationID string) []byte {
 	formationYAML := []byte(`schema: muxi.ai/formation/v1
 id: ` + formationID + `
 name: Test Formation
+description: Test formation for bundle deployment
 version: 1.0.0
-runtime:
-  built_in_mcps: true
 `)
 
 	// Add root directory
@@ -546,10 +545,8 @@ func createLargeBundleWithFiles(t *testing.T, formationID string, numFiles int) 
 	// Add formation.yaml
 	yamlContent := fmt.Sprintf(`id: %s
 name: Large Formation
+description: Test large formation
 version: 1.0.0
-runtime:
-  command: echo
-  args: ["test"]
 `, formationID)
 
 	header := &tar.Header{
@@ -681,9 +678,8 @@ func TestHandleBundleDeploy_ProcessSpawnError(t *testing.T) {
 
 	yamlContent := `id: spawn-error
 name: Spawn Error Test
+description: Test spawn error handling
 version: 1.0.0
-runtime:
-  command: /nonexistent/command/that/does/not/exist
 `
 	header := &tar.Header{
 		Name: "spawn-error/formation.yaml",
@@ -765,11 +761,8 @@ func TestHandleBundleDeploy_FullSuccessPath(t *testing.T) {
 	// Add formation.yaml with full config
 	yamlContent := `id: success-full
 name: Full Success Test
+description: Full success test formation
 version: 1.0.0
-runtime:
-  command: echo
-  args:
-    - "Hello from formation"
 environment:
   TEST_VAR: "test_value"
 `

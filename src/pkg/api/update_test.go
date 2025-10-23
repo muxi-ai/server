@@ -56,12 +56,10 @@ func TestHandleUpdate(t *testing.T) {
 		os.MkdirAll(currentDir, 0755)
 
 		// Create formation.yaml in current
-		formationYAML := `name: test-formation
+		formationYAML := `id: test-formation
+name: test-formation
+description: Test update formation
 version: 1.0.0
-runtime:
-  type: python
-  command: python
-  args: ["app.py"]
 `
 		os.WriteFile(filepath.Join(currentDir, "formation.yaml"), []byte(formationYAML), 0644)
 
@@ -104,12 +102,10 @@ runtime:
 		os.MkdirAll(currentDir, 0755)
 
 		// Create formation.yaml in current (version 1)
-		formationYAML := `name: test-formation
+		formationYAML := `id: test-formation
+name: test-formation
+description: Test update formation
 version: 1.0.0
-runtime:
-  type: python
-  command: python
-  args: ["app.py"]
 `
 		os.WriteFile(filepath.Join(currentDir, "formation.yaml"), []byte(formationYAML), 0644)
 
@@ -175,12 +171,10 @@ runtime:
 		os.MkdirAll(currentDir, 0755)
 
 		// Create formation.yaml in current
-		formationYAML := `name: test-formation
+		formationYAML := `id: test-formation
+name: test-formation
+description: Test update formation
 version: 1.0.0
-runtime:
-  type: python
-  command: python
-  args: ["app.py"]
 `
 		os.WriteFile(filepath.Join(currentDir, "formation.yaml"), []byte(formationYAML), 0644)
 		os.WriteFile(filepath.Join(currentDir, "marker.txt"), []byte("version 1"), 0644)
@@ -235,12 +229,10 @@ runtime:
 		os.MkdirAll(currentDir, 0755)
 
 		// Create formation.yaml in current
-		formationYAML := `name: test-formation
+		formationYAML := `id: test-formation
+name: test-formation
+description: Test update formation
 version: 1.0.0
-runtime:
-  type: python
-  command: python
-  args: ["app.py"]
 `
 		os.WriteFile(filepath.Join(currentDir, "formation.yaml"), []byte(formationYAML), 0644)
 

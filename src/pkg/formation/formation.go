@@ -9,18 +9,16 @@ import (
 
 // Formation represents a parsed formation.yaml file
 type Formation struct {
-	Schema      string        `yaml:"schema"`
-	ID          string        `yaml:"id"`
-	Name        string        `yaml:"name"`
-	Description string        `yaml:"description"`
-	Version     string        `yaml:"version"`
-	Runtime     RuntimeConfig `yaml:"runtime"`
-	// We can add more fields as needed, but ID is the critical one
-}
-
-// RuntimeConfig contains runtime settings
-type RuntimeConfig struct {
-	BuiltInMCPs bool `yaml:"built_in_mcps"`
+	Schema      string `yaml:"schema"`
+	ID          string `yaml:"id"`
+	Name        string `yaml:"name,omitempty"`
+	Description string `yaml:"description"`
+	Version     string `yaml:"version,omitempty"`
+	Runtime     string `yaml:"runtime,omitempty"` // Runtime SIF version (e.g., "1.2.3", "1.2", "latest")
+	Author      string `yaml:"author,omitempty"`
+	URL         string `yaml:"url,omitempty"`
+	License     string `yaml:"license,omitempty"`
+	// We can add more fields as needed, but ID and Runtime are critical
 }
 
 // ParseFormationYAML parses a formation.yaml file
@@ -39,8 +37,48 @@ func ParseFormationYAML(path string) (*Formation, error) {
 	if f.ID == "" {
 		return nil, fmt.Errorf("formation.yaml must have an 'id' field")
 	}
+	if f.Description == "" {
+		return nil, fmt.Errorf("formation.yaml must have a 'description' field")
+	}
+
+	// Set defaults
+	if f.Runtime == "" {
+		f.Runtime = "latest"
+	}
+	if f.License == "" {
+		f.License = "Unlicense"
+	}
+
+	// Validate ID (check for reserved words)
+	if err := f.ValidateID(); err != nil {
+		return nil, err
+	}
 
 	return &f, nil
+}
+
+// ValidateID checks if the formation ID is valid
+func (f *Formation) ValidateID() error {
+	if f.ID == "" {
+		return fmt.Errorf("formation ID cannot be empty")
+	}
+
+	// Check for reserved IDs
+	reserved := map[string]bool{
+		"health":  true,
+		"ping":    true,
+		"rpc":     true,
+		"server":  true,
+		"admin":   true,
+		"metrics": true,
+		"api":     true,
+	}
+
+	if reserved[f.ID] {
+		return fmt.Errorf("formation ID '%s' is reserved", f.ID)
+	}
+
+	return nil
 }
 
 // GetDefaultCommand returns the default command to run the formation

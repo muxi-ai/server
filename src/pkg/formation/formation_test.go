@@ -21,8 +21,7 @@ id: test-formation
 name: Test Formation
 description: A test formation
 version: 1.0.0
-runtime:
-  built_in_mcps: true`,
+runtime: "1.2.3"`,
 			wantErr: false,
 			validate: func(t *testing.T, f *Formation) {
 				if f.Schema != "muxi.ai/formation/v1" {
@@ -40,15 +39,16 @@ runtime:
 				if f.Version != "1.0.0" {
 					t.Errorf("Version = %q, want %q", f.Version, "1.0.0")
 				}
-				if !f.Runtime.BuiltInMCPs {
-					t.Error("Runtime.BuiltInMCPs = false, want true")
+				if f.Runtime != "1.2.3" {
+					t.Errorf("Runtime = %q, want %q", f.Runtime, "1.2.3")
 				}
 			},
 		},
 		{
 			name: "minimal valid formation",
 			content: `id: minimal-formation
-name: Minimal`,
+name: Minimal
+description: A minimal test formation`,
 			wantErr: false,
 			validate: func(t *testing.T, f *Formation) {
 				if f.ID != "minimal-formation" {
@@ -56,6 +56,9 @@ name: Minimal`,
 				}
 				if f.Name != "Minimal" {
 					t.Errorf("Name = %q, want %q", f.Name, "Minimal")
+				}
+				if f.Runtime != "latest" {
+					t.Errorf("Runtime = %q, want %q (default)", f.Runtime, "latest")
 				}
 			},
 		},

@@ -56,12 +56,10 @@ func TestHandleRollback(t *testing.T) {
 		os.MkdirAll(currentDir, 0755)
 
 		// Create formation.yaml in current
-		formationYAML := `name: test-formation
+		formationYAML := `id: test-formation
+name: test-formation
+description: Test rollback formation
 version: 1.0.0
-runtime:
-  type: python
-  command: python
-  args: ["app.py"]
 `
 		os.WriteFile(filepath.Join(currentDir, "formation.yaml"), []byte(formationYAML), 0644)
 
@@ -124,23 +122,19 @@ runtime:
 		os.MkdirAll(previousDir, 0755)
 
 		// Create formation.yaml in current (version 2)
-		currentYAML := `name: test-formation
+		currentYAML := `id: test-formation
+name: test-formation
+description: Test rollback formation v2
 version: 2.0.0
-runtime:
-  type: python
-  command: python
-  args: ["app.py"]
 `
 		os.WriteFile(filepath.Join(currentDir, "formation.yaml"), []byte(currentYAML), 0644)
 		os.WriteFile(filepath.Join(currentDir, "marker.txt"), []byte("version 2"), 0644)
 
 		// Create formation.yaml in previous (version 1)
-		previousYAML := `name: test-formation
+		previousYAML := `id: test-formation
+name: test-formation
+description: Test rollback formation v1
 version: 1.0.0
-runtime:
-  type: python
-  command: python
-  args: ["app.py"]
 `
 		os.WriteFile(filepath.Join(previousDir, "formation.yaml"), []byte(previousYAML), 0644)
 		os.WriteFile(filepath.Join(previousDir, "marker.txt"), []byte("version 1"), 0644)
@@ -232,12 +226,10 @@ runtime:
 		os.MkdirAll(previousDir, 0755)
 
 		// Create formation.yaml in both directories
-		formationYAML := `name: test-formation
+		formationYAML := `id: test-formation
+name: test-formation
+description: Test rollback formation
 version: 1.0.0
-runtime:
-  type: python
-  command: python
-  args: ["app.py"]
 `
 		os.WriteFile(filepath.Join(currentDir, "formation.yaml"), []byte(formationYAML), 0644)
 		os.WriteFile(filepath.Join(previousDir, "formation.yaml"), []byte(formationYAML), 0644)
@@ -332,12 +324,10 @@ runtime:
 		previousDir := filepath.Join(formationDir, "previous")
 		os.MkdirAll(previousDir, 0755)
 
-		formationYAML := `name: test-formation
+		formationYAML := `id: test-formation
+name: test-formation
+description: Test rollback formation
 version: 1.0.0
-runtime:
-  type: python
-  command: python
-  args: ["app.py"]
 `
 		os.WriteFile(filepath.Join(previousDir, "formation.yaml"), []byte(formationYAML), 0644)
 
@@ -396,12 +386,10 @@ runtime:
 		currentDir := filepath.Join(formationDir, "current")
 		os.MkdirAll(currentDir, 0755)
 
-		formationYAML := `name: test-formation
+		formationYAML := `id: test-formation
+name: test-formation
+description: Test rollback without previous
 version: 2.0.0
-runtime:
-  type: python
-  command: python
-  args: ["app.py"]
 `
 		os.WriteFile(filepath.Join(currentDir, "formation.yaml"), []byte(formationYAML), 0644)
 
