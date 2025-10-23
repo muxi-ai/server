@@ -20,7 +20,8 @@ type Persistence struct {
 	saveDebounce time.Duration
 	saveChan     chan struct{}
 	stopChan     chan struct{}
-	mu           sync.Mutex // Protects timer cleanup
+	mu           sync.Mutex    // Protects autoSave flag
+	wg           sync.WaitGroup // Tracks running save operations
 }
 
 // NewPersistence creates a new persistence manager
@@ -76,8 +77,8 @@ func (p *Persistence) DisableAutoSave() {
 	// Close stop channel to signal loop to exit
 	close(p.stopChan)
 	
-	// Give the loop time to clean up pending timers
-	time.Sleep(10 * time.Millisecond)
+	// Wait for all pending save operations to complete
+	p.wg.Wait()
 }
 
 // Save saves the registry to disk
@@ -187,6 +188,10 @@ func (p *Persistence) autoSaveLoop() {
 					return
 				}
 				p.mu.Unlock()
+				
+				// Track this save operation
+				p.wg.Add(1)
+				defer p.wg.Done()
 				
 				if err := p.Save(); err != nil {
 					p.logger.Error().
