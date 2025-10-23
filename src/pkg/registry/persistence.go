@@ -19,6 +19,7 @@ type Persistence struct {
 	saveDebounce time.Duration
 	saveChan     chan struct{}
 	stopChan     chan struct{}
+	mu           sync.Mutex // Protects timer cleanup
 }
 
 // NewPersistence creates a new persistence manager
@@ -63,11 +64,19 @@ func (p *Persistence) EnableAutoSave() {
 
 // DisableAutoSave disables automatic saving
 func (p *Persistence) DisableAutoSave() {
+	p.mu.Lock()
 	if !p.autoSave {
+		p.mu.Unlock()
 		return // Already disabled
 	}
 	p.autoSave = false
+	p.mu.Unlock()
+	
+	// Close stop channel to signal loop to exit
 	close(p.stopChan)
+	
+	// Give the loop time to clean up pending timers
+	time.Sleep(10 * time.Millisecond)
 }
 
 // Save saves the registry to disk
@@ -159,26 +168,39 @@ func (p *Persistence) Load() error {
 // autoSaveLoop runs the auto-save loop with debouncing
 func (p *Persistence) autoSaveLoop() {
 	var timer *time.Timer
+	var timerMu sync.Mutex // Protects timer access
 
 	for {
 		select {
 		case <-p.saveChan:
 			// Reset timer (debounce)
+			timerMu.Lock()
 			if timer != nil {
 				timer.Stop()
 			}
 			timer = time.AfterFunc(p.saveDebounce, func() {
+				p.mu.Lock()
+				if !p.autoSave {
+					// Auto-save was disabled, don't save
+					p.mu.Unlock()
+					return
+				}
+				p.mu.Unlock()
+				
 				if err := p.Save(); err != nil {
 					p.logger.Error().
 						Err(err).
 						Msg("Failed to auto-save registry")
 				}
 			})
+			timerMu.Unlock()
 
 		case <-p.stopChan:
+			timerMu.Lock()
 			if timer != nil {
 				timer.Stop()
 			}
+			timerMu.Unlock()
 			return
 		}
 	}
