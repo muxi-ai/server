@@ -107,6 +107,21 @@ func cmdInit() error {
 	var port int
 	var email string
 
+	// Email first (breaks autopilot pattern)
+	fmt.Println(strings.Repeat(boxH, 60))
+	fmt.Println("EMAIL FOR UPDATES AND NOTIFICATIONS")
+	fmt.Println(strings.Repeat(boxH, 60))
+	fmt.Println()
+	fmt.Println("Stay informed about:")
+	fmt.Printf("  %s Security updates and patches\n", bullet)
+	fmt.Printf("  %s New features and improvements\n", bullet)
+	fmt.Printf("  %s Breaking changes and migrations\n", bullet)
+	fmt.Println()
+	fmt.Print("Email (optional but recommended): ")
+	email, _ = reader.ReadString('\n')
+	email = strings.TrimSpace(email)
+	fmt.Println()
+
 	// Server Name
 	defaultName := ""
 	if editMode && existingConfig != nil {
@@ -149,11 +164,6 @@ func cmdInit() error {
 			defaultPort = port + 1
 		}
 	}
-
-	// Email (optional but recommended)
-	fmt.Print("Email for updates and notifications (optional but recommended): ")
-	email, _ = reader.ReadString('\n')
-	email = strings.TrimSpace(email)
 
 	fmt.Println()
 
