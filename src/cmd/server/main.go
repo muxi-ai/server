@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 	"time"
 
@@ -96,24 +95,31 @@ func cmdStart() error {
 		}
 	}
 
+	logger.Info().Msgf("Installation: %s", config.GetInstallType())
 	logger.Info().Msgf("Configuration loaded (%s)", configPath)
 	logger.Info().Msgf("Server ID: %s", cfg.ServerID)
 
-	// Get MUXI directory
-	muxiDir, err := config.GetMuxiDir()
+	// Get directories
+	dataDir, err := config.GetDataDir()
 	if err != nil {
-		logger.Fatal().Err(err).Msg("Failed to get MUXI directory")
+		logger.Fatal().Err(err).Msg("Failed to get data directory")
 	}
 
+	logDir, err := config.GetLogDir()
+	if err != nil {
+		logger.Fatal().Err(err).Msg("Failed to get log directory")
+	}
+
+	logger.Info().Msgf("Data directory: %s", dataDir)
+	logger.Info().Msgf("Logs directory: %s", logDir)
+
 	// Ensure directories exist
-	if err := config.EnsureDirectories(muxiDir, cfg); err != nil {
+	if err := config.EnsureDirectories(dataDir, cfg); err != nil {
 		logger.Fatal().Err(err).Msg("Failed to create directories")
 	}
 
-	// Directory initialized silently
-
 	// Create process manager
-	processManager, err := process.NewManager(muxiDir, &logger)
+	processManager, err := process.NewManager(dataDir, &logger)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to create process manager")
 	}
@@ -128,7 +134,10 @@ func cmdStart() error {
 	}
 
 	// Setup persistence
-	registryPath := filepath.Join(muxiDir, "registry.json")
+	registryPath, err := config.GetRegistryPath()
+	if err != nil {
+		logger.Fatal().Err(err).Msg("Failed to get registry path")
+	}
 	persistence := registry.NewPersistence(formationRegistry, registryPath, &logger)
 
 	// Load existing registry

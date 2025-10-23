@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -156,34 +158,127 @@ func (c *Config) Save(path string) error {
 	return nil
 }
 
-// GetMuxiDir returns the MUXI server directory (~/.muxi/server)
-func GetMuxiDir() (string, error) {
+// GetConfigDir returns the configuration directory
+// Priority: MUXI_CONFIG_DIR env var > Platform detection > User home
+func GetConfigDir() (string, error) {
+	// 1. Environment override (highest priority)
+	if dir := os.Getenv("MUXI_CONFIG_DIR"); dir != "" {
+		return dir, nil
+	}
+
+	// 2. Platform + binary location detection
+	exe, err := os.Executable()
+	if err == nil {
+		// Linux + installed in /usr → system paths
+		if runtime.GOOS == "linux" && strings.HasPrefix(exe, "/usr/") {
+			return "/etc/muxi/server", nil
+		}
+	}
+
+	// 3. User paths (macOS, Windows, or non-system Linux)
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("failed to get user home directory: %w", err)
 	}
-
 	return filepath.Join(home, ".muxi", "server"), nil
+}
+
+// GetDataDir returns the data directory (formations, registry)
+// Priority: MUXI_DATA_DIR env var > Platform detection > User home
+func GetDataDir() (string, error) {
+	// 1. Environment override (highest priority)
+	if dir := os.Getenv("MUXI_DATA_DIR"); dir != "" {
+		return dir, nil
+	}
+
+	// 2. Platform + binary location detection
+	exe, err := os.Executable()
+	if err == nil {
+		// Linux + installed in /usr → system paths
+		if runtime.GOOS == "linux" && strings.HasPrefix(exe, "/usr/") {
+			return "/var/lib/muxi", nil
+		}
+	}
+
+	// 3. User paths (macOS, Windows, or non-system Linux)
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get user home directory: %w", err)
+	}
+	return filepath.Join(home, ".muxi", "server"), nil
+}
+
+// GetLogDir returns the logs directory
+// Priority: MUXI_LOG_DIR env var > Platform detection > User home
+func GetLogDir() (string, error) {
+	// 1. Environment override (highest priority)
+	if dir := os.Getenv("MUXI_LOG_DIR"); dir != "" {
+		return dir, nil
+	}
+
+	// 2. Platform + binary location detection
+	exe, err := os.Executable()
+	if err == nil {
+		// Linux + installed in /usr → system paths
+		if runtime.GOOS == "linux" && strings.HasPrefix(exe, "/usr/") {
+			return "/var/log/muxi", nil
+		}
+	}
+
+	// 3. User paths (macOS, Windows, or non-system Linux)
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get user home directory: %w", err)
+	}
+	return filepath.Join(home, ".muxi", "server", "logs"), nil
+}
+
+// GetInstallType returns the installation type for display purposes
+// Returns: "System", "User", or "Development"
+func GetInstallType() string {
+	// Check if environment variable overrides are set
+	if os.Getenv("MUXI_CONFIG_DIR") != "" || os.Getenv("MUXI_DATA_DIR") != "" || os.Getenv("MUXI_LOG_DIR") != "" {
+		return "Custom"
+	}
+
+	// Check platform and binary location
+	exe, err := os.Executable()
+	if err == nil {
+		// Linux + /usr → System install
+		if runtime.GOOS == "linux" && strings.HasPrefix(exe, "/usr/") {
+			return "System (Linux)"
+		}
+	}
+
+	// User-level install
+	return "User-level"
+}
+
+// GetMuxiDir returns the MUXI server directory
+// DEPRECATED: Use GetConfigDir(), GetDataDir(), or GetLogDir() instead
+// Kept for backward compatibility
+func GetMuxiDir() (string, error) {
+	return GetConfigDir()
 }
 
 // GetConfigPath returns the default config file path
 func GetConfigPath() (string, error) {
-	muxiDir, err := GetMuxiDir()
+	configDir, err := GetConfigDir()
 	if err != nil {
 		return "", err
 	}
 
-	return filepath.Join(muxiDir, "config.yaml"), nil
+	return filepath.Join(configDir, "config.yaml"), nil
 }
 
 // GetRegistryPath returns the default registry file path
 func GetRegistryPath() (string, error) {
-	muxiDir, err := GetMuxiDir()
+	dataDir, err := GetDataDir()
 	if err != nil {
 		return "", err
 	}
 
-	return filepath.Join(muxiDir, "registry.json"), nil
+	return filepath.Join(dataDir, "registry.json"), nil
 }
 
 // EnsureDirectories creates all necessary directories
