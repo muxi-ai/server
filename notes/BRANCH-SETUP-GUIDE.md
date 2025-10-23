@@ -98,16 +98,23 @@ git checkout main
 
 ## 4. Workflow Permissions
 
-**Settings → Actions → General**
+**IMPORTANT:** This must be set at the **organization level**, not repository level.
 
-**Workflow permissions:**
-- ✅ Read and write permissions
-- ✅ Allow GitHub Actions to create and approve pull requests
+**Go to:** https://github.com/organizations/muxi-ai/settings/actions
+
+(Or: GitHub → muxi-ai organization → Settings → Actions → General)
+
+**Scroll to "Workflow permissions" section:**
+- ✅ Select "Read and write permissions"
+- ✅ Check "Allow GitHub Actions to create and approve pull requests"
+- ✅ Click "Save"
 
 **Why:** Allows release.yml to:
 - Create commits (.version update)
 - Create tags
 - Merge main → develop
+
+**Note:** Repository settings will be grayed out if org-level policies are in effect.
 
 ---
 
@@ -274,7 +281,11 @@ git push origin develop
 
 ### Permission denied when creating release
 
-**Fix:** Check Settings → Actions → General → Workflow permissions → Read and write
+**Fix:** Check organization settings (not repository settings):
+- https://github.com/organizations/muxi-ai/settings/actions
+- Scroll to "Workflow permissions"
+- Select "Read and write permissions"
+- Check "Allow GitHub Actions to create and approve pull requests"
 
 ---
 
