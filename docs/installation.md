@@ -8,14 +8,24 @@ Complete installation guide for MUXI Server on different platforms.
 
 ### One-Command Install (Recommended)
 
+**⚠️ System-Level Installation** - Requires `sudo` privileges:
+
 ```bash
-curl -sSL https://muxi.org/install.sh | sudo bash
+curl -sSL https://get.muxi.ai | sudo bash
 ```
 
+**Why `sudo`?**  
+MUXI Server is a **system service** that:
+- Installs to `/usr/local/bin/` (system-wide binary)
+- Manages background processes (formations)
+- Requires elevated permissions on production servers
+- Sets up systemd/launchd services
+
 **Installs:**
-- MUXI Server binary (`/usr/local/bin/muxi-server`)
-- Creates configuration directory (`~/.muxi/server/`)
-- Sets up required directories
+- ✅ MUXI Server binary → `/usr/local/bin/muxi-server`
+- ✅ Configuration directory → `~/.muxi/server/`
+- ✅ System service setup (optional)
+- ✅ Runtime directories
 
 **Supported Platforms:**
 - macOS (Intel & Apple Silicon)
@@ -81,12 +91,16 @@ This creates:
 
 ---
 
-## Package Managers
+## Package Managers (Coming Soon)
 
-### Homebrew (macOS/Linux)
+**🚧 Planned - Not Yet Available**
+
+Native package manager support is in development. These will be available in a future release:
+
+### Homebrew (macOS/Linux) - PLANNED
 
 ```bash
-# Add MUXI tap
+# Add MUXI tap (NOT YET AVAILABLE)
 brew tap muxi-ai/tap
 
 # Install
@@ -96,10 +110,14 @@ brew install muxi-server
 brew upgrade muxi-server
 ```
 
-### APT (Ubuntu/Debian)
+**Status:** 🟡 In development  
+**Timeline:** Q1 2025  
+**Track:** [Issue #TODO](https://github.com/muxi-ai/server/issues/TODO)
+
+### APT (Ubuntu/Debian) - PLANNED
 
 ```bash
-# Add repository
+# Add repository (NOT YET AVAILABLE)
 curl -fsSL https://packages.muxi.ai/apt/gpg.key | sudo gpg --dearmor -o /usr/share/keyrings/muxi.gpg
 echo "deb [signed-by=/usr/share/keyrings/muxi.gpg] https://packages.muxi.ai/apt stable main" | \
   sudo tee /etc/apt/sources.list.d/muxi.list
@@ -107,15 +125,15 @@ echo "deb [signed-by=/usr/share/keyrings/muxi.gpg] https://packages.muxi.ai/apt 
 # Install
 sudo apt update
 sudo apt install muxi-server
-
-# Upgrade
-sudo apt upgrade muxi-server
 ```
 
-### YUM/DNF (RHEL/CentOS/Fedora)
+**Status:** 🟡 Planned  
+**Timeline:** Q1 2025
+
+### YUM/DNF (RHEL/CentOS/Fedora) - PLANNED
 
 ```bash
-# Add repository
+# Add repository (NOT YET AVAILABLE)
 sudo tee /etc/yum.repos.d/muxi.repo <<EOF
 [muxi]
 name=MUXI Repository
@@ -132,20 +150,29 @@ sudo yum install muxi-server
 sudo dnf install muxi-server
 ```
 
-### AUR (Arch Linux)
+**Status:** 🟡 Planned  
+**Timeline:** Q1 2025
+
+### AUR (Arch Linux) - PLANNED
 
 ```bash
-# Using yay
+# Using yay (NOT YET AVAILABLE)
 yay -S muxi-server
 
 # Or using paru
 paru -S muxi-server
-
-# Manual
-git clone https://aur.archlinux.org/muxi-server.git
-cd muxi-server
-makepkg -si
 ```
+
+**Status:** 🟡 Planned  
+**Timeline:** Q1 2025
+
+---
+
+**For now, use:**
+1. ✅ **One-command install:** `curl -sSL https://get.muxi.ai | sudo bash`
+2. ✅ **Manual binary download:** See "Manual Installation" below
+3. ✅ **Build from source:** See "Build from Source" below
+4. ✅ **Docker:** See "Docker" section below
 
 ---
 

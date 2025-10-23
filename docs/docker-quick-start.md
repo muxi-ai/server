@@ -175,10 +175,10 @@ This gives the container **full control** over Docker. Only use:
 - ✅ Trusted environments
 - ❌ NOT for production (use native install instead)
 
-**For production, use native install:**
+**For production, use native install (system-level, requires sudo):**
 ```bash
-# Linux
-curl -sSL https://get.muxi.ai | bash
+# Linux/macOS - System installation
+curl -sSL https://get.muxi.ai | sudo bash
 
 # Much more secure!
 ```
@@ -309,14 +309,15 @@ docker-compose logs muxi-server
 
 | Feature | Docker Install | Native Install |
 |---------|---------------|----------------|
-| **Installation** | `docker-compose up` | `curl \| bash` + init |
-| **Requirements** | Docker only | Go binary + Singularity/Docker |
+| **Installation** | `docker-compose up` | `curl \| sudo bash` |
+| **Requirements** | Docker only | System privileges (sudo) |
 | **Performance** | ⭐⭐⭐ Good | ⭐⭐⭐⭐⭐ Optimal |
 | **Production** | ⚠️ Not recommended | ✅ Recommended |
-| **Security** | ⚠️ Socket access | ✅ Isolated |
-| **Updates** | `docker pull` | Package manager |
-| **Cleanup** | `docker-compose down -v` | Uninstall binary |
-| **Best for** | Quick testing, demos | Production, development |
+| **Security** | ⚠️ Socket access | ✅ System service |
+| **Updates** | `docker pull` | Package manager (coming soon) |
+| **Cleanup** | `docker-compose down -v` | `sudo` uninstall |
+| **User Level** | User containers | System service |
+| **Best for** | Quick testing, demos | Production servers |
 
 ---
 
@@ -340,13 +341,15 @@ docker-compose logs muxi-server
 
 **After testing with Docker, consider:**
 
-1. **For production:** Install natively
+1. **For production:** Install natively (system-level)
    ```bash
-   # Linux
-   curl -sSL https://get.muxi.ai | bash
+   # Linux/macOS - One-command install
+   curl -sSL https://get.muxi.ai | sudo bash
    
-   # macOS
-   brew install muxi-ai/tap/muxi-server
+   # Native package managers (COMING SOON)
+   # brew install muxi-ai/tap/muxi-server        # Homebrew
+   # sudo apt install muxi-server                # Debian/Ubuntu
+   # sudo yum install muxi-server                # RHEL/CentOS
    ```
 
 2. **Learn more:**
