@@ -282,8 +282,8 @@ func TestGenerateCredentials(t *testing.T) {
 	}
 
 	// Check secret format
-	if len(secret) != 72 { // "muxi_sk_" + 64 hex chars
-		t.Errorf("Secret length = %d, want 72", len(secret))
+	if len(secret) != 64 { // "muxi_sk_" + 56 hex chars
+		t.Errorf("Secret length = %d, want 64", len(secret))
 	}
 	if !strings.HasPrefix(secret, "muxi_sk_") {
 		t.Errorf("Secret doesn't start with muxi_sk_: %s", secret)
@@ -324,9 +324,9 @@ func TestGenerateCredentials_Format(t *testing.T) {
 		t.Errorf("Key length = %d, want 24", len(key))
 	}
 
-	// Secret should be muxi_sk_ + 64 chars
-	if len(secret) != 72 { // muxi_sk_ (8) + 64 chars
-		t.Errorf("Secret length = %d, want 72", len(secret))
+	// Secret should be muxi_sk_ + 56 hex chars (64 total)
+	if len(secret) != 64 { // muxi_sk_ (8) + 56 hex chars
+		t.Errorf("Secret length = %d, want 64", len(secret))
 	}
 }
 

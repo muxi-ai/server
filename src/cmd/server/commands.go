@@ -254,7 +254,7 @@ func generateKey() (string, error) {
 
 // generateSecret generates a random secret key
 func generateSecret() (string, error) {
-	bytes := make([]byte, 32) // 64 hex chars
+	bytes := make([]byte, 28) // 56 hex chars (total length: 64 with muxi_sk_ prefix)
 	if _, err := rand.Read(bytes); err != nil {
 		return "", err
 	}
