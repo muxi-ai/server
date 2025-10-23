@@ -20,8 +20,9 @@ type Persistence struct {
 	saveDebounce time.Duration
 	saveChan     chan struct{}
 	stopChan     chan struct{}
-	mu           sync.Mutex    // Protects autoSave flag
+	mu           sync.Mutex     // Protects autoSave flag
 	wg           sync.WaitGroup // Tracks running save operations
+	loopWg       sync.WaitGroup // Tracks the auto-save goroutine
 }
 
 // NewPersistence creates a new persistence manager
@@ -43,12 +44,18 @@ func NewPersistence(registry *Registry, filePath string, logger *zerolog.Logger)
 
 // EnableAutoSave enables automatic saving when the registry changes
 func (p *Persistence) EnableAutoSave() {
+	p.mu.Lock()
 	if p.autoSave {
+		p.mu.Unlock()
 		return // Already enabled
 	}
 	p.autoSave = true
-
-	// Recreate stop channel if it was closed
+	p.mu.Unlock()
+	
+	// Wait for any previous goroutine to exit before recreating stopChan
+	p.loopWg.Wait()
+	
+	// Recreate stop channel for this new cycle
 	p.stopChan = make(chan struct{})
 
 	// Set up onChange callback
@@ -61,6 +68,7 @@ func (p *Persistence) EnableAutoSave() {
 	})
 
 	// Start auto-save goroutine
+	p.loopWg.Add(1)
 	go p.autoSaveLoop()
 }
 
@@ -76,6 +84,9 @@ func (p *Persistence) DisableAutoSave() {
 	
 	// Close stop channel to signal loop to exit
 	close(p.stopChan)
+	
+	// Wait for the goroutine to exit
+	p.loopWg.Wait()
 	
 	// Wait for all pending save operations to complete
 	p.wg.Wait()
@@ -169,6 +180,8 @@ func (p *Persistence) Load() error {
 
 // autoSaveLoop runs the auto-save loop with debouncing
 func (p *Persistence) autoSaveLoop() {
+	defer p.loopWg.Done()
+	
 	var timer *time.Timer
 	var timerMu sync.Mutex // Protects timer access
 
