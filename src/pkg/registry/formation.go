@@ -35,7 +35,7 @@ type Formation struct {
 
 // FromProcess creates a Formation from a process.Process
 func FromProcess(proc *process.Process, port int) *Formation {
-	status := string(proc.Status)
+	status := string(proc.GetStatus())
 
 	return &Formation{
 		ID:           proc.ID,
@@ -47,19 +47,19 @@ func FromProcess(proc *process.Process, port int) *Formation {
 		Args:         proc.Args,
 		StartedAt:    proc.StartedAt,
 		DeployedAt:   time.Now(),
-		RestartCount: proc.RestartCount,
+		RestartCount: proc.GetRestartCount(),
 		HealthURL:    proc.HealthCheckURL,
-		Healthy:      proc.Status == process.StatusRunning,
+		Healthy:      proc.GetStatus() == process.StatusRunning,
 	}
 }
 
 // UpdateFromProcess updates formation fields from a process
 func (f *Formation) UpdateFromProcess(proc *process.Process) {
 	f.ProcessID = proc.PID
-	f.Status = string(proc.Status)
+	f.Status = string(proc.GetStatus())
 	f.StartedAt = proc.StartedAt
-	f.RestartCount = proc.RestartCount
-	f.Healthy = proc.Status == process.StatusRunning
+	f.RestartCount = proc.GetRestartCount()
+	f.Healthy = proc.GetStatus() == process.StatusRunning
 }
 
 // ToProcessInfo converts Formation to process.ProcessInfo for API responses
