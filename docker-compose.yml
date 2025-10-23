@@ -1,0 +1,80 @@
+# Docker Compose for MUXI Server
+# Quick start configuration for running MUXI Server in Docker
+#
+# Usage:
+#   docker-compose up -d      # Start server in background
+#   docker-compose logs -f    # Follow logs
+#   docker-compose down       # Stop server
+#
+# Access:
+#   Server API: http://localhost:7890
+#   Health check: http://localhost:7890/health
+
+version: '3.8'
+
+services:
+  muxi-server:
+    image: ghcr.io/muxi-ai/muxi-server:latest
+    container_name: muxi-server
+    
+    # Expose MUXI Server port
+    ports:
+      - "7890:7890"
+    
+    # Mount Docker socket (required for spawning formations)
+    # WARNING: This gives container access to host Docker daemon
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - muxi-data:/root/.muxi/server
+    
+    # Environment variables
+    environment:
+      # Logging
+      MUXI_LOG_LEVEL: info
+      
+      # Server configuration
+      MUXI_PORT: 7890
+      MUXI_HOST: 0.0.0.0
+      
+      # Runtime configuration
+      MUXI_RUNTIME_TYPE: docker  # Use Docker wrapper for formations
+      
+      # Optional: HMAC credentials (generate with: muxi-server init)
+      # MUXI_HMAC_KEY_ID: your-key-id
+      # MUXI_HMAC_SECRET: your-secret-key
+    
+    # Restart policy
+    restart: unless-stopped
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:7890/health"]
+      interval: 30s
+      timeout: 3s
+      start_period: 10s
+      retries: 3
+    
+    # Resource limits (optional)
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '2.0'
+    #       memory: 2G
+    #     reservations:
+    #       cpus: '0.5'
+    #       memory: 512M
+
+# Named volumes for persistent data
+volumes:
+  muxi-data:
+    driver: local
+    # Optional: Use bind mount instead for easier access
+    # driver_opts:
+    #   type: none
+    #   device: ${PWD}/data
+    #   o: bind
+
+# Optional: Networks (if you want to isolate)
+# networks:
+#   muxi-network:
+#     driver: bridge

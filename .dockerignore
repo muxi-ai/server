@@ -1,0 +1,59 @@
+# .dockerignore for MUXI Server
+# Excludes unnecessary files from Docker build context
+
+# Git
+.git/
+.gitignore
+.github/
+
+# Documentation
+*.md
+!README.md
+docs/
+wip/
+
+# Test files
+test/
+*_test.go
+
+# Build artifacts
+muxi-server
+*.exe
+*.sif
+
+# IDE
+.vscode/
+.idea/
+.claude/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Data directories
+data/
+formations/
+runtimes/
+
+# Config (will be mounted as volume)
+config.yaml
+registry.json
+credentials.json
+
+# CI/CD
+.github/
+
+# Node modules (if any)
+node_modules/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
