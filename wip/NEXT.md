@@ -211,22 +211,30 @@ runtime:
 
 ### Formation Metadata (Extended)
 
+**Server-managed metadata (version.json) - automatically extracted from formation.yaml**
+
 ```json
 // formations/my-app/version.json
 {
   "formation_id": "my-app",
-  "version": "2",
+  "formation_version": "2.0.0",
   "deployed_at": "2025-01-20T10:00:00Z",
   "bundle_hash": "sha256:abc123...",
   
-  // NEW: Runtime tracking
-  "runtime_version": "1.2.3",
+  // Runtime tracking
+  "runtime_requested": "1.2",        // From formation.yaml
+  "runtime_resolved": "1.2.5",       // Actual version used
   "runtime_hash": "sha256:def456...",
-  "runtime_source": "github.com/muxi-ai/runtime/releases/v1.2.3",
+  "runtime_source": "cdn.muxi.org/runtime/1.2.5/muxi-runtime-1.2.5-linux-amd64.sif",
   
-  // Additional metadata
+  // Metadata from formation.yaml
+  "author": "John Doe <john@example.com>",
+  "license": "MIT",
+  "schema_version": "1.0.0",
+  
+  // Server metadata
   "server_version": "1.0.0",
-  "deployed_by": "user@example.com"
+  "deployed_at": "2025-01-20T10:00:00Z"
 }
 ```
 
@@ -367,6 +375,8 @@ muxi-server upgrade --include-runtime
 
 ## 🚀 Formation Deployment with Runtime Pinning
 
+**All formation metadata (including runtime version) is specified in `formation.yaml`**
+
 ### Deploy with Default Runtime (Latest)
 
 ```bash
@@ -374,11 +384,16 @@ POST /rpc/formations/deploy
 Content-Type: multipart/form-data
 
 bundle=@my-app.tar.gz
-metadata={
-  "id": "my-app"
-}
 
-# Uses latest available runtime (e.g., 1.2.3)
+# Server extracts formation.yaml from bundle
+# Uses runtime field or defaults to latest (e.g., 1.2.3)
+```
+
+**formation.yaml:**
+```yaml
+id: "my-app"
+runtime: ""  # Uses absolute latest available
+# Or omit runtime field entirely
 ```
 
 ### Deploy with Specific Runtime
@@ -388,41 +403,52 @@ POST /rpc/formations/deploy
 Content-Type: multipart/form-data
 
 bundle=@my-app.tar.gz
-metadata={
-  "id": "my-app",
-  "runtime_version": "1.0.0"
-}
 
+# Server reads runtime from formation.yaml
 # Downloads runtime 1.0.0 if not present
-# Uses that specific version
 ```
 
-### Update Formation Runtime Only
+**formation.yaml:**
+```yaml
+id: "my-app"
+runtime: "1.0.0"  # Exact version
+```
+
+### Deploy with Semantic Versioning
 
 ```bash
-PUT /rpc/formations/my-app
+POST /rpc/formations/deploy
 Content-Type: multipart/form-data
 
-metadata={
-  "runtime_version": "2.0.0"
-}
+bundle=@my-app.tar.gz
 
-# Updates runtime without changing formation code
-# Stops formation, changes runtime, restarts
+# Server resolves "1.2" to latest 1.2.x (e.g., 1.2.5)
 ```
 
-### Update Formation Code + Runtime
+**formation.yaml:**
+```yaml
+id: "my-app"
+runtime: "1.2"  # Latest 1.2.x
+# Or: runtime: "1"  # Latest 1.x.x
+```
+
+### Update Formation (Code + Runtime)
 
 ```bash
 PUT /rpc/formations/my-app
 Content-Type: multipart/form-data
 
 bundle=@my-app-v2.tar.gz
-metadata={
-  "runtime_version": "latest"
-}
 
-# Updates both code and runtime
+# Server validates: formation.yaml id == "my-app"
+# Updates both code and runtime based on formation.yaml
+```
+
+**formation.yaml:**
+```yaml
+id: "my-app"      # Must match URL parameter
+runtime: "latest" # Upgrade to latest runtime
+version: "2.0.0"  # Formation's own version
 ```
 
 ---
@@ -569,6 +595,7 @@ formations:
    - [ ] Implement `download.go` (fetch SIF from GitHub)
    - [ ] Implement `registry.go` (track installed runtimes)
    - [ ] Implement `metadata.go` (runtime metadata struct)
+   - [ ] Implement `resolver.go` (resolve version constraints: "1.2" → "1.2.5")
 
 4. **Update Process Spawning** (Day 2-3)
    - [ ] Update `pkg/process/spawn.go` to support SIF
@@ -577,9 +604,11 @@ formations:
    - [ ] Pass environment variables to container
 
 5. **Formation Metadata** (Day 3)
-   - [ ] Add `runtime_version` to formation metadata
-   - [ ] Update deploy endpoint to accept runtime version
-   - [ ] Store runtime version in `version.json`
+   - [ ] Create `pkg/formation/yaml.go` - Parse formation.yaml
+   - [ ] Extract runtime version from formation.yaml
+   - [ ] Update deploy endpoint to read from formation.yaml (no external metadata!)
+   - [ ] Store resolved runtime version in `version.json`
+   - [ ] Validate formation ID matches between formation.yaml and URL (for updates)
 
 6. **Testing** (Day 3)
    - [ ] Test: Deploy formation with SIF
@@ -625,8 +654,9 @@ formations:
    - [ ] `POST /rpc/runtimes/prune` - Clean unused
 
 5. **Formation Runtime Updates** (Day 3)
-   - [ ] Update `PUT /rpc/formations/{id}` to support runtime changes
-   - [ ] Implement runtime-only updates (no code change)
+   - [ ] Update `PUT /rpc/formations/{id}` to read runtime from formation.yaml
+   - [ ] Validate formation.yaml id matches URL parameter
+   - [ ] Support runtime changes via updated formation.yaml
    - [ ] Add rollback for runtime changes
 
 6. **Testing** (Day 3)
