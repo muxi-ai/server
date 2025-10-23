@@ -4,6 +4,19 @@ Production-grade orchestration platform for deploying and managing MUXI formatio
 
 **Think:** Docker + PM2 + Nginx in a single Go binary, purpose-built for MUXI formations.
 
+## Versioning
+
+**Current Version:** `0.20251023.0`
+
+MUXI Server uses **[ScalVer (Scalable Calendar Versioning)](https://scalver.org)** - a calendar-aware versioning scheme that's fully compatible with SemVer.
+
+**Format:** `MAJOR.YYYYMMDD.PATCH`
+- `0` - Alpha/experimental (current)
+- `20251023` - Release date (October 23, 2025)
+- `0` - First release of the day
+
+**Learn more:** [docs/VERSIONING.md](docs/VERSIONING.md)
+
 ## Features
 
 - 🚀 **One-Command Deploy** - Bundle upload with automatic metadata injection
@@ -213,12 +226,15 @@ curl -X POST http://localhost:8001/chat \
 
 ## Documentation
 
+### For Contributors
+- **[AGENTS.md](AGENTS.md)** - Development guide for AI agents
+- **[docs/VERSIONING.md](docs/VERSIONING.md)** - Versioning & release process
+- **CHANGELOG.md** - Version history
+
 ### For Developers
-- **AGENTS.md** - Development guide for AI agents
 - **PRD.md** - Product Requirements Document
 - **AUTH.md** - Authentication design
 - **CLI-PROTOCOL.md** - Client-Server protocol specification
-- **STATUS.md** - Current implementation status
 
 ### Implementation Summaries
 - **MANAGEMENT-API-COMPLETE.md** - Management API endpoints (5 endpoints)
