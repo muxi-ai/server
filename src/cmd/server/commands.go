@@ -254,11 +254,11 @@ func generateKey() (string, error) {
 
 // generateSecret generates a random secret key
 func generateSecret() (string, error) {
-	bytes := make([]byte, 32)
+	bytes := make([]byte, 32) // 64 hex chars
 	if _, err := rand.Read(bytes); err != nil {
 		return "", err
 	}
-	return "sk_" + hex.EncodeToString(bytes), nil
+	return "muxi_sk_" + hex.EncodeToString(bytes), nil
 }
 
 // maskSecret masks a secret for display

@@ -27,7 +27,7 @@ type LoggingConfig struct {
 type AuthConfig struct {
 	Enabled            bool   `yaml:"enabled"`             // Enable authentication (default: false for dev)
 	Key                string `yaml:"key"`                 // Public key identifier (e.g., muxi_pk_abc123)
-	Secret             string `yaml:"secret"`              // Secret key for HMAC (e.g., sk_xyz789)
+	Secret             string `yaml:"secret"`              // Secret key for HMAC (e.g., muxi_sk_xyz789)
 	TimestampTolerance int    `yaml:"timestamp_tolerance"` // Tolerance in seconds (default: 300 = 5 min)
 }
 

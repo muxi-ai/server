@@ -8,7 +8,7 @@ import (
 
 // GenerateCredentials generates a new key/secret pair
 // Key format: muxi_pk_{16 hex chars}
-// Secret format: sk_{64 hex chars}
+// Secret format: muxi_sk_{64 hex chars}
 func GenerateCredentials() (key, secret string, err error) {
 	// Generate random bytes
 	keyBytes := make([]byte, 8)     // 16 hex chars
@@ -23,7 +23,7 @@ func GenerateCredentials() (key, secret string, err error) {
 	}
 
 	key = "muxi_pk_" + hex.EncodeToString(keyBytes)
-	secret = "sk_" + hex.EncodeToString(secretBytes)
+	secret = "muxi_sk_" + hex.EncodeToString(secretBytes)
 
 	return key, secret, nil
 }
