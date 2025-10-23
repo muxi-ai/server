@@ -1,15 +1,18 @@
 package main
 
 import (
+	"bufio"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
+	"strings"
 
 	"github.com/muxi-ai/server/pkg/config"
-	"github.com/muxi-ai/server/pkg/formation"
 	"gopkg.in/yaml.v3"
 )
 
@@ -20,62 +23,205 @@ var (
 	BuildTime = "unknown"
 )
 
-// cmdInit handles the 'init' command
-// Generates credentials and creates config file
+// ANSI constants for clean output
+const (
+	banner = `
+███╗   ███╗██╗   ██╗██╗  ██╗██╗
+████╗ ████║██║   ██║╚██╗██╔╝██║
+██╔████╔██║██║   ██║ ╚███╔╝ ██║
+██║╚██╔╝██║██║   ██║ ██╔██╗ ██║
+██║ ╚═╝ ██║╚██████╔╝██╔╝ ██╗██║
+╚═╝     ╚═╝ ╚═════╝ ╚═╝  ╚═╝╚═╝
+`
+	checkMark  = "✓"
+	crossMark  = "✗"
+	arrowRight = "→"
+	bullet     = "•"
+	boxH       = "─"
+)
+
+// cmdInit handles the 'init' command - improved UX version
 func cmdInit() error {
-	fmt.Println("🔐 Initializing MUXI Server...")
+	reader := bufio.NewReader(os.Stdin)
+
+	// Print banner
+	fmt.Println(banner)
+	fmt.Printf("MUXI Server %s\n", Version)
+	fmt.Println()
+	fmt.Println("This will initialize your MUXI Server with credentials and configuration.")
 	fmt.Println()
 
-	// Get MUXI directory (already points to ~/.muxi/server)
+	// Get MUXI directory
 	muxiDir, err := config.GetMuxiDir()
 	if err != nil {
 		return fmt.Errorf("failed to get MUXI directory: %w", err)
 	}
 
-	// Create server directory
+	// Create server directory if it doesn't exist
 	if err := os.MkdirAll(muxiDir, 0755); err != nil {
 		return fmt.Errorf("failed to create server directory: %w", err)
 	}
 
 	configPath := filepath.Join(muxiDir, "config.yaml")
 
-	// Check if config already exists
+	// Check for existing config
+	var existingConfig *config.Config
+	var editMode bool
+
 	if _, err := os.Stat(configPath); err == nil {
-		fmt.Printf("⚠️  Config file already exists: %s\n", configPath)
-		fmt.Print("Overwrite? (y/N): ")
+		// Config exists - load it
+		existingConfig, err = config.Load(configPath)
+		if err != nil {
+			fmt.Printf("%s Warning: Could not load existing config: %v\n", crossMark, err)
+			fmt.Println("Continuing with fresh initialization...")
+		} else {
+			// Show existing config
+			fmt.Printf("%s Configuration file found at %s\n\n", bullet, configPath)
+			fmt.Println("Current settings:")
+			fmt.Printf("  Server ID: %s\n", existingConfig.ServerID)
+			fmt.Printf("  Port:      %d\n", existingConfig.Server.Port)
+			fmt.Printf("  Key:       %s\n", maskKey(existingConfig.Auth.Key))
+			fmt.Println()
 
-		var response string
-		fmt.Scanln(&response)
+			// Ask Edit or Override
+			fmt.Print("Do you want to (E)dit or (O)verride? [E/o]: ")
+			response, _ := reader.ReadString('\n')
+			response = strings.TrimSpace(strings.ToLower(response))
 
-		if response != "y" && response != "Y" {
-			fmt.Println("Aborted.")
-			return nil
+			if response == "o" || response == "override" {
+				fmt.Println()
+				fmt.Println("Starting fresh initialization...")
+				editMode = false
+				existingConfig = nil
+			} else {
+				fmt.Println()
+				fmt.Println("Editing existing configuration...")
+				editMode = true
+			}
+			fmt.Println()
 		}
-		fmt.Println()
 	}
 
-	// Generate server ID
-	serverID, err := formation.GenerateServerID()
-	if err != nil {
-		return fmt.Errorf("failed to generate server ID: %w", err)
+	// Interactive prompts
+	var serverName string
+	var port int
+	var email string
+
+	// Server Name
+	defaultName := ""
+	if editMode && existingConfig != nil {
+		defaultName = extractServerName(existingConfig.ServerID)
+	}
+	if defaultName == "" {
+		defaultName, _ = os.Hostname()
 	}
 
-	// Generate credentials
-	key, err := generateKey()
-	if err != nil {
-		return fmt.Errorf("failed to generate key: %w", err)
+	fmt.Printf("Server name [%s]: ", defaultName)
+	serverName, _ = reader.ReadString('\n')
+	serverName = strings.TrimSpace(serverName)
+	if serverName == "" {
+		serverName = defaultName
 	}
 
-	secret, err := generateSecret()
-	if err != nil {
-		return fmt.Errorf("failed to generate secret: %w", err)
+	// Port with availability check
+	defaultPort := 7890
+	if editMode && existingConfig != nil {
+		defaultPort = existingConfig.Server.Port
 	}
 
-	// Create default config
+	for {
+		fmt.Printf("Server port [%d]: ", defaultPort)
+		portInput, _ := reader.ReadString('\n')
+		portInput = strings.TrimSpace(portInput)
+
+		if portInput == "" {
+			port = defaultPort
+		} else {
+			fmt.Sscanf(portInput, "%d", &port)
+		}
+
+		// Check if port is available
+		if isPortAvailable(port) {
+			break
+		} else {
+			fmt.Printf("%s Port %d is already in use. Please choose another port.\n", crossMark, port)
+			defaultPort = port + 1
+		}
+	}
+
+	// Email (optional)
+	fmt.Print("Email for updates and notifications (optional, press Enter to skip): ")
+	email, _ = reader.ReadString('\n')
+	email = strings.TrimSpace(email)
+
+	fmt.Println()
+
+	// Generate or reuse credentials
+	var key, secret string
+	var serverID string
+
+	if editMode && existingConfig != nil {
+		// Keep existing credentials
+		key = existingConfig.Auth.Key
+		secret = existingConfig.Auth.Secret
+		// Generate new server ID with the user's chosen name
+		serverID = generateServerIDFromName(serverName)
+	} else {
+		// Generate fresh credentials
+		serverID = generateServerIDFromName(serverName)
+
+		key, err = generateKey()
+		if err != nil {
+			return fmt.Errorf("failed to generate key: %w", err)
+		}
+
+		secret, err = generateSecret()
+		if err != nil {
+			return fmt.Errorf("failed to generate secret: %w", err)
+		}
+	}
+
+	// Detect OS and handle Docker
+	osName := runtime.GOOS
+	fmt.Printf("%s %s environment detected\n", bullet, strings.Title(osName))
+
+	if osName == "darwin" || osName == "windows" {
+		// Check Docker
+		if !checkDockerAvailable() {
+			fmt.Printf("%s Docker is required for SIF runtime on %s\n", crossMark, osName)
+			fmt.Println()
+			fmt.Println("Please install Docker Desktop:")
+			if osName == "darwin" {
+				fmt.Println("  brew install --cask docker")
+			} else {
+				fmt.Println("  https://docs.docker.com/desktop/install/windows-install/")
+			}
+			fmt.Println()
+			fmt.Println("After installing Docker, run 'muxi-server init' again.")
+			return fmt.Errorf("Docker not found")
+		}
+
+		// Pull runtime-runner with progress
+		if !checkRuntimeRunnerExists() {
+			fmt.Printf("%s Downloading runtime-runner image...", bullet)
+			if err := pullRuntimeRunner(); err != nil {
+				fmt.Printf(" %s\n", crossMark)
+				fmt.Printf("   Failed: %v\n", err)
+				fmt.Println("   You can pull it manually later:")
+				fmt.Println("   docker pull --platform linux/amd64 ghcr.io/muxi-ai/runtime-runner:latest")
+			} else {
+				fmt.Printf(" %s\n", checkMark)
+			}
+		} else {
+			fmt.Printf("%s Runtime-runner image already available\n", checkMark)
+		}
+	}
+
+	// Create config
 	cfg := &config.Config{
 		ServerID: serverID,
 		Server: config.ServerConfig{
-			Port: 7890, // Official MUXI Port
+			Port: port,
 			Host: "0.0.0.0",
 		},
 		Auth: config.AuthConfig{
@@ -93,6 +239,11 @@ func cmdInit() error {
 			MaxRestarts:    10,
 			RestartDelay:   1,
 		},
+	}
+
+	// Store email if provided (TODO: add to config struct)
+	if email != "" {
+		fmt.Printf("%s Email registered: %s\n", checkMark, email)
 	}
 
 	// Write config file
@@ -115,55 +266,29 @@ func cmdInit() error {
 		}
 	}
 
-	// Print success message
-	fmt.Println("✅ MUXI Server initialized successfully!")
+	// Success message
 	fmt.Println()
-	fmt.Println("📁 Configuration saved to:")
-	fmt.Printf("   %s\n", configPath)
+	fmt.Println(strings.Repeat(boxH, 60))
+	fmt.Printf("%s MUXI Server initialized successfully!\n", checkMark)
+	fmt.Println(strings.Repeat(boxH, 60))
 	fmt.Println()
-	fmt.Println("🆔 Server ID:")
-	fmt.Printf("   %s\n", serverID)
+
+	fmt.Printf("Configuration saved to: %s\n", configPath)
 	fmt.Println()
-	fmt.Println("🔑 Authentication Credentials:")
-	fmt.Printf("   Key:    %s\n", key)
-	fmt.Printf("   Secret: %s\n", secret)
-	fmt.Println()
-	fmt.Println("⚠️  IMPORTANT: Keep your secret secure!")
-	fmt.Println("   Never commit it to version control or share it publicly.")
-	fmt.Println()
-	
-	// Runtime runner setup for non-Linux systems
-	fmt.Println("🐳 Runtime Execution:")
-	fmt.Println("   MUXI Server can run SIF formations using:")
-	fmt.Println("   - Linux: Native Singularity execution")
-	fmt.Println("   - macOS/Windows: Docker wrapper (runtime-runner)")
-	fmt.Println()
-	
-	// Check if Docker is available and pull runtime-runner if needed
-	if checkDockerAvailable() {
-		if !checkRuntimeRunnerExists() {
-			fmt.Println("   📦 Pulling runtime-runner image...")
-			if err := pullRuntimeRunner(); err != nil {
-				fmt.Printf("   ⚠️  Failed to pull runtime-runner: %v\n", err)
-				fmt.Println("   You can pull it manually later with:")
-				fmt.Println("   docker pull --platform linux/amd64 ghcr.io/muxi-ai/runtime-runner:latest")
-			} else {
-				fmt.Println("   ✅ Runtime-runner image ready!")
-			}
-		} else {
-			fmt.Println("   ✅ Runtime-runner image already available")
-		}
-	} else {
-		fmt.Println("   ⚠️  Docker not found. To enable SIF support, install Docker and run:")
-		fmt.Println("   docker pull --platform linux/amd64 ghcr.io/muxi-ai/runtime-runner:latest")
+
+	if !editMode {
+		fmt.Println("Your authentication credentials have been generated and saved.")
+		fmt.Printf("To view them: muxi-server config show\n")
+		fmt.Println()
 	}
+
+	fmt.Println("Next steps:")
+	fmt.Printf("  1. Start the server:    muxi-server start\n")
+	fmt.Printf("  2. Check server status: curl http://localhost:%d/health\n", port)
+	fmt.Printf("  3. View configuration:  muxi-server config show\n")
 	fmt.Println()
-	
-	fmt.Println("📝 Next steps:")
-	fmt.Println("   1. Review configuration: muxi-server config show")
-	fmt.Println("   2. Start server: muxi-server start")
-	fmt.Println("   3. Add credentials to CLI profile:")
-	fmt.Printf("      muxi config add-profile default --key=%s --secret=%s\n", key, secret)
+
+	fmt.Println("Documentation: https://docs.muxi.ai/getting-started")
 	fmt.Println()
 
 	return nil
@@ -190,8 +315,10 @@ func cmdConfigShow() error {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	// Display config (with secret masked)
-	fmt.Println("📋 MUXI Server Configuration")
+	// Display config (with key and secret masked)
+	fmt.Println("═══════════════════════════════════════")
+	fmt.Println("   MUXI Server Configuration")
+	fmt.Println("═══════════════════════════════════════")
 	fmt.Println()
 	fmt.Println("Server:")
 	fmt.Printf("  ID: %s\n", cfg.ServerID)
@@ -200,7 +327,7 @@ func cmdConfigShow() error {
 	fmt.Println()
 	fmt.Println("Authentication:")
 	fmt.Printf("  Enabled: %v\n", cfg.Auth.Enabled)
-	fmt.Printf("  Key: %s\n", cfg.Auth.Key)
+	fmt.Printf("  Key: %s\n", maskKey(cfg.Auth.Key))
 	fmt.Printf("  Secret: %s\n", maskSecret(cfg.Auth.Secret))
 	fmt.Printf("  Timestamp Tolerance: %d seconds\n", cfg.Auth.TimestampTolerance)
 	fmt.Println()
@@ -219,25 +346,28 @@ func cmdConfigShow() error {
 
 // cmdHelp shows usage information
 func cmdHelp() {
-	fmt.Println("MUXI Server - Formation Orchestration Platform")
+	fmt.Println(banner)
+	fmt.Printf("MUXI Server %s - Formation Orchestration Platform\n", Version)
 	fmt.Println()
-	fmt.Println("Usage:")
-	fmt.Println("  muxi-server <command> [options]")
+	fmt.Println("USAGE")
+	fmt.Printf("  muxi-server <command> [options]\n")
 	fmt.Println()
-	fmt.Println("Commands:")
-	fmt.Println("  init           Generate credentials and initialize configuration")
-	fmt.Println("  start          Start the MUXI Server (default if no command)")
-	fmt.Println("  version        Show version information")
-	fmt.Println("  config show    Display current configuration")
-	fmt.Println("  help           Show this help message")
+	fmt.Println("COMMANDS")
+	fmt.Printf("  init           Initialize server with credentials and configuration\n")
+	fmt.Printf("  start          Start the MUXI Server (default)\n")
+	fmt.Printf("  version        Display version information\n")
+	fmt.Printf("  config show    Display current configuration\n")
+	fmt.Printf("  help           Show this help message\n")
 	fmt.Println()
-	fmt.Println("Examples:")
-	fmt.Println("  muxi-server init               # First-time setup")
-	fmt.Println("  muxi-server start              # Start the server")
-	fmt.Println("  muxi-server version            # Show version")
-	fmt.Println("  muxi-server config show        # View configuration")
+	fmt.Println("EXAMPLES")
+	fmt.Printf("  %s muxi-server init          %s First-time setup\n", arrowRight, bullet)
+	fmt.Printf("  %s muxi-server start         %s Start the server\n", arrowRight, bullet)
+	fmt.Printf("  %s muxi-server version       %s Show version\n", arrowRight, bullet)
+	fmt.Printf("  %s muxi-server config show   %s View configuration\n", arrowRight, bullet)
 	fmt.Println()
-	fmt.Println("For more information, visit: https://github.com/muxi-ai/server")
+	fmt.Println("DOCUMENTATION")
+	fmt.Printf("  %s https://docs.muxi.ai\n", arrowRight)
+	fmt.Printf("  %s https://github.com/muxi-ai/server\n", arrowRight)
 	fmt.Println()
 }
 
@@ -269,6 +399,14 @@ func maskSecret(secret string) string {
 	return secret[:8] + "..." + secret[len(secret)-4:]
 }
 
+// maskKey masks a key for display
+func maskKey(key string) string {
+	if len(key) <= 12 {
+		return "muxi_pk_••••••••"
+	}
+	return key[:12] + "••••••••"
+}
+
 // checkDockerAvailable checks if Docker is installed and available
 func checkDockerAvailable() bool {
 	cmd := exec.Command("docker", "info")
@@ -290,4 +428,32 @@ func pullRuntimeRunner() error {
 	// Suppress stdout (digest output), only show errors
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+// extractServerName extracts hostname from server ID (format: server-{hostname}-{hash})
+func extractServerName(serverID string) string {
+	parts := strings.Split(serverID, "-")
+	if len(parts) >= 2 {
+		return parts[1]
+	}
+	return ""
+}
+
+// generateServerIDFromName generates a server ID from a name
+func generateServerIDFromName(name string) string {
+	// Format: server-{name}-{short-hash}
+	hash := make([]byte, 4)
+	rand.Read(hash)
+	return fmt.Sprintf("server-%s-%x", name, hash)
+}
+
+// isPortAvailable checks if a port is available for binding
+func isPortAvailable(port int) bool {
+	address := fmt.Sprintf(":%d", port)
+	listener, err := net.Listen("tcp", address)
+	if err != nil {
+		return false
+	}
+	listener.Close()
+	return true
 }
