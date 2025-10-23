@@ -22,17 +22,17 @@ RUN apk add --no-cache git make
 WORKDIR /build
 
 # Copy go mod files first (better caching)
-COPY go.mod go.sum ./
+COPY src/go.mod src/go.sum ./
 RUN go mod download
 
 # Copy source code
-COPY src/ ./src/
+COPY src/ ./
 
 # Build server binary
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo \
     -ldflags="-w -s" \
     -o muxi-server \
-    ./src/cmd/server
+    ./cmd/server
 
 # Verify binary was created
 RUN test -f muxi-server && echo "✓ Build successful"
