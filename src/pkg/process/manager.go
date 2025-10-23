@@ -44,9 +44,7 @@ func NewManager(baseDir string, logger *zerolog.Logger) (*Manager, error) {
 		}
 	}
 
-	logger.Info().
-		Str("base_dir", baseDir).
-		Msg("Process manager initialized")
+	// Process manager initialized silently
 
 	return &Manager{
 		processes: make(map[string]*managedProcess),

@@ -66,7 +66,7 @@ func cmdStart() error {
 		Logger()
 	log.Logger = logger
 
-	logger.Info().Msg("🚀 MUXI Server starting...")
+	logger.Info().Msgf("MUXI Server (v%s): Starting...", Version)
 
 	// Load configuration
 	configPath, err := config.GetConfigPath()
@@ -96,12 +96,8 @@ func cmdStart() error {
 		}
 	}
 
-	logger.Info().
-		Str("config_path", configPath).
-		Str("server_id", cfg.ServerID).
-		Int("server_port", cfg.Server.Port).
-		Int("port_range", cfg.Formations.PortRangeStart).
-		Msg("Configuration loaded")
+	logger.Info().Msgf("Configuration loaded (%s)", configPath)
+	logger.Info().Msgf("Server ID: %s", cfg.ServerID)
 
 	// Get MUXI directory
 	muxiDir, err := config.GetMuxiDir()
@@ -114,7 +110,7 @@ func cmdStart() error {
 		logger.Fatal().Err(err).Msg("Failed to create directories")
 	}
 
-	logger.Info().Str("dir", muxiDir).Msg("MUXI directory initialized")
+	// Directory initialized silently
 
 	// Create process manager
 	processManager, err := process.NewManager(muxiDir, &logger)
@@ -144,16 +140,12 @@ func cmdStart() error {
 	persistence.EnableAutoSave()
 	defer persistence.DisableAutoSave()
 
-	logger.Info().Msg("Formation registry initialized")
+	// Registry initialized silently
 
 	// Create auth middleware
 	authMiddleware := auth.NewMiddleware(&cfg.Auth, &logger)
 
-	if cfg.Auth.Enabled {
-		logger.Info().
-			Str("key", cfg.Auth.Key).
-			Msg("Authentication enabled")
-	} else {
+	if !cfg.Auth.Enabled {
 		logger.Warn().Msg("Authentication disabled (development mode)")
 	}
 
@@ -182,9 +174,7 @@ func cmdStart() error {
 		}
 	}()
 
-	logger.Info().
-		Int("port", cfg.Server.Port).
-		Msg("✅ MUXI Server ready")
+	logger.Info().Msgf("MUXI Server listening on %s:%d", cfg.Server.Host, cfg.Server.Port)
 
 	// Wait for shutdown signal
 	<-ctx.Done()
@@ -210,7 +200,7 @@ func cmdStart() error {
 		logger.Error().Err(err).Msg("Failed to save registry")
 	}
 
-	logger.Info().Msg("✅ MUXI Server stopped")
+	logger.Info().Msg("MUXI Server stopped")
 
 	return nil
 }

@@ -151,11 +151,7 @@ func (p *Persistence) Load() error {
 		}
 	}
 
-	p.logger.Info().
-		Str("path", p.filePath).
-		Int("formations", len(snapshot.Formations)).
-		Time("saved_at", snapshot.SavedAt).
-		Msg("Registry loaded")
+	// Registry loaded silently (formations count logged in main if needed)
 
 	return nil
 }

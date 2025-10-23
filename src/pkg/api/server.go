@@ -125,9 +125,7 @@ func (s *Server) handle404(w http.ResponseWriter, r *http.Request) {
 
 // Start starts the HTTP server
 func (s *Server) Start() error {
-	s.logger.Info().
-		Str("addr", s.httpServer.Addr).
-		Msg("Starting HTTP server")
+	// Server starting silently (logged in main.go)
 
 	if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		return fmt.Errorf("failed to start server: %w", err)
