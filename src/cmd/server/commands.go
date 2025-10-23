@@ -146,7 +146,7 @@ func cmdInit() error {
 			if err := pullRuntimeRunner(); err != nil {
 				fmt.Printf("   ⚠️  Failed to pull runtime-runner: %v\n", err)
 				fmt.Println("   You can pull it manually later with:")
-				fmt.Println("   docker pull ghcr.io/muxi-ai/runtime-runner:latest")
+				fmt.Println("   docker pull --platform linux/amd64 ghcr.io/muxi-ai/runtime-runner:latest")
 			} else {
 				fmt.Println("   ✅ Runtime-runner image ready!")
 			}
@@ -155,7 +155,7 @@ func cmdInit() error {
 		}
 	} else {
 		fmt.Println("   ⚠️  Docker not found. To enable SIF support, install Docker and run:")
-		fmt.Println("   docker pull ghcr.io/muxi-ai/runtime-runner:latest")
+		fmt.Println("   docker pull --platform linux/amd64 ghcr.io/muxi-ai/runtime-runner:latest")
 	}
 	fmt.Println()
 	
@@ -284,7 +284,9 @@ func checkRuntimeRunnerExists() bool {
 
 // pullRuntimeRunner pulls the runtime-runner image from GHCR
 func pullRuntimeRunner() error {
-	cmd := exec.Command("docker", "pull", "ghcr.io/muxi-ai/runtime-runner:latest")
+	// Always pull linux/amd64 since Singularity only runs on Linux x86_64
+	// Docker on ARM64 (Apple Silicon) will run it through emulation
+	cmd := exec.Command("docker", "pull", "--platform", "linux/amd64", "ghcr.io/muxi-ai/runtime-runner:latest")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
