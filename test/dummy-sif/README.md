@@ -38,23 +38,41 @@ singularity build muxi-runtime-dummy-0.1.0.sif docker-daemon://muxi-runtime-dumm
 apptainer build muxi-runtime-dummy-0.1.0.sif docker-daemon://muxi-runtime-dummy:0.1.0
 ```
 
-### macOS Workaround
+### macOS: Build SIF File
 
-Since Singularity doesn't run natively on macOS:
+Since Singularity doesn't run natively on macOS, use one of these methods:
+
+#### Option 1: Use Definition File on Linux
+
+Transfer files to Linux machine:
+```bash
+# On Linux with Singularity/Apptainer installed:
+cd test/dummy-sif
+singularity build muxi-runtime-dummy-0.1.0.sif muxi-runtime-dummy.def
+```
+
+#### Option 2: Convert Docker Image on Linux
 
 ```bash
-# Option 1: Use Docker for testing (good enough for server development)
-docker run --rm -p 8000:8000 muxi-runtime-dummy:0.1.0
-
-# Option 2: Build SIF on Linux VM or CI
-# 1. Save Docker image
+# 1. On macOS: Save Docker image
 docker save muxi-runtime-dummy:0.1.0 | gzip > muxi-runtime-dummy-0.1.0.tar.gz
 
 # 2. Transfer to Linux machine
 
-# 3. Load and convert
+# 3. On Linux: Load and convert
 docker load < muxi-runtime-dummy-0.1.0.tar.gz
 singularity build muxi-runtime-dummy-0.1.0.sif docker-daemon://muxi-runtime-dummy:0.1.0
+```
+
+#### Option 3: Use GitHub Actions (Recommended)
+
+See `.github/workflows/build-sif.yml` for automated SIF builds on Linux runners.
+
+#### Option 4: Docker for Development
+
+For server development without actual SIF:
+```bash
+docker run --rm -p 8000:8000 muxi-runtime-dummy:0.1.0
 ```
 
 ## Testing

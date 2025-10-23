@@ -1,0 +1,35 @@
+Bootstrap: docker
+From: python:3.10-slim
+
+%files
+    requirements.txt /app/requirements.txt
+    dummy_app.py /app/dummy_app.py
+
+%post
+    cd /app
+    pip install --no-cache-dir -r requirements.txt
+
+%environment
+    export PORT=8000
+    export HOST=0.0.0.0
+    export FORMATION_ID=dummy
+
+%runscript
+    cd /app
+    exec python dummy_app.py "$@"
+
+%labels
+    Author MUXI Team
+    Version 0.1.0
+    Description Dummy MUXI Runtime for testing
+
+%help
+    This is a minimal MUXI Runtime SIF for testing server SIF execution.
+    
+    Usage:
+        singularity exec muxi-runtime-dummy.sif python /app/dummy_app.py --port 8000
+        
+    Environment variables:
+        PORT - Port to listen on (default: 8000)
+        HOST - Host to bind to (default: 0.0.0.0)
+        FORMATION_ID - Formation identifier

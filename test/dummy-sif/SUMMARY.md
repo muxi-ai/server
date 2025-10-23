@@ -7,20 +7,30 @@ A minimal test environment for validating MUXI Server's SIF execution capabiliti
 ### Files Created
 ```
 test/dummy-sif/
-├── Dockerfile              # Docker image definition
-├── requirements.txt        # Python dependencies (FastAPI + Uvicorn)
-├── dummy_app.py           # Simple FastAPI test app
-├── build.sh               # Build script (Docker → SIF)
-├── test.sh                # Automated test suite
-├── README.md              # Complete documentation
-├── .gitignore             # Ignore built artifacts
-└── SUMMARY.md             # This file
+├── Dockerfile                # Docker image definition
+├── muxi-runtime-dummy.def    # Singularity definition file ⭐
+├── requirements.txt          # Python dependencies
+├── dummy_app.py             # Simple FastAPI test app
+├── build.sh                 # Build Docker image
+├── build-sif.sh             # Build SIF (requires Linux)
+├── build-on-linux.sh        # Build SIF on Linux ⭐
+├── test.sh                  # Automated test suite
+├── README.md                # Complete documentation
+├── .gitignore               # Ignore built artifacts
+└── SUMMARY.md               # This file
 ```
 
-### Docker Image Built & Tested
+### Docker Image Built & Tested ✅
 - **Image:** `muxi-runtime-dummy:0.1.0`
 - **Size:** ~180MB (Python 3.10-slim + FastAPI)
 - **Status:** ✅ All tests passing
+
+### SIF File (Requires Linux) ⚠️
+- **Definition:** `muxi-runtime-dummy.def` ✅ Created
+- **Build Script:** `build-on-linux.sh` ✅ Ready
+- **Actual SIF:** ⏳ Needs Linux machine to build
+
+**Why Linux?** Singularity/Apptainer only runs on Linux. macOS can't build SIF files natively.
 
 ### Test Results
 ```
@@ -46,11 +56,23 @@ This is a **simplified test image**. The full runtime SIF will include:
 
 ## 🚀 Next Steps
 
-### 1. Convert to SIF (Linux Required)
+### 1. Build Actual SIF File (Linux Required) ⭐
+
+**Option A: Use Definition File (Recommended)**
 ```bash
-# On Linux machine with Singularity/Apptainer:
+# On Linux with Singularity/Apptainer:
+cd test/dummy-sif
+./build-on-linux.sh 0.1.0
+```
+
+**Option B: Convert Docker Image**
+```bash
+# On Linux:
 singularity build muxi-runtime-dummy-0.1.0.sif docker-daemon://muxi-runtime-dummy:0.1.0
 ```
+
+**Option C: Use GitHub Actions**
+Create `.github/workflows/build-sif.yml` to build on Linux runners automatically.
 
 ### 2. Update Server Spawn Logic
 Edit `pkg/process/spawn.go`:

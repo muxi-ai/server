@@ -1,6 +1,7 @@
 # Ignore built artifacts
 *.sif
 *.tar.gz
+output/
 
 # Ignore copied files (source is in parent directory)
 # dummy_app.py is tracked to make the build self-contained
