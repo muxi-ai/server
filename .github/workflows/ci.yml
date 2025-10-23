@@ -18,16 +18,7 @@ jobs:
         uses: actions/setup-go@v4
         with:
           go-version: '1.21'
-      
-      - name: Cache Go modules
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cache/go-build
-            ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('src/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
+          cache-dependency-path: src/go.sum
       
       - name: Install dependencies
         run: |
