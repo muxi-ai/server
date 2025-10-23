@@ -120,6 +120,13 @@ func cmdInit() error {
 	fmt.Print("Email (optional but recommended): ")
 	email, _ = reader.ReadString('\n')
 	email = strings.TrimSpace(email)
+	
+	// Show confirmation if email provided
+	if email != "" {
+		fmt.Printf("\n%s Thank you! We've sent you a confirmation email.\n", checkMark)
+	}
+	fmt.Println()
+	fmt.Println(strings.Repeat(boxH, 60))
 	fmt.Println()
 
 	// Server Name
