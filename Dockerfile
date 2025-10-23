@@ -10,7 +10,7 @@
 # Note: Requires Docker socket mount to spawn formation containers
 
 # Build stage
-FROM golang:1.21-alpine AS builder
+FROM golang:1.23-alpine AS builder
 
 LABEL maintainer="MUXI AI <hello@muxi.ai>"
 LABEL org.opencontainers.image.source="https://github.com/muxi-ai/server"

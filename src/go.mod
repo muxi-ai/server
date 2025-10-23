@@ -1,6 +1,6 @@
 module github.com/muxi-ai/server
 
-go 1.25.2
+go 1.21
 
 require (
 	github.com/gorilla/mux v1.8.1
