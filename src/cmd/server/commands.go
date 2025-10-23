@@ -114,6 +114,7 @@ func cmdInit() error {
 	}
 	if defaultName == "" {
 		defaultName, _ = os.Hostname()
+		defaultName = strings.ToLower(defaultName) // Lowercase for consistency
 	}
 
 	fmt.Printf("Server name [%s]: ", defaultName)
@@ -149,8 +150,8 @@ func cmdInit() error {
 		}
 	}
 
-	// Email (optional)
-	fmt.Print("Email for updates and notifications (optional, press Enter to skip): ")
+	// Email (optional but recommended)
+	fmt.Print("Email for updates and notifications (optional but recommended): ")
 	email, _ = reader.ReadString('\n')
 	email = strings.TrimSpace(email)
 
