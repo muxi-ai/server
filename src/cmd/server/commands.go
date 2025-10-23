@@ -74,7 +74,7 @@ func cmdInit() error {
 	cfg := &config.Config{
 		ServerID: serverID,
 		Server: config.ServerConfig{
-			Port: 3000,
+			Port: 7890, // Official MUXI Port
 			Host: "0.0.0.0",
 		},
 		Auth: config.AuthConfig{
@@ -130,6 +130,17 @@ func cmdInit() error {
 	fmt.Println("⚠️  IMPORTANT: Keep your secret secure!")
 	fmt.Println("   Never commit it to version control or share it publicly.")
 	fmt.Println()
+	
+	// Runtime runner info for non-Linux systems
+	fmt.Println("🐳 Runtime Execution:")
+	fmt.Println("   MUXI Server can run SIF formations using:")
+	fmt.Println("   - Linux: Native Singularity execution")
+	fmt.Println("   - macOS/Windows: Docker wrapper (runtime-runner)")
+	fmt.Println()
+	fmt.Println("   To enable SIF support on macOS/Windows, pull the runtime-runner:")
+	fmt.Println("   docker pull ghcr.io/muxi-ai/runtime-runner:latest")
+	fmt.Println()
+	
 	fmt.Println("📝 Next steps:")
 	fmt.Println("   1. Review configuration: muxi-server config show")
 	fmt.Println("   2. Start server: muxi-server start")
