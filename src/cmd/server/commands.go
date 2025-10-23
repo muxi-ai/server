@@ -45,11 +45,11 @@ func cmdInit() error {
 	reader := bufio.NewReader(os.Stdin)
 
 	// Print banner
-	fmt.Println(banner)
+	fmt.Print(banner)
 	fmt.Printf("MUXI Server %s\n", Version)
-	fmt.Println()
+	fmt.Print("\n")
 	fmt.Println("This will initialize your MUXI Server with credentials and configuration.")
-	fmt.Println()
+	fmt.Print("\n")
 
 	// Get MUXI directory
 	muxiDir, err := config.GetMuxiDir()
@@ -81,7 +81,7 @@ func cmdInit() error {
 			fmt.Printf("  Server ID: %s\n", existingConfig.ServerID)
 			fmt.Printf("  Port:      %d\n", existingConfig.Server.Port)
 			fmt.Printf("  Key:       %s\n", maskKey(existingConfig.Auth.Key))
-			fmt.Println()
+			fmt.Print("\n")
 
 			// Ask Edit or Override
 			fmt.Print("Do you want to (E)dit or (O)verride? [E/o]: ")
@@ -89,16 +89,16 @@ func cmdInit() error {
 			response = strings.TrimSpace(strings.ToLower(response))
 
 			if response == "o" || response == "override" {
-				fmt.Println()
+				fmt.Print("\n")
 				fmt.Println("Starting fresh initialization...")
 				editMode = false
 				existingConfig = nil
 			} else {
-				fmt.Println()
+				fmt.Print("\n")
 				fmt.Println("Editing existing configuration...")
 				editMode = true
 			}
-			fmt.Println()
+			fmt.Print("\n")
 		}
 	}
 
@@ -111,12 +111,12 @@ func cmdInit() error {
 	fmt.Println(strings.Repeat(boxH, 60))
 	fmt.Println("EMAIL FOR UPDATES AND NOTIFICATIONS")
 	fmt.Println(strings.Repeat(boxH, 60))
-	fmt.Println()
+	fmt.Print("\n")
 	fmt.Println("Stay informed about:")
 	fmt.Printf("  %s Security updates and patches\n", bullet)
 	fmt.Printf("  %s New features and improvements\n", bullet)
 	fmt.Printf("  %s Breaking changes and migrations\n", bullet)
-	fmt.Println()
+	fmt.Print("\n")
 	fmt.Print("Email (optional but recommended): ")
 	email, _ = reader.ReadString('\n')
 	email = strings.TrimSpace(email)
@@ -125,9 +125,9 @@ func cmdInit() error {
 	if email != "" {
 		fmt.Printf("\n%s Thank you! We've sent you a confirmation email.\n", checkMark)
 	}
-	fmt.Println()
+	fmt.Print("\n")
 	fmt.Println(strings.Repeat(boxH, 60))
-	fmt.Println()
+	fmt.Print("\n")
 
 	// Server Name
 	defaultName := ""
@@ -172,7 +172,7 @@ func cmdInit() error {
 		}
 	}
 
-	fmt.Println()
+	fmt.Print("\n")
 
 	// Generate or reuse credentials
 	var key, secret string
@@ -207,14 +207,14 @@ func cmdInit() error {
 		// Check Docker
 		if !checkDockerAvailable() {
 			fmt.Printf("%s Docker is required for SIF runtime on %s\n", crossMark, osName)
-			fmt.Println()
+			fmt.Print("\n")
 			fmt.Println("Please install Docker Desktop:")
 			if osName == "darwin" {
 				fmt.Println("  brew install --cask docker")
 			} else {
 				fmt.Println("  https://docs.docker.com/desktop/install/windows-install/")
 			}
-			fmt.Println()
+			fmt.Print("\n")
 			fmt.Println("After installing Docker, run 'muxi-server init' again.")
 			return fmt.Errorf("Docker not found")
 		}
@@ -285,29 +285,29 @@ func cmdInit() error {
 	}
 
 	// Success message
-	fmt.Println()
+	fmt.Print("\n")
 	fmt.Println(strings.Repeat(boxH, 60))
 	fmt.Printf("%s MUXI Server initialized successfully!\n", checkMark)
 	fmt.Println(strings.Repeat(boxH, 60))
-	fmt.Println()
+	fmt.Print("\n")
 
 	fmt.Printf("Configuration saved to: %s\n", configPath)
-	fmt.Println()
+	fmt.Print("\n")
 
 	if !editMode {
 		fmt.Println("Your authentication credentials have been generated and saved.")
 		fmt.Printf("To view them: muxi-server config show\n")
-		fmt.Println()
+		fmt.Print("\n")
 	}
 
 	fmt.Println("Next steps:")
 	fmt.Printf("  1. Start the server:    muxi-server start\n")
 	fmt.Printf("  2. Check server status: curl http://localhost:%d/health\n", port)
 	fmt.Printf("  3. View configuration:  muxi-server config show\n")
-	fmt.Println()
+	fmt.Print("\n")
 
 	fmt.Println("Documentation: https://docs.muxi.ai/getting-started")
-	fmt.Println()
+	fmt.Print("\n")
 
 	return nil
 }
@@ -337,56 +337,56 @@ func cmdConfigShow() error {
 	fmt.Println("═══════════════════════════════════════")
 	fmt.Println("   MUXI Server Configuration")
 	fmt.Println("═══════════════════════════════════════")
-	fmt.Println()
+	fmt.Print("\n")
 	fmt.Println("Server:")
 	fmt.Printf("  ID: %s\n", cfg.ServerID)
 	fmt.Printf("  Host: %s\n", cfg.Server.Host)
 	fmt.Printf("  Port: %d\n", cfg.Server.Port)
-	fmt.Println()
+	fmt.Print("\n")
 	fmt.Println("Authentication:")
 	fmt.Printf("  Enabled: %v\n", cfg.Auth.Enabled)
 	fmt.Printf("  Key: %s\n", maskKey(cfg.Auth.Key))
 	fmt.Printf("  Secret: %s\n", maskSecret(cfg.Auth.Secret))
 	fmt.Printf("  Timestamp Tolerance: %d seconds\n", cfg.Auth.TimestampTolerance)
-	fmt.Println()
+	fmt.Print("\n")
 	fmt.Println("Formations:")
 	fmt.Printf("  Runtime Type: %s\n", cfg.Formations.RuntimeType)
 	fmt.Printf("  Port Range: %d - %d\n", cfg.Formations.PortRangeStart, cfg.Formations.PortRangeEnd)
 	fmt.Printf("  Logs Directory: %s\n", cfg.Formations.LogsDir)
 	fmt.Printf("  Auto Restart: %v\n", cfg.Formations.AutoRestart)
 	fmt.Printf("  Max Restarts: %d\n", cfg.Formations.MaxRestarts)
-	fmt.Println()
+	fmt.Print("\n")
 	fmt.Printf("Config File: %s\n", configPath)
-	fmt.Println()
+	fmt.Print("\n")
 
 	return nil
 }
 
 // cmdHelp shows usage information
 func cmdHelp() {
-	fmt.Println(banner)
+	fmt.Print(banner)
 	fmt.Printf("MUXI Server %s - Formation Orchestration Platform\n", Version)
-	fmt.Println()
+	fmt.Print("\n")
 	fmt.Println("USAGE")
 	fmt.Printf("  muxi-server <command> [options]\n")
-	fmt.Println()
+	fmt.Print("\n")
 	fmt.Println("COMMANDS")
 	fmt.Printf("  init           Initialize server with credentials and configuration\n")
 	fmt.Printf("  start          Start the MUXI Server (default)\n")
 	fmt.Printf("  version        Display version information\n")
 	fmt.Printf("  config show    Display current configuration\n")
 	fmt.Printf("  help           Show this help message\n")
-	fmt.Println()
+	fmt.Print("\n")
 	fmt.Println("EXAMPLES")
 	fmt.Printf("  %s muxi-server init          %s First-time setup\n", arrowRight, bullet)
 	fmt.Printf("  %s muxi-server start         %s Start the server\n", arrowRight, bullet)
 	fmt.Printf("  %s muxi-server version       %s Show version\n", arrowRight, bullet)
 	fmt.Printf("  %s muxi-server config show   %s View configuration\n", arrowRight, bullet)
-	fmt.Println()
+	fmt.Print("\n")
 	fmt.Println("DOCUMENTATION")
 	fmt.Printf("  %s https://docs.muxi.ai\n", arrowRight)
 	fmt.Printf("  %s https://github.com/muxi-ai/server\n", arrowRight)
-	fmt.Println()
+	fmt.Print("\n")
 }
 
 // Helper functions
