@@ -25,12 +25,13 @@ test/dummy-sif/
 - **Size:** ~180MB (Python 3.10-slim + FastAPI)
 - **Status:** ✅ All tests passing
 
-### SIF File (Requires Linux) ⚠️
+### SIF File - BUILT! ✅
 - **Definition:** `muxi-runtime-dummy.def` ✅ Created
-- **Build Script:** `build-on-linux.sh` ✅ Ready
-- **Actual SIF:** ⏳ Needs Linux machine to build
+- **Build Script:** `build-with-docker.sh` ✅ Works on macOS!
+- **Actual SIF:** ✅ Built successfully! (55MB)
+- **Location:** `output/muxi-runtime-dummy-0.1.0.sif`
 
-**Why Linux?** Singularity/Apptainer only runs on Linux. macOS can't build SIF files natively.
+**How?** Uses official Singularity Docker image to build SIF on macOS!
 
 ### Test Results
 ```
