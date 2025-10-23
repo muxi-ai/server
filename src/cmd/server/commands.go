@@ -286,8 +286,8 @@ func checkRuntimeRunnerExists() bool {
 func pullRuntimeRunner() error {
 	// Always pull linux/amd64 since Singularity only runs on Linux x86_64
 	// Docker on ARM64 (Apple Silicon) will run it through emulation
-	cmd := exec.Command("docker", "pull", "--platform", "linux/amd64", "ghcr.io/muxi-ai/runtime-runner:latest")
-	cmd.Stdout = os.Stdout
+	cmd := exec.Command("docker", "pull", "--platform", "linux/amd64", "--quiet", "ghcr.io/muxi-ai/runtime-runner:latest")
+	// Suppress stdout (digest output), only show errors
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
 }
