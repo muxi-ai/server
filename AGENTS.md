@@ -85,9 +85,16 @@ MUXI Server is a production-grade orchestration platform for deploying and manag
 - **Why:** Clean server (no Python pollution), container isolation, single file distribution
 
 ### 2. Server Process Management (Issue #1, comments)
-- **Production:** systemd (Linux) / launchd (macOS) service
+- **Production:** systemd (Linux) / launchd (macOS)
 - **Development:** Manual execution (`muxi-server serve`)
-- Install script offers service setup by default
+- **Windows:** Manual execution (optimized for dev, service support future)
+- Install script offers service setup by default (Unix only)
+
+### 3. Platform Support
+- **Linux:** Native support, systemd service, Singularity runtime
+- **macOS:** Native support, launchd service, Docker-wrapped Singularity
+- **Windows:** Native support, manual execution, Docker-wrapped Singularity ✨ **NEW**
+- **Process Management:** Platform-specific (Unix: process groups, Windows: Job Objects)
 
 ### 3. Base Code (PRD)
 - Adapted from **pm2-go** (https://github.com/hatchet/pm2-go) for process management
