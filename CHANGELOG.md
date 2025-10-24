@@ -9,7 +9,31 @@ This project uses **[ScalVer (Scalable Calendar Versioning)](https://scalver.org
 
 ## [Unreleased]
 
-Nothing yet.
+### Install Flow Redesign
+
+**Installation Repository (muxi-ai/install):**
+- Created dedicated repository for installation scripts
+- Auto-detection of interactive vs non-interactive context
+- Optional email collection for community building
+- "Configure now?" prompt runs `muxi-server init` automatically
+- Hosted at `install.muxi.org`
+
+**CLI Integration Architecture:**
+- Documented local server auto-detection strategy
+- CLI can detect server even when not running (checks credentials.json)
+- Auto-read credentials from `~/.muxi/server/credentials.json`
+- Four first-run scenarios documented in ARCHITECTURE.md
+
+**Cross-Repository Organization:**
+- MUXI-ARCHITECTURE.md created (parent document explaining all 9 repos)
+- References added to active repos (server, runtime, runtime-runner, cli, schemas)
+- Clear dependency graph and status tracking
+- Development phases and roadmap documented
+
+**Documentation:**
+- Install repo: ARCHITECTURE.md, README.md with usage examples
+- CLI repo: Comprehensive AGENTS.md with complete server API reference
+- Server repo: INSTALL_SCRIPTS.md explaining separation of concerns
 
 ---
 

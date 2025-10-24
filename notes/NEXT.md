@@ -1,21 +1,86 @@
-# MUXI Server - Runtime SIF Distribution & Version Management
+# MUXI Server - Next Steps
 
-**Status:** Phase 1 Complete ✅ - Cross-Platform Execution Implemented  
-**Last Updated:** 2025-10-23  
-**Phase:** Phase 3 - Singularity/Apptainer Runtime Integration
+**Status:** Server Complete - Waiting for Dependencies  
+**Last Updated:** 2025-10-24  
+**Current Phase:** Integration Testing (Blocked)
 
 ---
 
-## 📋 Executive Summary
+## 📋 Current Status
 
-This document outlines the architecture for containerized runtime distribution using Singularity Image Format (SIF) files. It establishes a version management system that allows independent evolution of the server and runtime while maintaining formation stability.
+**Server is production-ready and feature-complete for Phase 1.**
 
-**Key Decisions:**
-- ✅ SIF files stored in **runtime repo**, not server repo
-- ✅ Distribution via **GitHub Releases → CDN** (automated pipeline)
-- ✅ Runtime versions **pinned per formation** (no breaking changes)
-- ✅ Server downloads runtimes on-demand
-- ✅ Explicit upgrade path for formations
+### ✅ Completed
+- Server orchestration platform (91.2% coverage)
+- Full API implementation (14 endpoints)
+- Cross-platform support (Linux, macOS, Windows)
+- Homebrew distribution with auto-updates
+- Install flow redesign (muxi-ai/install repo)
+- Complete documentation and architecture
+
+### ⏸️ Blocked - Waiting For
+1. **Runtime SIF** - Final SIF container from runtime repo
+2. **CLI Tool** - Command-line interface (blocked on runtime API)
+
+### 🔄 When to Return
+1. **After runtime finalizes** - Update spawn logic for SIF execution
+2. **After CLI builds** - Integration testing (CLI → Server → Runtime)
+3. **Full E2E testing** - Complete formation lifecycle
+
+---
+
+## Next Integration Steps
+
+### 1. SIF Integration (After Runtime Finalizes)
+
+Update spawn logic to use SIF containers instead of direct Python:
+
+```go
+// src/pkg/process/spawn.go
+// FROM: exec.Command("python", "app.py")
+// TO:   exec.Command("singularity", "run", "formation.sif")
+```
+
+**Tasks:**
+- Update spawn.go for SIF execution
+- Test SIF container lifecycle
+- Update tests for SIF mode
+- Update documentation
+
+### 2. CLI Integration Testing (After CLI Builds)
+
+Test complete CLI → Server flow:
+
+**Test scenarios:**
+- Profile management (add, list, use, remove)
+- HMAC authentication
+- Formation deploy via CLI
+- Formation management (list, get, stop, restart)
+- Log streaming with --follow
+- Server status commands
+
+### 3. Full E2E Testing
+
+Complete formation lifecycle:
+
+```
+CLI → Server → Runtime-Runner → Runtime (SIF)
+    ↓         ↓              ↓            ↓
+  HMAC    Process       Container     Formation
+   Auth   Management    Execution       Code
+```
+
+---
+
+## Archive: SIF Distribution Architecture
+
+**Note:** The detailed SIF distribution architecture (runtime versioning, CDN setup, etc.) is now documented in the runtime repo. This was moved to keep server-specific concerns in the server repo.
+
+**See:** `muxi-ai/runtime` repository for:
+- SIF build infrastructure
+- Runtime versioning strategy
+- Distribution pipeline (GitHub → CDN)
+- Formation runtime pinning
 
 ---
 
