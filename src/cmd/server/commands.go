@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/muxi-ai/server/pkg/config"
@@ -160,7 +161,12 @@ func cmdInit() error {
 		if portInput == "" {
 			port = defaultPort
 		} else {
-			fmt.Sscanf(portInput, "%d", &port)
+			parsedPort, err := strconv.Atoi(portInput)
+			if err != nil {
+				fmt.Printf("%s Invalid port number. Please enter a valid port.\n", crossMark)
+				continue
+			}
+			port = parsedPort
 		}
 
 		// Check if port is available
@@ -252,7 +258,10 @@ func cmdInit() error {
 			RuntimeType:    "native",
 			PortRangeStart: 8000,
 			PortRangeEnd:   9000,
-			LogsDir:        filepath.Join(muxiDir, "logs"),
+			LogsDir:        "logs",        // Relative path, not absolute
+			PIDsDir:        "pids",        // Relative path
+			FormationsDir:  "formations",  // Relative path
+			BindHost:       "127.0.0.1",   // Formations bind to localhost
 			AutoRestart:    true,
 			MaxRestarts:    10,
 			RestartDelay:   1,

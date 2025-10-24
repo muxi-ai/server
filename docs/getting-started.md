@@ -6,9 +6,18 @@ Get your MUXI Server up and running in 5 minutes.
 
 ## Prerequisites
 
-- macOS 10.15+ or Linux (Ubuntu 20.04+, Debian 11+, RHEL 8+)
+**Operating System:**
+- Linux (Ubuntu 20.04+, Debian 11+, RHEL 8+)
+- macOS 10.15+ (Intel or Apple Silicon)
+- Windows 10/11 (x64 or ARM64)
+
+**Hardware:**
 - 2GB RAM minimum
-- Terminal access
+- Terminal/PowerShell access
+
+**Optional (for SIF runtime):**
+- Docker Desktop (Windows/macOS)
+- Singularity/Apptainer (Linux)
 
 ---
 
@@ -16,20 +25,40 @@ Get your MUXI Server up and running in 5 minutes.
 
 ### Quick Install
 
+**Linux/macOS:**
 ```bash
-curl -sSL https://muxi.org/install.sh | bash
+curl -sSL https://get.muxi.ai | sudo bash
+```
+
+**Windows (PowerShell):**
+```powershell
+irm https://install.muxi.ai/windows.ps1 | iex
 ```
 
 This installs:
 - `muxi-server` - Server binary
-- Required dependencies
-- Creates `~/.muxi/server/` directory
+- Creates configuration directory
+- Sets up runtime directories
 
 ### Verify Installation
 
+**Linux/macOS:**
 ```bash
-muxi-server --version
-# MUXI Server v1.0.0
+muxi-server version
+```
+
+**Windows:**
+```powershell
+muxi-server version
+```
+
+**Expected output:**
+```
+MUXI Server v0.20251024.0
+Commit: abc1234
+Build: 2025-10-24T12:00:00Z
+Go: 1.24.0
+Platform: windows/amd64  (or linux/amd64, darwin/arm64, etc.)
 ```
 
 ---
@@ -38,45 +67,76 @@ muxi-server --version
 
 Generate authentication credentials:
 
+**Linux/macOS:**
 ```bash
+muxi-server init
+```
+
+**Windows:**
+```powershell
 muxi-server init
 ```
 
 **Output:**
 ```
-🔐 Generating authentication credentials...
+🔐 Initializing MUXI Server...
 
-   Key:    MUXI_e8f3a9b2c4d1
-   Secret: sk_9f2e8d7c6b5a4f3e2d1c0b9a8f7e6d5c
+Server Name: My MUXI Server
+Port [7890]: 7890
+Admin Email: admin@example.com
 
-📝 Saved to: ~/.muxi/server/config.yaml
+✅ Configuration created
+✅ Authentication keys generated
+
+📁 Configuration: ~/.muxi/server/config.yaml (Unix)
+📁 Configuration: %APPDATA%\muxi\server\config.yaml (Windows)
+
+🔑 Authentication Keys:
+   Key:    muxi_pk_EXAMPLE123...
+   Secret: muxi_sk_EXAMPLE789...
 
 ⚠️  Keep your secret secure!
-   Add to CLI profile: muxi config add-profile
 ```
 
-**Save these credentials!** You'll need them to deploy formations.
+**Save these credentials!** You'll need them for the CLI tool to deploy formations.
 
 ---
 
 ## Step 3: Start the Server
 
+**Linux/macOS:**
 ```bash
-muxi-server start
+muxi-server serve
+```
+
+**Windows (foreground):**
+```powershell
+muxi-server serve
+```
+
+**Windows (background):**
+```powershell
+Start-Process muxi-server -ArgumentList "serve" -WindowStyle Hidden
 ```
 
 **Expected Output:**
 ```
-🚀 MUXI Server starting...
-✅ Configuration loaded
-✅ MUXI directory initialized
-✅ Process manager initialized
-✅ Formation registry initialized
-🔐 Authentication enabled (key: MUXI_e8f3a9b2c4d1)
-✅ MUXI Server ready (port: 7890)
+{"level":"info","time":"2025-10-24T10:00:00Z","message":"Starting MUXI Server"}
+{"level":"info","config_dir":"/Users/you/.muxi/server","message":"Configuration loaded"}
+{"level":"info","install_type":"User-level","message":"Installation type detected"}
+{"level":"info","message":"Process manager initialized"}
+{"level":"info","message":"Formation registry loaded"}
+{"level":"info","port":7890,"message":"HTTP server listening"}
+{"level":"info","message":"✓ MUXI Server ready"}
 ```
 
 The server is now running on `http://localhost:7890`.
+
+**Test it:**
+```bash
+curl http://localhost:7890/health
+# {"status":"healthy","timestamp":"2025-10-24T10:00:00Z"}
+```
 
 ---
 

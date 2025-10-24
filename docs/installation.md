@@ -6,7 +6,9 @@ Complete installation guide for MUXI Server on different platforms.
 
 ## Quick Install
 
-### One-Command Install (Recommended)
+### Unix/Linux/macOS
+
+**One-Command Install (Recommended):**
 
 **⚠️ System-Level Installation** - Requires `sudo` privileges:
 
@@ -30,6 +32,30 @@ MUXI Server is a **system service** that:
 **Supported Platforms:**
 - macOS (Intel & Apple Silicon)
 - Linux (Ubuntu, Debian, RHEL, CentOS, Fedora, Arch)
+
+### Windows
+
+**One-Command Install (PowerShell):**
+
+```powershell
+irm https://install.muxi.ai/windows.ps1 | iex
+```
+
+**User-Level Installation** - No admin required (default):
+
+**Installs:**
+- ✅ MUXI Server binary → `%LOCALAPPDATA%\muxi\bin\muxi-server.exe`
+- ✅ Configuration directory → `%APPDATA%\muxi\server\`
+- ✅ Optional PATH configuration
+- ✅ Runtime directories
+
+**Supported Platforms:**
+- Windows 10/11 (x64)
+- Windows 11 ARM64 (Surface Pro X, etc.)
+
+> **Note:** Windows support is optimized for development environments. For production deployments, we recommend Linux or Docker.
+
+**See:** [Windows Development Guide](windows-dev.md) for complete setup and usage
 
 ---
 
@@ -73,7 +99,42 @@ chmod +x muxi-server
 sudo mv muxi-server /usr/local/bin/
 ```
 
+**Windows (x64):**
+
+```powershell
+# Download binary
+$version = "v0.20251024.0"  # Check releases page for latest
+Invoke-WebRequest `
+  -Uri "https://github.com/muxi-ai/server/releases/latest/download/muxi-server-windows-amd64.exe" `
+  -OutFile "muxi-server.exe"
+
+# Install to user directory
+New-Item -ItemType Directory -Force -Path "$env:LOCALAPPDATA\muxi\bin"
+Move-Item muxi-server.exe "$env:LOCALAPPDATA\muxi\bin\muxi-server.exe"
+
+# Add to PATH (current session)
+$env:Path += ";$env:LOCALAPPDATA\muxi\bin"
+```
+
+**Windows (ARM64):**
+
+```powershell
+# Download binary for ARM64 (Surface Pro X, etc.)
+Invoke-WebRequest `
+  -Uri "https://github.com/muxi-ai/server/releases/latest/download/muxi-server-windows-arm64.exe" `
+  -OutFile "muxi-server.exe"
+
+# Install to user directory
+New-Item -ItemType Directory -Force -Path "$env:LOCALAPPDATA\muxi\bin"
+Move-Item muxi-server.exe "$env:LOCALAPPDATA\muxi\bin\muxi-server.exe"
+
+# Add to PATH (current session)
+$env:Path += ";$env:LOCALAPPDATA\muxi\bin"
+```
+
 ### Initialize Configuration
+
+**Unix/Linux/macOS:**
 
 After installing the binary:
 

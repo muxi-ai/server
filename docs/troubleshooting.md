@@ -21,21 +21,45 @@ Common issues and solutions for MUXI Server.
 **Solutions:**
 
 **1. Check if port is in use:**
-```bash
-# macOS/Linux
-lsof -i :7890
 
+**Linux/macOS:**
+```bash
+lsof -i :7890
 # Or
-netstat -an | grep 3000
+netstat -an | grep 7890
+```
+
+**Windows:**
+```powershell
+Get-NetTCPConnection -LocalPort 7890 -ErrorAction SilentlyContinue
+# Or
+netstat -ano | findstr :7890
 ```
 
 **2. Kill existing process:**
+
+**Linux/macOS:**
 ```bash
 # Find process
 ps aux | grep muxi-server
 
 # Kill it
 kill -9 <PID>
+```
+
+**Windows:**
+```powershell
+# Find process
+Get-Process muxi-server
+
+# Kill it
+Stop-Process -Name "muxi-server" -Force
+
+# Or by port
+$port = Get-NetTCPConnection -LocalPort 7890 -ErrorAction SilentlyContinue
+if ($port) {
+    Stop-Process -Id $port.OwningProcess -Force
+}
 ```
 
 **3. Use different port:**
@@ -316,6 +340,137 @@ muxi-server init --rotate
 # Enable debug mode
 muxi formation list --debug
 ```
+
+---
+
+## Windows-Specific Issues
+
+### Docker Not Found
+
+**Symptoms:**
+```
+❌ Error: Failed to start formation: docker: command not found
+```
+
+**Solution:**
+
+1. **Install Docker Desktop:**
+   - Download from https://www.docker.com/products/docker-desktop
+   - Restart Windows after installation
+
+2. **Verify Docker:**
+```powershell
+docker --version
+docker ps
+```
+
+3. **Add Docker to PATH (if needed):**
+```powershell
+$env:Path += ";C:\Program Files\Docker\Docker\resources\bin"
+```
+
+---
+
+### Windows Firewall Blocking
+
+**Symptoms:**
+- Server starts but can't connect from browser
+- Formation deployment fails silently
+
+**Solution:**
+
+**Allow MUXI Server in Windows Firewall:**
+
+```powershell
+# PowerShell (Admin)
+New-NetFirewallRule `
+  -DisplayName "MUXI Server" `
+  -Direction Inbound `
+  -Action Allow `
+  -Protocol TCP `
+  -LocalPort 7890
+```
+
+**Or use GUI:**
+1. Windows Defender Firewall → Advanced Settings
+2. Inbound Rules → New Rule
+3. Port → TCP → 7890
+4. Allow the connection
+
+---
+
+### Permission Denied Errors
+
+**Symptoms:**
+```
+❌ Access denied: cannot create directory
+```
+
+**Solution:**
+
+**Run as Administrator (for system install):**
+- Right-click PowerShell → "Run as Administrator"
+
+**Or use user install (recommended):**
+```powershell
+# User-level install (no admin needed)
+$env:MUXI_CONFIG_DIR = "$env:APPDATA\muxi\server"
+muxi-server serve
+```
+
+---
+
+### Antivirus Blocking
+
+**Symptoms:**
+- Binary won't run
+- Formation processes killed immediately
+
+**Solution:**
+
+1. **Add exception in Windows Defender:**
+
+```powershell
+# PowerShell (Admin)
+Add-MpPreference -ExclusionPath "$env:LOCALAPPDATA\muxi"
+Add-MpPreference -ExclusionPath "$env:APPDATA\muxi"
+```
+
+2. **Or use Defender GUI:**
+- Windows Security → Virus & threat protection
+- Manage settings → Add exclusions
+- Add folder: `%LOCALAPPDATA%\muxi`
+
+---
+
+### PowerShell Execution Policy
+
+**Symptoms:**
+```
+install.ps1 cannot be loaded because running scripts is disabled
+```
+
+**Solution:**
+
+```powershell
+# Allow scripts for current user (recommended)
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+# Or bypass for single command
+powershell -ExecutionPolicy Bypass -Command "irm https://install.muxi.ai/windows.ps1 | iex"
+```
+
+---
+
+### WSL 2 vs Native
+
+**Question:** Should I use WSL 2 or native Windows binary?
+
+**Answer:**
+- **Native Windows:** Better for Windows-only development, simpler setup
+- **WSL 2:** Better for Linux-like experience, if you're already using WSL
+
+Both work great - choose based on your workflow!
 
 ---
 
