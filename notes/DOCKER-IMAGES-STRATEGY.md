@@ -384,7 +384,7 @@ jobs:
 
 ```bash
 # Linux
-curl -sSL https://get.muxi.ai | bash
+curl -sSL https://get.muxi.org | bash
 
 # macOS
 brew install muxi-ai/tap/muxi-server
@@ -454,7 +454,7 @@ Best performance, production-ready.
 
 #### Linux
 \`\`\`bash
-curl -sSL https://get.muxi.ai | bash
+curl -sSL https://get.muxi.org | bash
 \`\`\`
 
 #### macOS

@@ -79,7 +79,7 @@ var (
 ### Recommended: Install Script
 
 ```bash
-curl -sSL https://install.muxi.ai | sudo bash
+curl -sSL https://install.muxi.org | sudo bash
 
 → Installing MUXI Server...
 ✓ Binary installed
@@ -163,7 +163,7 @@ muxi-server serve
 
 ```bash
 # Install as system service
-curl -sSL https://install.muxi.ai | sudo bash
+curl -sSL https://install.muxi.org | sudo bash
 → Installs binary + service
 
 # Initialize config

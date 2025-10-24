@@ -16,7 +16,7 @@
 
 FROM --platform=linux/amd64 ubuntu:22.04
 
-LABEL maintainer="MUXI AI <hello@muxi.ai>"
+LABEL maintainer="MUXI AI <hello@muxi.org>"
 LABEL org.opencontainers.image.source="https://github.com/muxi-ai/server"
 LABEL description="MUXI Runtime runner with Singularity support"
 LABEL version="1.0.0"

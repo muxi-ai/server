@@ -1,7 +1,7 @@
 # MUXI Server Install Script
 
 **Script:** `install.sh`  
-**Hosted at:** `https://install.muxi.ai` (or `https://get.muxi.ai`)  
+**Hosted at:** `https://install.muxi.org` (or `https://get.muxi.org`)  
 **Last Updated:** 2025-01-23
 
 ---
@@ -25,7 +25,7 @@ The MUXI Server install script provides a one-command installation experience si
 ### System Install (Linux with sudo)
 
 ```bash
-curl -sSL https://install.muxi.ai | sudo bash
+curl -sSL https://install.muxi.org | sudo bash
 ```
 
 **What it does:**
@@ -46,7 +46,7 @@ sudo muxi-server start   # Start server
 ### User Install (No sudo)
 
 ```bash
-curl -sSL https://install.muxi.ai | bash
+curl -sSL https://install.muxi.org | bash
 ```
 
 **What it does:**
@@ -65,7 +65,7 @@ muxi-server start       # Start server
 ### macOS Install
 
 ```bash
-curl -sSL https://install.muxi.ai | bash
+curl -sSL https://install.muxi.org | bash
 ```
 
 **Note:** Even with `sudo`, macOS uses user-level paths (`~/.muxi/server`) because macOS apps typically don't use `/etc` and `/var` for third-party software.
@@ -79,17 +79,17 @@ curl -sSL https://install.muxi.ai | bash
 ```bash
 # Install specific version
 export MUXI_VERSION=v1.0.0
-curl -sSL https://install.muxi.ai | bash
+curl -sSL https://install.muxi.org | bash
 
 # Or inline
-curl -sSL https://install.muxi.ai | MUXI_VERSION=v1.0.0 bash
+curl -sSL https://install.muxi.org | MUXI_VERSION=v1.0.0 bash
 ```
 
 ### Non-Interactive
 
 ```bash
 # Skip the "Run init now?" prompt
-curl -sSL https://install.muxi.ai | bash -s -- --non-interactive
+curl -sSL https://install.muxi.org | bash -s -- --non-interactive
 ```
 
 ---
@@ -275,7 +275,7 @@ Next steps:
   3. Check server status:
      curl http://localhost:7890/health
 
-Documentation: https://docs.muxi.ai/getting-started
+Documentation: https://docs.muxi.org/getting-started
 Repository:    https://github.com/muxi-ai/server
 ```
 
@@ -321,7 +321,7 @@ Next steps:
   3. Check server status:
      curl http://localhost:7890/health
 
-Documentation: https://docs.muxi.ai/getting-started
+Documentation: https://docs.muxi.org/getting-started
 Repository:    https://github.com/muxi-ai/server
 ```
 
@@ -345,7 +345,7 @@ Users can inspect the script before running:
 
 ```bash
 # Download and inspect
-curl -sSL https://install.muxi.ai > install.sh
+curl -sSL https://install.muxi.org > install.sh
 less install.sh
 
 # Run manually
@@ -488,14 +488,14 @@ gpg --verify muxi-server.asc muxi-server
 
 ```bash
 # Add uninstall command
-curl -sSL https://install.muxi.ai | bash -s -- --uninstall
+curl -sSL https://install.muxi.org | bash -s -- --uninstall
 ```
 
 ### Update Option
 
 ```bash
 # Add update command
-curl -sSL https://install.muxi.ai | bash -s -- --update
+curl -sSL https://install.muxi.org | bash -s -- --update
 ```
 
 ---
@@ -525,10 +525,10 @@ export PATH="$HOME/.local/bin:$PATH"
 **Solution:**
 ```bash
 # Use sudo for system install
-curl -sSL https://install.muxi.ai | sudo bash
+curl -sSL https://install.muxi.org | sudo bash
 
 # Or use user install (no sudo)
-curl -sSL https://install.muxi.ai | bash
+curl -sSL https://install.muxi.org | bash
 ```
 
 ### "No release available for your platform"

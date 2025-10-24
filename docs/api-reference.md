@@ -1210,7 +1210,7 @@ Like Redis (6379), PostgreSQL (5432), and MySQL (3306), MUXI has its own signatu
 **Install via script:**
 
 ```bash
-curl -fsSL https://install.muxi.ai | sudo bash
+curl -fsSL https://install.muxi.org | sudo bash
 ```
 
 See [Installation Guide](./installation.md) for details.

@@ -35,7 +35,7 @@ Host OS (Linux/macOS/Windows)
 
 ```bash
 # Install server binary
-curl -sSL https://get.muxi.ai | bash
+curl -sSL https://get.muxi.org | bash
 
 # Run as service
 systemctl start muxi-server  # Linux
@@ -149,7 +149,7 @@ MUXI Server (native binary)
 
 **Distribution:**
 - Binary: GitHub releases (muxi-server-linux-amd64, muxi-server-darwin-arm64, etc.)
-- Install script: `curl -sSL https://get.muxi.ai | bash`
+- Install script: `curl -sSL https://get.muxi.org | bash`
 - Homebrew: `brew install muxi/tap/muxi-server`
 - APT/YUM repos: `apt install muxi-server`
 
@@ -373,7 +373,7 @@ WantedBy=multi-user.target
 **The MUXI way:**
 ```bash
 # Install (one time)
-curl -sSL https://get.muxi.ai | bash
+curl -sSL https://get.muxi.org | bash
 
 # Run
 muxi-server serve  # Or as systemd service

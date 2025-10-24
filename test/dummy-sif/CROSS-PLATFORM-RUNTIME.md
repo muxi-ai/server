@@ -173,7 +173,7 @@ func ValidateRuntimeAvailable() error {
 sudo apt install singularity-container
 
 # Install MUXI Server
-curl -sSL https://get.muxi.ai | bash
+curl -sSL https://get.muxi.org | bash
 
 # Deploy formation
 muxi formation deploy my-formation.tar.gz

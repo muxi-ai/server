@@ -1,11 +1,11 @@
 #!/bin/bash
 #
 # MUXI Server Installation Script
-# https://install.muxi.ai (or https://get.muxi.ai)
+# https://install.muxi.org (or https://get.muxi.org)
 #
 # Usage:
-#   System install (Linux):  curl -sSL https://install.muxi.ai | sudo bash
-#   User install:            curl -sSL https://install.muxi.ai | bash
+#   System install (Linux):  curl -sSL https://install.muxi.org | sudo bash
+#   User install:            curl -sSL https://install.muxi.org | bash
 #
 
 set -e  # Exit on error
@@ -298,7 +298,7 @@ else
 fi
 
 echo ""
-echo "Documentation: https://docs.muxi.ai/getting-started"
+echo "Documentation: https://docs.muxi.org/getting-started"
 echo "Repository:    https://github.com/${REPO}"
 echo ""
 

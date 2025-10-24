@@ -21,7 +21,7 @@ Full Windows platform support for development environments.
 
 **Installation:**
 - PowerShell installation script (`install.ps1`)
-- One-command install: `irm https://install.muxi.ai/windows.ps1 | iex`
+- One-command install: `irm https://install.muxi.org/windows.ps1 | iex`
 - Automatic architecture detection
 - Optional PATH configuration
 
