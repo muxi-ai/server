@@ -88,12 +88,10 @@ jobs:
           cd src
           # Skip race detector on Windows (different behavior, not critical for cross-compile)
           if [ "${{ matrix.goos }}" = "windows" ]; then
-            # Run registry tests separately to see full output
-            echo "Running pkg/registry tests..."
-            go test ./pkg/registry -v -timeout 10m || echo "Registry tests failed - continuing to see all output"
-            echo ""
-            echo "Running all other tests..."
-            go test ./... -v -timeout 10m
+            # Use -failfast to stop at first failure (so we see it before truncation)
+            echo "Running tests with -failfast to catch first failure..."
+            go test ./pkg/registry -v -failfast -timeout 10m 2>&1 | tail -100
+            echo "Exit code: $?"
           else
             go test ./... -v -race -timeout 10m
           fi
