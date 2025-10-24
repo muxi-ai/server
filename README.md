@@ -39,9 +39,16 @@ docker pull ghcr.io/muxi-ai/server:latest
 docker run -p 7890:7890 ghcr.io/muxi-ai/server:latest
 ```
 
+**Windows (PowerShell):**
+```powershell
+# One-command install
+irm https://install.muxi.ai/windows.ps1 | iex
+```
+
 **Supported Platforms:**
 - Linux (amd64, arm64)
 - macOS (amd64, arm64 - Apple Silicon)
+- Windows (amd64, arm64) ✨ New!
 - Docker (multi-arch: linux/amd64, linux/arm64)
 
 ## Features
@@ -255,13 +262,13 @@ curl -X POST http://localhost:8001/chat \
 - ✅ **Auto-Restart** - Crashed formations auto-recover
 - ✅ **Test Coverage** - 91.2% with race detector enabled
 - ✅ **CI/CD Pipeline** - develop → rc → main with auto-versioning
-- ✅ **Multi-Platform** - Linux & macOS (amd64/arm64)
+- ✅ **Multi-Platform** - Linux, macOS, Windows (amd64/arm64)
 - ✅ **Docker Images** - Multi-arch on GHCR
 
 ### Roadmap
 - 🔜 **Phase 2** - Client CLI tool (separate repository)
 - 🔜 **Phase 3** - Singularity/Apptainer SIF runtime
-- 📋 **Windows Support** - [Issue #9](https://github.com/muxi-ai/server/issues/9)
+- ✅ **Windows Support (Phase 1)** - Binary compilation & dev experience complete!
 
 ## Documentation
 
@@ -273,6 +280,7 @@ curl -X POST http://localhost:8001/chat \
 - **[docs/formations.md](docs/formations.md)** - Formation management
 - **[docs/configuration.md](docs/configuration.md)** - Server configuration
 - **[docs/docker-quick-start.md](docs/docker-quick-start.md)** - Docker deployment
+- **[docs/windows-dev.md](docs/windows-dev.md)** - Windows development guide ✨ New!
 - **[docs/troubleshooting.md](docs/troubleshooting.md)** - Common issues & solutions
 
 ### Developer Documentation

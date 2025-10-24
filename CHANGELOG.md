@@ -7,6 +7,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Windows Support (2025-10-24)
+
+Full Windows platform support for development environments.
+
+#### Added
+
+**Platform Support:**
+- Windows binary compilation (amd64, arm64)
+- Platform-specific process management (Job Objects on Windows, process groups on Unix)
+- Windows path detection (`%APPDATA%`, `C:\ProgramData`)
+- Cross-platform builds in CI/CD (6 platforms total)
+
+**Installation:**
+- PowerShell installation script (`install.ps1`)
+- One-command install: `irm https://install.muxi.ai/windows.ps1 | iex`
+- Automatic architecture detection
+- Optional PATH configuration
+
+**Documentation:**
+- Complete Windows development guide (`docs/windows-dev.md`)
+- VS Code integration examples
+- Windows-specific troubleshooting section
+- Platform comparison tables
+
+**Process Management:**
+- Windows Job Objects for process tree management
+- Ctrl+Break signal for graceful termination
+- `OpenProcess` + `GetExitCodeProcess` for process detection
+- Background execution support
+
+**Developer Experience:**
+- Docker Desktop integration for SIF runtime
+- Windows Terminal profile examples
+- Firewall configuration guidance
+- PowerShell command examples throughout docs
+
+#### Changed
+
+- Split `spawn.go` into `spawn_common.go`, `spawn_unix.go`, `spawn_windows.go`
+- Updated `config.go` with Windows-specific path logic
+- RC workflow now builds 6 platforms (added windows-amd64, windows-arm64)
+- Release workflow includes Windows binaries
+
+#### Documentation
+
+- Updated `README.md` with Windows installation
+- Updated `docs/installation.md` with Windows sections
+- Updated `docs/getting-started.md` with cross-platform examples
+- Updated `docs/troubleshooting.md` with Windows-specific issues
+
+**Platforms Supported:**
+- Linux (amd64, arm64)
+- macOS (amd64, arm64)
+- Windows (amd64, arm64) ✨ **NEW**
+- Docker (multi-arch: linux/amd64, linux/arm64)
+
+**Note:** Windows support is optimized for development environments. Production deployments should use Linux or Docker.
+
+---
+
 ### API Architecture Refactor (2025-10-19)
 
 This is a **major breaking change** that introduces a production-ready RESTful API architecture.

@@ -22,6 +22,12 @@ jobs:
           - os: macos-latest
             goos: darwin
             goarch: arm64
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+          - os: windows-latest
+            goos: windows
+            goarch: arm64
     
     runs-on: ${{ matrix.os }}
     
@@ -37,6 +43,7 @@ jobs:
       
       - name: Get version info
         id: version
+        shell: bash
         run: |
           VERSION=$(cat .version)
           COMMIT=$(git rev-parse --short HEAD)
@@ -47,6 +54,7 @@ jobs:
           echo "BUILD_TIME=$BUILD_TIME" >> $GITHUB_OUTPUT
       
       - name: Build binary
+        shell: bash
         run: |
           echo "🔨 Building ${{ matrix.goos }}-${{ matrix.goarch }}..."
           
@@ -56,25 +64,39 @@ jobs:
             -X 'main.Version=${{ steps.version.outputs.VERSION }}' \
             -X 'main.GitCommit=${{ steps.version.outputs.COMMIT }}' \
             -X 'main.BuildTime=${{ steps.version.outputs.BUILD_TIME }}'" \
-            -o ../muxi-server-${{ matrix.goos }}-${{ matrix.goarch }} \
+            -o ../muxi-server-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goos == 'windows' && '.exe' || '' }} \
             ./cmd/server
           
           cd ..
-          ls -lh muxi-server-${{ matrix.goos }}-${{ matrix.goarch }}
+          ls -lh muxi-server-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goos == 'windows' && '.exe' || '' }}
       
-      - name: Test binary version
-        if: matrix.goarch == runner.arch || (matrix.goos == 'darwin' && matrix.goarch == 'arm64')
+      - name: Test binary version (Unix)
+        if: matrix.goos != 'windows' && (matrix.goarch == runner.arch || (matrix.goos == 'darwin' && matrix.goarch == 'arm64'))
         run: |
           chmod +x muxi-server-${{ matrix.goos }}-${{ matrix.goarch }}
           ./muxi-server-${{ matrix.goos }}-${{ matrix.goarch }} version
       
+      - name: Test binary version (Windows)
+        if: matrix.goos == 'windows' && matrix.goarch == 'amd64'
+        run: |
+          ./muxi-server-${{ matrix.goos }}-${{ matrix.goarch }}.exe version
+      
       - name: Run unit tests
+        shell: bash
         run: |
           cd src
-          go test ./... -v -race -timeout 10m
+          # Skip race detector on Windows (different behavior, not critical for cross-compile)
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            # Use -failfast to stop at first failure (so we see it before truncation)
+            echo "Running tests with -failfast to catch first failure..."
+            go test ./pkg/registry -v -failfast -timeout 10m 2>&1 | tail -100
+            echo "Exit code: $?"
+          else
+            go test ./... -v -race -timeout 10m
+          fi
       
-      - name: Run integration tests
-        if: matrix.goos == runner.os && matrix.goarch == runner.arch
+      - name: Run integration tests (Unix)
+        if: matrix.goos != 'windows' && matrix.goos == runner.os && matrix.goarch == runner.arch
         run: |
           echo "🧪 Running integration tests..."
           
@@ -95,7 +117,7 @@ jobs:
           EOF
           
           # Start server in background
-          ./muxi-server serve &
+          ./muxi-server start &
           SERVER_PID=$!
           
           # Wait for startup
@@ -126,11 +148,78 @@ jobs:
           
           echo "✓ Integration tests passed"
       
+      - name: Run integration tests (Windows)
+        if: matrix.goos == 'windows' && matrix.goarch == 'amd64'
+        shell: pwsh
+        run: |
+          Write-Host "🧪 Running integration tests..."
+          
+          # Create temporary directory
+          $TEST_DIR = New-Item -ItemType Directory -Path "$env:TEMP\muxi-test-$(Get-Random)"
+          
+          # Copy binary
+          Copy-Item "muxi-server-${{ matrix.goos }}-${{ matrix.goarch }}.exe" "$TEST_DIR\muxi-server.exe"
+          
+          Set-Location $TEST_DIR
+          
+          # Initialize
+          $initInput = @"
+          test-server
+          7890
+          test@example.com
+          "@
+          $initInput | .\muxi-server.exe init
+          
+          # Start server in background
+          $SERVER = Start-Process -FilePath ".\muxi-server.exe" -ArgumentList "start" -PassThru -NoNewWindow
+          
+          # Wait for startup
+          Start-Sleep -Seconds 5
+          
+          # Test health endpoint
+          try {
+            $response = Invoke-WebRequest -Uri "http://localhost:7890/health" -UseBasicParsing -TimeoutSec 5
+            if ($response.StatusCode -eq 200) {
+              Write-Host "✓ Health check passed"
+            } else {
+              Write-Host "❌ Health check failed"
+              Stop-Process -Id $SERVER.Id -Force -ErrorAction SilentlyContinue
+              exit 1
+            }
+          } catch {
+            Write-Host "❌ Health check failed: $_"
+            Stop-Process -Id $SERVER.Id -Force -ErrorAction SilentlyContinue
+            exit 1
+          }
+          
+          # Test ping endpoint
+          try {
+            $response = Invoke-WebRequest -Uri "http://localhost:7890/ping" -UseBasicParsing -TimeoutSec 5
+            if ($response.StatusCode -eq 200) {
+              Write-Host "✓ Ping check passed"
+            } else {
+              Write-Host "❌ Ping check failed"
+              Stop-Process -Id $SERVER.Id -Force -ErrorAction SilentlyContinue
+              exit 1
+            }
+          } catch {
+            Write-Host "❌ Ping check failed: $_"
+            Stop-Process -Id $SERVER.Id -Force -ErrorAction SilentlyContinue
+            exit 1
+          }
+          
+          # Cleanup
+          Stop-Process -Id $SERVER.Id -Force -ErrorAction SilentlyContinue
+          Set-Location ..
+          Remove-Item -Recurse -Force $TEST_DIR
+          
+          Write-Host "✓ Integration tests passed"
+      
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
           name: muxi-server-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: muxi-server-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: muxi-server-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goos == 'windows' && '.exe' || '' }}
           retention-days: 7
   
   summary:
@@ -147,5 +236,7 @@ jobs:
           echo "  ✓ linux-arm64"
           echo "  ✓ darwin-amd64"
           echo "  ✓ darwin-arm64"
+          echo "  ✓ windows-amd64"
+          echo "  ✓ windows-arm64"
           echo ""
           echo "Ready to merge to main for release!"

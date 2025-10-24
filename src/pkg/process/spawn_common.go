@@ -8,7 +8,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -35,6 +34,10 @@ type SpawnConfig struct {
 
 // Spawn creates and starts a new process based on the configuration
 // Returns a Process struct representing the running process
+//
+// This is the main entry point. Platform-specific implementations are in:
+// - spawn_unix.go (Linux, macOS, BSD)
+// - spawn_windows.go (Windows)
 func Spawn(config SpawnConfig) (*Process, error) {
 	logger := config.Logger
 	if logger == nil {
@@ -90,7 +93,7 @@ func Spawn(config SpawnConfig) (*Process, error) {
 
 	nullFile, err := os.Open(os.DevNull)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open /dev/null: %w", err)
+		return nil, fmt.Errorf("failed to open null device: %w", err)
 	}
 	defer nullFile.Close()
 
@@ -149,9 +152,9 @@ func Spawn(config SpawnConfig) (*Process, error) {
 		}
 	}
 
-	// Set process group (allows killing entire process tree)
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setpgid: true,
+	// Platform-specific process setup (process groups, job objects, etc.)
+	if err := setupPlatformProcess(cmd); err != nil {
+		return nil, fmt.Errorf("failed to setup platform-specific process: %w", err)
 	}
 
 	// Start the process
@@ -205,81 +208,6 @@ func Spawn(config SpawnConfig) (*Process, error) {
 	}
 
 	return process, nil
-}
-
-// Stop stops a running process gracefully
-func Stop(proc *Process, logger *zerolog.Logger) error {
-	if proc.cmd == nil || proc.cmd.Process == nil {
-		return fmt.Errorf("process not running")
-	}
-
-	if logger == nil {
-		l := zerolog.Nop()
-		logger = &l
-	}
-
-	logger.Info().
-		Str("id", proc.ID).
-		Int("pid", proc.PID).
-		Msg("Stopping process")
-
-	proc.SetStatus(StatusStopping)
-	proc.SetStopSignal(true)
-
-	// Send SIGTERM for graceful shutdown
-	if err := proc.cmd.Process.Signal(syscall.SIGTERM); err != nil {
-		logger.Warn().
-			Err(err).
-			Str("id", proc.ID).
-			Msg("Failed to send SIGTERM, forcing kill")
-		// Try SIGKILL
-		if err := proc.cmd.Process.Kill(); err != nil {
-			return fmt.Errorf("failed to kill process: %w", err)
-		}
-	}
-
-	// Wait for process to exit (with timeout handled by caller)
-	if err := proc.cmd.Wait(); err != nil {
-		// Exit error is expected
-		logger.Debug().
-			Err(err).
-			Str("id", proc.ID).
-			Msg("Process exited")
-	}
-
-	proc.SetStatus(StatusStopped)
-	proc.PID = 0
-	proc.cmd = nil
-
-	// Clean up PID file
-	if err := os.Remove(proc.PIDFile); err != nil {
-		logger.Debug().
-			Err(err).
-			Str("id", proc.ID).
-			Msg("Failed to remove PID file")
-	}
-
-	logger.Info().
-		Str("id", proc.ID).
-		Msg("✓ Process stopped")
-
-	return nil
-}
-
-// IsProcessRunning checks if a process with the given PID is running
-func IsProcessRunning(pid int) bool {
-	if pid <= 0 {
-		return false
-	}
-
-	process, err := os.FindProcess(pid)
-	if err != nil {
-		return false
-	}
-
-	// Send signal 0 to check if process exists
-	err = process.Signal(syscall.Signal(0))
-	return err == nil
 }
 
 // Helper functions
@@ -344,7 +272,7 @@ func buildNativeSingularityCommand(config SpawnConfig, logger *zerolog.Logger) *
 // buildDockerSingularityCommand builds a command for Docker-wrapped Singularity on macOS/Windows
 func buildDockerSingularityCommand(config SpawnConfig, logger *zerolog.Logger) *exec.Cmd {
 	// Docker image with Singularity inside
-	// Using GitHub Container Registry (like faissx)
+	// Using GitHub Container Registry
 	runtimeImage := "ghcr.io/muxi-ai/runtime-runner:latest"
 
 	args := []string{
