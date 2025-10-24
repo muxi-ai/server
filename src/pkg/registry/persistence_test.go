@@ -1,9 +1,10 @@
 package registry
 
 import (
-	"strings"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 	"time"
 
