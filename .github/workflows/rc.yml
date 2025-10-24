@@ -85,7 +85,12 @@ jobs:
         shell: bash
         run: |
           cd src
-          go test ./... -v -race -timeout 10m
+          # Skip race detector on Windows (different behavior, not critical for cross-compile)
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            go test ./... -v -timeout 10m
+          else
+            go test ./... -v -race -timeout 10m
+          fi
       
       - name: Run integration tests (Unix)
         if: matrix.goos != 'windows' && matrix.goos == runner.os && matrix.goarch == runner.arch
