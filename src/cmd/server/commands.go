@@ -252,7 +252,10 @@ func cmdInit() error {
 			RuntimeType:    "native",
 			PortRangeStart: 8000,
 			PortRangeEnd:   9000,
-			LogsDir:        filepath.Join(muxiDir, "logs"),
+			LogsDir:        "logs",        // Relative path, not absolute
+			PIDsDir:        "pids",        // Relative path
+			FormationsDir:  "formations",  // Relative path
+			BindHost:       "127.0.0.1",   // Formations bind to localhost
 			AutoRestart:    true,
 			MaxRestarts:    10,
 			RestartDelay:   1,
