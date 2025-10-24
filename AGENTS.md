@@ -26,13 +26,13 @@ MUXI Server is a production-grade orchestration platform for deploying and manag
 ## Architecture Overview
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│ MUXI Server (Go Binary) - Port 7890                              │
-│                                                                  │
+┌─────────────────────────────────────────────────────────────────┐
+│ MUXI Server (Go Binary) - Port 7890                             │
+│                                                                 │
 │  Public Endpoints (no auth):                                    │
 │    GET /health              - Server health check               │
 │    GET /ping                - Simple ping                       │
-│                                                                  │
+│                                                                 │
 │  Management API (HMAC auth): /rpc/*                             │
 │    POST   /rpc/formations/deploy      - Deploy formation        │
 │    GET    /rpc/formations             - List formations         │
@@ -45,17 +45,17 @@ MUXI Server is a production-grade orchestration platform for deploying and manag
 │    GET    /rpc/formations/{id}/logs   - Get logs                │
 │    GET    /rpc/server/status          - Server statistics       │
 │    GET    /rpc/server/logs            - Audit logs              │
-│                                                                  │
+│                                                                 │
 │  Formation Proxy (no auth): /api/*                              │
 │    ALL   /api/{formation_id}/*        - Proxy to formation      │
-│                                                                  │
-│  Components:                                                     │
+│                                                                 │
+│  Components:                                                    │
 │    - Formation Registry (in-memory + persistence)               │
 │    - Process Manager (spawning & auto-restart)                  │
 │    - Port Allocator (8000-9000 pool)                            │
 │    - Version Manager (current/previous)                         │
 │    - Audit Logger (JSON lines)                                  │
-└──────────────────────────────────────────────────────────────────┘
+└─────────────────────────────────────────────────────────────────┘
                               ↓
               Spawns formation runtimes
                  (bind to 127.0.0.1)
@@ -495,8 +495,6 @@ Add process spawning logic
 - Implement process spawning based on pm2-go patterns
 - Support command-line arguments
 - Redirect stdout/stderr to log files
-
-Co-authored-by: factory-droid[bot] <138933559+factory-droid[bot]@users.noreply.github.com>
 ```
 
 ### Before Committing

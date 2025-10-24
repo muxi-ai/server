@@ -1,304 +1,441 @@
 # MUXI Server
 
+
 [![Release](https://img.shields.io/github/v/release/muxi-ai/server?label=version)](https://github.com/muxi-ai/server/releases)
 [![CI](https://img.shields.io/github/actions/workflow/status/muxi-ai/server/ci.yml?branch=develop&label=CI)](https://github.com/muxi-ai/server/actions)
-[![Docker](https://img.shields.io/badge/docker-ghcr.io-blue)](https://github.com/muxi-ai/server/pkgs/container/server)
-[![Coverage](https://img.shields.io/badge/coverage-91.2%25-brightgreen)](https://github.com/muxi-ai/server/actions)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Coverage](https://img.shields.io/badge/Coverage-91.2%25-brightgreen)](https://github.com/muxi-ai/server/actions)
+[![License](https://img.shields.io/badge/License-Elastic%202.0-blue.svg)](LICENSE)
 
-Production-grade orchestration platform for deploying and managing MUXI formations at scale.
+**Open-source infrastructure for running agents in production** 🚀
 
-**Think:** Docker + PM2 + Nginx in a single Go binary, purpose-built for MUXI formations.
+> [!IMPORTANT]
+> Agents aren't workflows. They don't follow predetermined sequences – they make decisions, evaluate context, and spawn tasks you didn't anticipate. Running them on infrastructure built for "step 1, step 2, step 3" means hacking around with Redis for state, Celery for tasks, and endless conditionals.
+> 
+> **Agents deserve their own infrastructure.**
+> 
+> MUXI Server treats **agents as native primitives** – declared in YAML, orchestrated at the infrastructure layer, scaled like containers.
+> 
+> **Websites have web servers. APIs have application servers. Agents finally have their own.**
 
-## Versioning
+---
 
-**Current Version:** `v0.20251023.1` ([Release Notes](https://github.com/muxi-ai/server/releases/latest))
-
-MUXI Server uses **[ScalVer (Scalable Calendar Versioning)](https://scalver.org)** - a calendar-aware versioning scheme that's fully compatible with SemVer.
-
-**Format:** `MAJOR.YYYYMMDD.PATCH`
-- `0` - Alpha/experimental (current)
-- `20251023` - Release date (October 23, 2025)
-- `1` - Second release of the day
-
-**Learn more:** [docs/VERSIONING.md](docs/VERSIONING.md)
-
-## Quick Install
+## Quick Start
 
 ```bash
-# One-command install (Linux/macOS)
+# Install (one command)
 curl -sSL https://install.muxi.org | sudo bash
 
-# Or download binary directly
-wget https://github.com/muxi-ai/server/releases/latest/download/muxi-server-linux-amd64
-chmod +x muxi-server-linux-amd64
-sudo mv muxi-server-linux-amd64 /usr/local/bin/muxi-server
+# Initialize
+muxi-server init
 
-# Or use Docker
-docker pull ghcr.io/muxi-ai/server:latest
-docker run -p 7890:7890 ghcr.io/muxi-ai/server:latest
+# Start server
+muxi-server start
+```
+
+**Create your first formation:**
+
+```bash
+muxi formation new --name=my-formation
+```
+
+Make any changes you like
+
+**Deploy the formation:**
+
+```bash
+cd my-formation
+muxi formation deploy
+```
+
+Done. Your formation is live at `/api/v1/my-formation`.
+
+**Learn more:** [Getting Started Guide](https://muxi.org/docs/getting-started)
+
+---
+
+## Why MUXI Server?
+
+### Ship faster, maintain less
+
+❌ **Before:** Kubernetes YAML, Docker Compose, nginx configs, systemd services, monitoring setup, logging infrastructure, restart scripts...
+
+✅ **With MUXI:** One command. Everything built in.
+
+### Focus on agents, not infrastructure
+
+You built an AI agent that works. Don't spend 3 weeks deploying it. Deploy in 10 seconds and get back to building intelligence.
+
+### Production-grade from day one
+
+- **91.2% test coverage** - 11,000+ lines of tests
+- **Automatic failover** - Circuit breakers, exponential backoff
+- **Zero-downtime updates** - Hot formation swaps
+- **Complete observability** - 150+ structured events, distributed tracing
+- **Multi-tenant ready** - Per-user isolation, credentials, sessions
+
+### Cross-platform, zero dependencies
+
+Single binary. No runtime requirements. Runs on:
+- Linux (amd64, arm64)
+- macOS (amd64, arm64 - Apple Silicon)  
+- Windows (amd64, arm64)
+- Docker (multi-arch)
+
+See the [Releases page](https://github.com/muxi-ai/server/releases)
+
+---
+
+## What You Get
+
+### Deployment & Management
+✓ One-command formation deployment  
+✓ Hot updates without downtime  
+✓ Version tracking and instant rollback  
+✓ Automatic port management (no conflicts)  
+✓ Built-in formation registry  
+
+### Security & Isolation
+✓ HMAC authentication (AWS-style)  
+✓ Per-user credential storage  
+✓ Session isolation (multi-tenant ready)  
+✓ Role-based access control  
+✓ Complete audit trails  
+
+### Operations & Monitoring
+✓ Auto-restart on crashes  
+✓ Health checks and monitoring  
+✓ Structured event logging (150+ types)  
+✓ HTTP proxy with formation routing  
+✓ Process lifecycle management  
+
+### Developer Experience
+✓ Declarative YAML configuration  
+✓ RESTful API (14 endpoints)  
+✓ Simple CLI (`init`, `start`, `version`)  
+✓ Comprehensive documentation  
+✓ Easy integration with existing tools  
+
+---
+
+## Architecture
+
+MUXI Server orchestrates formations as isolated processes, each accessible through a unified HTTP proxy:
+
+```
+┌─────────────────────────────────────────────┐
+│ MUXI Server - Port 7890                     │
+│                                             │
+│ /rpc/formations/*      → Management API     │
+│ /api/v1/{formation}/*  → Formation proxy    │
+└─────────────────────────────────────────────┘
+              ↓
+    ┌─────────┴─────────┐
+    ↓                   ↓
+Formation 1         Formation 2
+127.0.0.1:8001     127.0.0.1:8002
+```
+
+**Key design:**
+- Formations bind to localhost only (security)
+- Server provides single public endpoint
+- Automatic routing to formations
+- Version tracking with rollback
+- Complete request audit trail
+
+---
+
+## Installation
+
+### One-Command Install
+
+**Linux / macOS:**
+```bash
+curl -sSL https://install.muxi.org | sudo bash
 ```
 
 **Windows (PowerShell):**
 ```powershell
-# One-command install
 irm https://install.muxi.org/windows.ps1 | iex
 ```
 
-**Supported Platforms:**
-- Linux (amd64, arm64)
-- macOS (amd64, arm64 - Apple Silicon)
-- Windows (amd64, arm64) ✨ New!
-- Docker (multi-arch: linux/amd64, linux/arm64)
+### Manual Binary Download
 
-## Features
+Download from [GitHub Releases](https://github.com/muxi-ai/server/releases):
 
-- 🚀 **One-Command Deploy** - Bundle upload with automatic metadata injection
-- 🔐 **HMAC Authentication** - AWS-style key/secret authentication  
-- 🎯 **HTTP Proxy** - Automatic routing to formations (`/api/{formation_id}/*`)
-- 🔄 **Formation Versioning** - Update formations with rollback support
-- 📝 **Audit Logging** - Track all API requests to formations
-- 📊 **Server Telemetry** - Automatic `_server_id` and `_deployment_mode` injection
-- 🔄 **Auto-Restart** - Crashed formations automatically restart
-- 📝 **Complete API** - 14 RESTful endpoints for formations, versioning, and server management
-- 🎨 **Simple CLI** - `muxi-server init`, `version`, `config show`
-- 🐳 **Docker Support** - Multi-arch images on GitHub Container Registry
-- 🔧 **Zero Dependencies** - Single binary, no runtime requirements
+```bash
+# Linux
+wget https://github.com/muxi-ai/server/releases/latest/download/muxi-server-linux-amd64
+chmod +x muxi-server-linux-amd64
+sudo mv muxi-server-linux-amd64 /usr/local/bin/muxi-server
 
-## Repository Structure
+# macOS
+wget https://github.com/muxi-ai/server/releases/latest/download/muxi-server-darwin-arm64
+chmod +x muxi-server-darwin-arm64
+sudo mv muxi-server-darwin-arm64 /usr/local/bin/muxi-server
+
+# Windows
+# Download muxi-server-windows-amd64.exe from releases
+```
+
+### Docker
+
+```bash
+docker pull ghcr.io/muxi-ai/server:latest
+docker run -p 7890:7890 ghcr.io/muxi-ai/server:latest
+```
+
+**Complete guide:** [Installation Documentation](https://muxi.org/docs/installation)
+
+---
+
+## Documentation
+
+### Getting Started
+- [Installation Guide](https://muxi.org/docs/installation) - All installation methods
+- [Getting Started](https://muxi.org/docs/getting-started) - Deploy your first formation
+- [Windows Development](https://muxi.org/docs/windows-dev) - Windows-specific setup
+
+### Core Concepts  
+- [Formations](https://muxi.org/docs/formations) - What formations are and how they work
+- [Authentication](https://muxi.org/docs/authentication) - HMAC auth and API keys
+- [Configuration](https://muxi.org/docs/configuration) - Server configuration options
+
+### Reference
+- [API Reference](https://muxi.org/docs/api-reference) - Complete HTTP API docs
+- [Troubleshooting](https://muxi.org/docs/troubleshooting) - Common issues and solutions
+
+---
+
+## API Overview
+
+### Management API (HMAC auth required)
+
+```bash
+POST   /rpc/formations/deploy           # Deploy new formation
+GET    /rpc/formations                  # List all formations
+GET    /rpc/formations/{id}             # Get formation details
+PUT    /rpc/formations/{id}             # Update formation
+POST   /rpc/formations/{id}/stop        # Stop formation
+POST   /rpc/formations/{id}/restart     # Restart formation
+POST   /rpc/formations/{id}/rollback    # Rollback to previous version
+DELETE /rpc/formations/{id}             # Delete formation
+GET    /rpc/formations/{id}/logs        # Get formation logs
+GET    /rpc/server/status               # Server statistics
+GET    /rpc/server/logs                 # Audit logs
+```
+
+### Formation Proxy (no auth)
+
+```bash
+ALL    /api/{formation_id}/*            # Proxy to formation
+```
+
+### Public Endpoints
+
+```bash
+GET    /health                          # Server health check
+GET    /ping                            # Simple ping
+```
+
+**Full documentation:** [API Reference](https://muxi.org/docs/api-reference)
+
+---
+
+## Configuration
+
+Server configuration lives in `~/.muxi/server/config.yaml`:
+
+```yaml
+server:
+  port: 7890              # MUXI Port (default)
+  host: "0.0.0.0"         # Bind address
+
+formations:
+  port_range_start: 8000  # Formation port pool
+  port_range_end: 9000
+  bind_host: "127.0.0.1"  # Formations on localhost only
+  auto_restart: true      # Auto-restart crashed formations
+  max_restart_count: 10
+  restart_delay: 1
+
+logging:
+  audit_log: "logs/audit.log"
+```
+
+**Complete reference:** [Configuration Documentation](https://muxi.org/docs/configuration)
+
+---
+
+## Development
+
+### Repository Structure
 
 ```
 .
-├── AGENTS.md            # AI agent development guide
-├── PRD.md               # Product Requirements Document
-├── LICENSE              # MIT License
-├── README.md            # This file
-├── docs/                # User documentation (8 guides)
-│   ├── api-reference.md
-│   ├── authentication.md
-│   ├── getting-started.md
-│   └── ...
-├── src/                 # MUXI Server implementation
-│   ├── cmd/
-│   │   └── server/      # Main entry point & CLI
-│   ├── pkg/             # Core packages (88.9% test coverage!)
-│   │   ├── api/         # HTTP API endpoints (77.2% coverage)
-│   │   │   ├── *.go     # API handlers & middleware
-│   │   │   └── *_test.go # 6 test files, ~2,500 lines
-│   │   ├── auth/        # HMAC authentication (97.3% coverage) ⭐
-│   │   │   ├── *.go     # Auth logic & middleware
-│   │   │   └── *_test.go # 2 test files, ~900 lines
-│   │   ├── config/      # Configuration (88.9% coverage)
-│   │   │   ├── *.go     # Config management
-│   │   │   └── *_test.go # 1 test file, ~650 lines
-│   │   ├── formation/   # Formation handling (88.6% coverage)
-│   │   │   ├── *.go     # Bundle extraction & parsing
-│   │   │   └── *_test.go # 3 test files, ~1,000 lines
-│   │   ├── process/     # Process management (90.3% coverage) ⭐
-│   │   │   ├── *.go     # Spawn, monitor, restart
-│   │   │   └── *_test.go # 7 test files, ~3,000 lines
-│   │   ├── proxy/       # HTTP proxy (88.5% coverage)
-│   │   │   ├── *.go     # Request routing
-│   │   │   └── *_test.go # 1 test file, ~800 lines
-│   │   └── registry/    # Formation registry (91.3% coverage) ⭐
-│   │       ├── *.go     # Registry & persistence
-│   │       └── *_test.go # 3 test files, ~1,100 lines
-│   ├── go.mod
-│   └── go.sum
-├── test/                # Integration test scripts
-│   ├── dummy_app.py     # Test FastAPI server
-│   ├── formations/      # Test bundles
-│   ├── *.sh             # Integration test scripts
-│   └── fixtures/        # Test data
-└── notes/               # Implementation notes & design docs
-    ├── PRD.md           # Product Requirements Document
-    ├── AUTH.md          # Authentication design
-    ├── VERSIONING.md    # Versioning strategy
-    └── ...
-
-Test Coverage: 91.2% average (11,500+ lines across 30 test files)
-- Unit tests: 200+
-- Integration tests: 20+
-- Security tests: 15+
-- Zero flaky tests ✅
+├── src/
+│   ├── cmd/server/       # Server entry point & CLI
+│   ├── pkg/
+│   │   ├── api/          # HTTP API (77.2% coverage)
+│   │   ├── auth/         # HMAC auth (97.3% coverage)
+│   │   ├── config/       # Configuration (88.9% coverage)
+│   │   ├── formation/    # Formation handling (88.6% coverage)
+│   │   ├── process/      # Process management (90.3% coverage)
+│   │   ├── proxy/        # HTTP proxy (88.5% coverage)
+│   │   └── registry/     # Formation registry (87.5% coverage)
+│   └── go.mod
+│
+├── docs/                 # User documentation
+├── test/                 # Test fixtures
+├── install.sh            # Unix install script
+└── install.ps1           # Windows install script
 ```
 
-## Quick Start
-
-### Build
+### Testing
 
 ```bash
-cd src
-go build -o ../muxi-server ./cmd/server
-```
-
-### Initialize
-
-```bash
-# Generate credentials and config
-./muxi-server init
-
-# View configuration
-./muxi-server config show
-```
-
-### Run
-
-```bash
-# Start server (default command)
-./muxi-server
-
-# Or explicitly:
-./muxi-server start
-```
-
-### Deploy a Formation
-
-```bash
-# Create a formation bundle (tarball with formation.yaml)
-cd my-formation
-tar -czf formation.tar.gz .
-
-# Deploy it
-curl -X POST http://localhost:7890/rpc/formations/deploy \
-  -H "Authorization: MUXI-HMAC key=$KEY, timestamp=$TIMESTAMP, signature=$SIGNATURE" \
-  -H "Content-Type: application/gzip" \
-  --data-binary "@formation.tar.gz"
-
-# Access via proxy
-curl http://localhost:7890/api/my-formation/health
-```
-
-### Test
-
-**Coverage: 88.3% average** (11,500+ lines of test code across 30 test files)
-
-```bash
-cd src
-
 # Run all tests
-go test ./...
+go test ./... -v
 
 # With coverage report
 go test ./... -cover
 
-# Coverage by package
-go test ./... -cover | grep coverage
+# Run specific package tests
+go test ./src/pkg/api/... -v
+```
 
-# Generate HTML coverage report
-go test ./... -coverprofile=coverage.out
-go tool cover -html=coverage.out
+### Building
 
-# Verbose output
+```bash
+# Build for current platform
+go build -o muxi-server ./src/cmd/server
+
+# Cross-compile for all platforms
+GOOS=linux GOARCH=amd64 go build -o muxi-server-linux-amd64 ./src/cmd/server
+GOOS=darwin GOARCH=arm64 go build -o muxi-server-darwin-arm64 ./src/cmd/server
+GOOS=windows GOARCH=amd64 go build -o muxi-server-windows-amd64.exe ./src/cmd/server
+```
+
+---
+
+## Contributing
+
+MUXI Server is open source and community-driven. We welcome contributions!
+
+### How to Contribute
+
+- **🐛 Bug reports:** [Open an issue](https://github.com/muxi-ai/server/issues)
+- **💡 Feature requests:** [Start a discussion](https://github.com/muxi-ai/server/discussions)
+- **📝 Documentation:** Improve guides, fix typos, add examples
+- **🧪 Testing:** Expand test coverage, add integration tests
+- **🔧 Code:** Fix bugs, implement features, optimize performance
+
+### Development Setup
+
+```bash
+# Clone repository
+git clone https://github.com/muxi-ai/server.git
+cd server
+
+# Install dependencies
+cd src && go mod download
+
+# Run tests
 go test ./... -v
+
+# Build
+go build ./cmd/server
+
+# Run locally
+./server start
 ```
 
-**Coverage Breakdown:**
-- `registry`: 91.2% ⭐
-- `process`: 90.3% ⭐
-- `formation`: 88.6% ✅
-- `config`: 88.9% ✅
-- `proxy`: 88.5% ✅
-- `auth`: 100.0% ⭐
-- `api`: 77.2% ✅
+### Guidelines
 
-**All tests pass with race detector enabled** (`-race` flag)
+- Write tests for new features
+- Follow Go conventions (gofmt, golint)
+- Update documentation for user-facing changes
+- Keep commits focused and well-described
+- Reference issues in PRs
 
-### Development
+See [AGENTS.md](AGENTS.md) for detailed development guide.
 
-```bash
-cd src
+### Contributors
 
-# Format code
-go fmt ./...
+We welcome contributions! The MUXI stack is open source and community-driven.
 
-# Vet code
-go vet ./...
+<!-- ALL-CONTRIBUTORS-LIST:START -->
+<!-- This section is automatically generated. Do not edit manually. -->
+<!-- ALL-CONTRIBUTORS-LIST:END -->
 
-# Run directly
-go run ./cmd/server
+**See our [Contributing Guide](CONTRIBUTING.md)** for:
+- Development setup and prerequisites
+- Testing philosophy (real services, no mocks)
+- Code style and architecture principles
+- Pull request process
+- Community guidelines
+
+---
+
+## Citation
+
+If you use MUXI Runtime in your research or commercial product, please cite:
+
+```
+@software{MUXI_2025,
+  author = {Ran Aroussi},
+  title = {MUXI Runtime: The container runtime for AI agents},
+  year = {2025},
+  url = {https://github.com/muxi-ai/runtime},
+  note = {Available at https://muxi.org/},
+  version = {latest}
+}
 ```
 
-## Dependencies
-
-- **gorilla/mux** - HTTP routing
-- **zerolog** - Structured logging
-- **yaml.v3** - YAML parsing
-
-## Testing the Dummy App
-
-```bash
-cd src
-
-# Install FastAPI (if not already installed)
-pip install fastapi uvicorn
-
-# Run dummy app
-python test/dummy_app.py --port 8001
-
-# Test health endpoint
-curl http://localhost:8001/health
-
-# Test chat endpoint
-curl -X POST http://localhost:8001/chat \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Hello!", "user_id": "test"}'
-```
-
-## Current Status
-
-**✅ Production Ready** - Version v0.20251023.1
-
-### Completed Features
-- ✅ **Core Server** - Process management, registry, port allocation
-- ✅ **RESTful API** - 14 endpoints (formations, versioning, server management)
-- ✅ **Formation Versioning** - Update & rollback support
-- ✅ **HTTP Proxy** - Automatic routing with telemetry injection
-- ✅ **HMAC Authentication** - AWS-style key/secret auth
-- ✅ **Audit Logging** - JSON-lines format for all API requests
-- ✅ **CLI Commands** - init, version, config show
-- ✅ **Bundle Upload** - Tarball deployment with metadata injection
-- ✅ **Security** - Localhost-only formation binding
-- ✅ **Auto-Restart** - Crashed formations auto-recover
-- ✅ **Test Coverage** - 91.2% with race detector enabled
-- ✅ **CI/CD Pipeline** - develop → rc → main with auto-versioning
-- ✅ **Multi-Platform** - Linux, macOS, Windows (amd64/arm64)
-- ✅ **Docker Images** - Multi-arch on GHCR
-
-### Roadmap
-- 🔜 **Phase 2** - Client CLI tool (separate repository)
-- 🔜 **Phase 3** - Singularity/Apptainer SIF runtime
-- ✅ **Windows Support (Phase 1)** - Binary compilation & dev experience complete!
-
-## Documentation
-
-### User Documentation
-- **[docs/getting-started.md](docs/getting-started.md)** - Quick start guide
-- **[docs/installation.md](docs/installation.md)** - Installation & setup
-- **[docs/api-reference.md](docs/api-reference.md)** - Complete API reference
-- **[docs/authentication.md](docs/authentication.md)** - HMAC authentication guide
-- **[docs/formations.md](docs/formations.md)** - Formation management
-- **[docs/configuration.md](docs/configuration.md)** - Server configuration
-- **[docs/docker-quick-start.md](docs/docker-quick-start.md)** - Docker deployment
-- **[docs/windows-dev.md](docs/windows-dev.md)** - Windows development guide ✨ New!
-- **[docs/troubleshooting.md](docs/troubleshooting.md)** - Common issues & solutions
-
-### Developer Documentation
-- **[AGENTS.md](AGENTS.md)** - AI agent development guide
-- **[docs/VERSIONING.md](docs/VERSIONING.md)** - ScalVer versioning & release process
-- **[CHANGELOG.md](CHANGELOG.md)** - Version history
-- **[notes/PRD.md](notes/PRD.md)** - Product Requirements Document
-- **[notes/AUTH.md](notes/AUTH.md)** - Authentication design
-- **[notes/SERVICE-DAEMON-DESIGN.md](notes/SERVICE-DAEMON-DESIGN.md)** - Service management design
-
-### CI/CD & Release
-- **[.github/workflows/](/.github/workflows/)** - GitHub Actions workflows
-  - `ci.yml` - Continuous Integration (develop branch)
-  - `rc.yml` - Release Candidate builds (rc branch)
-  - `release.yml` - Production releases (main branch)
-  - `docker-build-publish.yml` - Docker image builds
-- **[notes/BRANCH-SETUP-GUIDE.md](notes/BRANCH-SETUP-GUIDE.md)** - Branch workflow setup
+---
 
 ## License
 
-See LICENSE file in repository root.
+MUXI Server (and MUXI Runtime) are licensed under the **Elastic License 2.0** (ELv2).
+
+This means that you're allowed to freely use, modify, and redistribute the software – **including in commercial products** – as long as you do not provide it as a hosted or managed service to third parties.
+
+In other words:
+
+- ✅ Use MUXI for internal projects, personal use, research, or embedded inside your own applications.
+- ✅ Sell products that include MUXI, as long as you’re not offering MUXI itself as a service.
+- ❌ You may not offer a “hosted” or “managed” MUXI to others (e.g., MUXI-as-a-service, cloud API).
+
+See the [LICENSE](LICENSE) file for the complete license text and [licensing details](docs/licensing.md) for more information.
+
+**TL;DR:** Free to use, modify, and distribute. Commercial use allowed. No warranty.
+
+---
+
+## Community & Support
+
+- **Issues**: [GitHub Issues](https://github.com/muxi-ai/server/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/muxi-ai/community/discussions)
+- **Contributing**: See [CONTRIBUTING.md](CONTRIBUTING.md)
+- **Documentation:** [muxi.org/docs](https://muxi.org/docs)
+
+### Commercial Support
+
+For production deployments, SLA-backed support, and enterprise features:
+
+- **Email:** support@muxi.ai
+- **Website:** [muxi.ai](https://muxi.ai)
+
+---
+
+## Learn More
+
+- **Website:** [muxi.org](https://muxi.org)
+- **Documentation:** [muxi.org/docs](https://muxi.org/docs)
+- **Changelog:** [CHANGELOG.md](CHANGELOG.md)
+- **Roadmap:** [GitHub project](https://github.com/orgs/muxi-ai/projects/1)
+
+---
+
+**Stop fighting infrastructure. Start running agents.**
+
+Agents are primitives. Formations are deployable systems. MUXI is the infrastructure layer.

@@ -122,20 +122,19 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: v${{ steps.version.outputs.VERSION }}
-          name: MUXI Server v${{ steps.version.outputs.VERSION }}
+          name: v${{ steps.version.outputs.VERSION }}
           draft: false
           prerelease: false
           body: |
             ## MUXI Server v${{ steps.version.outputs.VERSION }}
             
-            **Release Date:** $(date -u +%Y-%m-%d)
             **Git Commit:** ${{ github.sha }}
             
             ### Installation
             
             ```bash
             # One-command install
-            curl -sSL https://install.muxi.ai | sudo bash
+            curl -sSL https://install.muxi.org | sudo bash
             
             # Or download binary directly
             wget https://github.com/muxi-ai/server/releases/download/v${{ steps.version.outputs.VERSION }}/muxi-server-linux-amd64
@@ -163,6 +162,65 @@ jobs:
           files: dist/muxi-server-*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Update Homebrew Formula
+        env:
+          TAP_REPO_TOKEN: ${{ secrets.TAP_REPO_TOKEN }}
+        run: |
+          echo "🍺 Updating Homebrew formula..."
+          
+          # Calculate SHA256 checksums for all platform binaries
+          SHA_DARWIN_ARM64=$(shasum -a 256 dist/muxi-server-darwin-arm64 | cut -d' ' -f1)
+          SHA_DARWIN_AMD64=$(shasum -a 256 dist/muxi-server-darwin-amd64 | cut -d' ' -f1)
+          SHA_LINUX_ARM64=$(shasum -a 256 dist/muxi-server-linux-arm64 | cut -d' ' -f1)
+          SHA_LINUX_AMD64=$(shasum -a 256 dist/muxi-server-linux-amd64 | cut -d' ' -f1)
+          
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          
+          echo "  Darwin ARM64: $SHA_DARWIN_ARM64"
+          echo "  Darwin AMD64: $SHA_DARWIN_AMD64"
+          echo "  Linux ARM64:  $SHA_LINUX_ARM64"
+          echo "  Linux AMD64:  $SHA_LINUX_AMD64"
+          
+          # Clone homebrew-tap repository
+          git clone https://x-access-token:$TAP_REPO_TOKEN@github.com/muxi-ai/homebrew-tap.git /tmp/tap
+          cd /tmp/tap
+          
+          # Update formula with new version and checksums
+          # Note: Using | as sed delimiter to avoid conflicts with URLs
+          sed -i.bak "s|version \"[^\"]*\"|version \"$VERSION\"|" Formula/muxi-server.rb
+          sed -i.bak "s|download/v[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*/|download/v$VERSION/|g" Formula/muxi-server.rb
+          sed -i.bak "s|PLACEHOLDER_SHA256_DARWIN_ARM64|$SHA_DARWIN_ARM64|g" Formula/muxi-server.rb
+          sed -i.bak "s|PLACEHOLDER_SHA256_DARWIN_AMD64|$SHA_DARWIN_AMD64|g" Formula/muxi-server.rb
+          sed -i.bak "s|PLACEHOLDER_SHA256_LINUX_ARM64|$SHA_LINUX_ARM64|g" Formula/muxi-server.rb
+          sed -i.bak "s|PLACEHOLDER_SHA256_LINUX_AMD64|$SHA_LINUX_AMD64|g" Formula/muxi-server.rb
+          sed -i.bak "s|sha256 \"$SHA_DARWIN_ARM64\"|sha256 \"$SHA_DARWIN_ARM64\"|g" Formula/muxi-server.rb
+          sed -i.bak "s|sha256 \"$SHA_DARWIN_AMD64\"|sha256 \"$SHA_DARWIN_AMD64\"|g" Formula/muxi-server.rb
+          sed -i.bak "s|sha256 \"$SHA_LINUX_ARM64\"|sha256 \"$SHA_LINUX_ARM64\"|g" Formula/muxi-server.rb
+          sed -i.bak "s|sha256 \"$SHA_LINUX_AMD64\"|sha256 \"$SHA_LINUX_AMD64\"|g" Formula/muxi-server.rb
+          rm -f Formula/*.bak
+          
+          # Commit and push changes
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/muxi-server.rb
+          
+          # Only commit if there are changes
+          if git diff --cached --quiet; then
+            echo "No changes to Homebrew formula"
+          else
+            git commit -m "chore: update muxi-server to v$VERSION
+
+- Version: v$VERSION
+- Darwin ARM64: $SHA_DARWIN_ARM64
+- Darwin AMD64: $SHA_DARWIN_AMD64
+- Linux ARM64:  $SHA_LINUX_ARM64
+- Linux AMD64:  $SHA_LINUX_AMD64
+
+Auto-updated by muxi-ai/server release workflow"
+            git push origin main
+            echo "✓ Homebrew formula updated"
+          fi
       
       - name: Merge main back to develop
         run: |
