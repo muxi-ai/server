@@ -135,7 +135,10 @@ func TestPersistence_AutoSaveLoop(t *testing.T) {
 
 func TestPersistence_Save_Error(t *testing.T) {
 	// Try to save to an invalid path
-	invalidPath := "/nonexistent/directory/registry.json"
+	// Use platform-appropriate invalid path
+	// Windows: C:\nonexistent\directory\registry.json
+	// Unix: /nonexistent/directory/registry.json
+	invalidPath := filepath.Join(string(filepath.Separator), "nonexistent", "directory", "registry.json")
 	logger := zerolog.Nop()
 
 	reg, err := NewRegistry(8000, 8100)
@@ -147,7 +150,7 @@ func TestPersistence_Save_Error(t *testing.T) {
 
 	err = persistence.Save()
 	if err == nil {
-		t.Error("Save() to invalid path should fail")
+		t.Errorf("Save() to invalid path %s should fail", invalidPath)
 	}
 }
 
