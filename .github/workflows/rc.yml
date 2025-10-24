@@ -43,6 +43,7 @@ jobs:
       
       - name: Get version info
         id: version
+        shell: bash
         run: |
           VERSION=$(cat .version)
           COMMIT=$(git rev-parse --short HEAD)
@@ -53,6 +54,7 @@ jobs:
           echo "BUILD_TIME=$BUILD_TIME" >> $GITHUB_OUTPUT
       
       - name: Build binary
+        shell: bash
         run: |
           echo "🔨 Building ${{ matrix.goos }}-${{ matrix.goarch }}..."
           
@@ -80,6 +82,7 @@ jobs:
           ./muxi-server-${{ matrix.goos }}-${{ matrix.goarch }}.exe version
       
       - name: Run unit tests
+        shell: bash
         run: |
           cd src
           go test ./... -v -race -timeout 10m
