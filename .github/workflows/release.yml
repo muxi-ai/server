@@ -122,20 +122,19 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: v${{ steps.version.outputs.VERSION }}
-          name: MUXI Server v${{ steps.version.outputs.VERSION }}
+          name: v${{ steps.version.outputs.VERSION }}
           draft: false
           prerelease: false
           body: |
             ## MUXI Server v${{ steps.version.outputs.VERSION }}
             
-            **Release Date:** $(date -u +%Y-%m-%d)
             **Git Commit:** ${{ github.sha }}
             
             ### Installation
             
             ```bash
             # One-command install
-            curl -sSL https://install.muxi.ai | sudo bash
+            curl -sSL https://install.muxi.org | sudo bash
             
             # Or download binary directly
             wget https://github.com/muxi-ai/server/releases/download/v${{ steps.version.outputs.VERSION }}/muxi-server-linux-amd64
