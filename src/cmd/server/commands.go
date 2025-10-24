@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/muxi-ai/server/pkg/config"
@@ -160,7 +161,12 @@ func cmdInit() error {
 		if portInput == "" {
 			port = defaultPort
 		} else {
-			fmt.Sscanf(portInput, "%d", &port)
+			parsedPort, err := strconv.Atoi(portInput)
+			if err != nil {
+				fmt.Printf("%s Invalid port number. Please enter a valid port.\n", crossMark)
+				continue
+			}
+			port = parsedPort
 		}
 
 		// Check if port is available
