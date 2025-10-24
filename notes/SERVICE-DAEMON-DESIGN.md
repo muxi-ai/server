@@ -97,7 +97,7 @@ func cmdVersion() error {
 
 **Option A: Install Script** (Recommended)
 ```bash
-curl -sSL https://install.muxi.ai | sudo bash
+curl -sSL https://install.muxi.org | sudo bash
 ```
 - Installs binary
 - Creates directories
@@ -195,7 +195,7 @@ muxi-server configtest    # Validates, suggests restart if needed
 ```ini
 [Unit]
 Description=MUXI Server - Formation Orchestration Platform
-Documentation=https://docs.muxi.ai
+Documentation=https://docs.muxi.org
 After=network-online.target
 Wants=network-online.target
 
@@ -331,7 +331,7 @@ muxi-server status   → launchctl list | grep ai.muxi.server
 
 ```bash
 # Install
-curl -sSL https://install.muxi.ai | sudo bash
+curl -sSL https://install.muxi.org | sudo bash
 
 → MUXI Server installed successfully!
   Install as system service? [Y/n]: y
@@ -364,7 +364,7 @@ muxi-server status
 
 ```bash
 # Install without service
-curl -sSL https://install.muxi.ai | bash
+curl -sSL https://install.muxi.org | bash
 
 # Initialize
 muxi-server init

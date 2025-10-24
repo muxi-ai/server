@@ -27,12 +27,12 @@ Get your MUXI Server up and running in 5 minutes.
 
 **Linux/macOS:**
 ```bash
-curl -sSL https://get.muxi.ai | sudo bash
+curl -sSL https://get.muxi.org | sudo bash
 ```
 
 **Windows (PowerShell):**
 ```powershell
-irm https://install.muxi.ai/windows.ps1 | iex
+irm https://install.muxi.org/windows.ps1 | iex
 ```
 
 This installs:

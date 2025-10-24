@@ -13,7 +13,7 @@ Complete installation guide for MUXI Server on different platforms.
 **⚠️ System-Level Installation** - Requires `sudo` privileges:
 
 ```bash
-curl -sSL https://get.muxi.ai | sudo bash
+curl -sSL https://get.muxi.org | sudo bash
 ```
 
 **Why `sudo`?**  
@@ -38,7 +38,7 @@ MUXI Server is a **system service** that:
 **One-Command Install (PowerShell):**
 
 ```powershell
-irm https://install.muxi.ai/windows.ps1 | iex
+irm https://install.muxi.org/windows.ps1 | iex
 ```
 
 **User-Level Installation** - No admin required (default):
@@ -179,8 +179,8 @@ brew upgrade muxi-server
 
 ```bash
 # Add repository (NOT YET AVAILABLE)
-curl -fsSL https://packages.muxi.ai/apt/gpg.key | sudo gpg --dearmor -o /usr/share/keyrings/muxi.gpg
-echo "deb [signed-by=/usr/share/keyrings/muxi.gpg] https://packages.muxi.ai/apt stable main" | \
+curl -fsSL https://packages.muxi.org/apt/gpg.key | sudo gpg --dearmor -o /usr/share/keyrings/muxi.gpg
+echo "deb [signed-by=/usr/share/keyrings/muxi.gpg] https://packages.muxi.org/apt stable main" | \
   sudo tee /etc/apt/sources.list.d/muxi.list
 
 # Install
@@ -198,10 +198,10 @@ sudo apt install muxi-server
 sudo tee /etc/yum.repos.d/muxi.repo <<EOF
 [muxi]
 name=MUXI Repository
-baseurl=https://packages.muxi.ai/yum/stable
+baseurl=https://packages.muxi.org/yum/stable
 enabled=1
 gpgcheck=1
-gpgkey=https://packages.muxi.ai/yum/gpg.key
+gpgkey=https://packages.muxi.org/yum/gpg.key
 EOF
 
 # Install (RHEL/CentOS)
@@ -230,7 +230,7 @@ paru -S muxi-server
 ---
 
 **For now, use:**
-1. ✅ **One-command install:** `curl -sSL https://get.muxi.ai | sudo bash`
+1. ✅ **One-command install:** `curl -sSL https://get.muxi.org | sudo bash`
 2. ✅ **Manual binary download:** See "Manual Installation" below
 3. ✅ **Build from source:** See "Build from Source" below
 4. ✅ **Docker:** See "Docker" section below

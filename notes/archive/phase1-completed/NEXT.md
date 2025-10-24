@@ -419,7 +419,7 @@ Creates SIF image and stores it for deployment.
 ### 1. Install Script (`install.sh`)
 
 ```bash
-curl -fsSL https://get.muxi.ai | bash
+curl -fsSL https://get.muxi.org | bash
 ```
 
 Features:
@@ -596,7 +596,7 @@ WantedBy=multi-user.target
 
 ### Phase 4:
 - [ ] Package hosting (GitHub Releases, S3, etc.)
-- [ ] Domain for install script (`get.muxi.ai`)
+- [ ] Domain for install script (`get.muxi.org`)
 - [ ] CI/CD for multi-platform builds
 
 ---

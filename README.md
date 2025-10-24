@@ -27,7 +27,7 @@ MUXI Server uses **[ScalVer (Scalable Calendar Versioning)](https://scalver.org)
 
 ```bash
 # One-command install (Linux/macOS)
-curl -sSL https://install.muxi.ai | sudo bash
+curl -sSL https://install.muxi.org | sudo bash
 
 # Or download binary directly
 wget https://github.com/muxi-ai/server/releases/latest/download/muxi-server-linux-amd64
@@ -42,7 +42,7 @@ docker run -p 7890:7890 ghcr.io/muxi-ai/server:latest
 **Windows (PowerShell):**
 ```powershell
 # One-command install
-irm https://install.muxi.ai/windows.ps1 | iex
+irm https://install.muxi.org/windows.ps1 | iex
 ```
 
 **Supported Platforms:**

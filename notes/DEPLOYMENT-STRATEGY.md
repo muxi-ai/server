@@ -113,7 +113,7 @@ Install methods:
 │ MUXI Server (Native Go Binary)                             │
 │                                                             │
 │ Install:                                                    │
-│   curl -sSL https://get.muxi.ai | bash                    │
+│   curl -sSL https://get.muxi.org | bash                    │
 │                                                             │
 │ Runtime dependencies:                                       │
 │   Linux:    Singularity (installed by init script)        │
@@ -203,7 +203,7 @@ Distribution:
 ### Linux Server
 ```bash
 # 1. Install MUXI Server
-curl -sSL https://get.muxi.ai | bash
+curl -sSL https://get.muxi.org | bash
 # Downloads binary to /usr/local/bin/muxi-server
 
 # 2. Initialize (installs Singularity)
@@ -230,7 +230,7 @@ muxi formation deploy my-formation.tar.gz
 ```bash
 # 1. Install MUXI Server
 brew install muxi-ai/tap/muxi-server
-# or: curl -sSL https://get.muxi.ai | bash
+# or: curl -sSL https://get.muxi.org | bash
 
 # 2. Initialize (checks Docker)
 muxi-server init

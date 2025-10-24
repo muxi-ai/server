@@ -24,7 +24,7 @@ Unlike user-level tools (npm packages, pip packages), MUXI Server runs as a syst
 
 #### 1. One-Command Install (PRIMARY)
 ```bash
-curl -sSL https://get.muxi.ai | sudo bash
+curl -sSL https://get.muxi.org | sudo bash
 ```
 
 **Status:** 🟢 **Available**  
@@ -41,7 +41,7 @@ curl -sSL https://get.muxi.ai | sudo bash
 - ✅ Linux (Ubuntu, Debian, RHEL, CentOS, Fedora, Arch)
 
 **Script Location:** `install.sh` (to be created)  
-**Hosted at:** `https://get.muxi.ai`
+**Hosted at:** `https://get.muxi.org`
 
 #### 2. Manual Binary Download
 ```bash
@@ -103,8 +103,8 @@ brew install muxi-server
 
 **Installation:**
 ```bash
-curl -fsSL https://packages.muxi.ai/apt/gpg.key | sudo gpg --dearmor -o /usr/share/keyrings/muxi.gpg
-echo "deb [signed-by=/usr/share/keyrings/muxi.gpg] https://packages.muxi.ai/apt stable main" | \
+curl -fsSL https://packages.muxi.org/apt/gpg.key | sudo gpg --dearmor -o /usr/share/keyrings/muxi.gpg
+echo "deb [signed-by=/usr/share/keyrings/muxi.gpg] https://packages.muxi.org/apt stable main" | \
   sudo tee /etc/apt/sources.list.d/muxi.list
 sudo apt update
 sudo apt install muxi-server
@@ -139,10 +139,10 @@ sudo apt install muxi-server
 sudo tee /etc/yum.repos.d/muxi.repo <<EOF
 [muxi]
 name=MUXI Repository
-baseurl=https://packages.muxi.ai/yum/stable
+baseurl=https://packages.muxi.org/yum/stable
 enabled=1
 gpgcheck=1
-gpgkey=https://packages.muxi.ai/yum/gpg.key
+gpgkey=https://packages.muxi.org/yum/gpg.key
 EOF
 
 sudo yum install muxi-server  # RHEL/CentOS
@@ -245,8 +245,8 @@ choco install muxi-server
 - Run `muxi-server init` for first-time setup
 
 **Hosting:**
-- Upload to `https://get.muxi.ai/install.sh`
-- Make accessible via `curl -sSL https://get.muxi.ai | sudo bash`
+- Upload to `https://get.muxi.org/install.sh`
+- Make accessible via `curl -sSL https://get.muxi.org | sudo bash`
 
 **Testing:**
 - Test on Ubuntu 20.04, 22.04, 24.04
@@ -289,7 +289,7 @@ choco install muxi-server
 ```ruby
 class MuxiServer < Formula
   desc "AI Formation Orchestration Platform"
-  homepage "https://muxi.ai"
+  homepage "https://muxi.org"
   url "https://github.com/muxi-ai/server/archive/v1.0.0.tar.gz"
   sha256 "..."
   license "MIT"
@@ -402,8 +402,8 @@ end
 
 ```markdown
 [![Homebrew](https://img.shields.io/badge/Homebrew-000000?logo=homebrew&logoColor=white)](https://formulae.brew.sh/formula/muxi-server)
-[![APT](https://img.shields.io/badge/APT-A80030?logo=debian&logoColor=white)](https://packages.muxi.ai/apt)
-[![YUM](https://img.shields.io/badge/YUM-EE0000?logo=redhat&logoColor=white)](https://packages.muxi.ai/yum)
+[![APT](https://img.shields.io/badge/APT-A80030?logo=debian&logoColor=white)](https://packages.muxi.org/apt)
+[![YUM](https://img.shields.io/badge/YUM-EE0000?logo=redhat&logoColor=white)](https://packages.muxi.org/yum)
 [![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)](https://ghcr.io/muxi-ai/muxi-server)
 ```
 
@@ -447,7 +447,7 @@ Update website and docs to clearly explain:
 
 **✅ Recommended: Native Installation (System-Level)**
 ```bash
-curl -sSL https://get.muxi.ai | sudo bash
+curl -sSL https://get.muxi.org | sudo bash
 ```
 
 **Why sudo?** MUXI Server is a system service (like nginx, postgres, redis) that:

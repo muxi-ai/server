@@ -12,7 +12,7 @@
 # Build stage
 FROM golang:alpine AS builder
 
-LABEL maintainer="MUXI AI <hello@muxi.ai>"
+LABEL maintainer="MUXI AI <hello@muxi.org>"
 LABEL org.opencontainers.image.source="https://github.com/muxi-ai/server"
 
 # Install build dependencies
@@ -40,7 +40,7 @@ RUN test -f muxi-server && echo "✓ Build successful"
 # Runtime stage
 FROM alpine:latest
 
-LABEL maintainer="MUXI AI <hello@muxi.ai>"
+LABEL maintainer="MUXI AI <hello@muxi.org>"
 LABEL org.opencontainers.image.source="https://github.com/muxi-ai/server"
 LABEL description="MUXI Server - AI Formation Orchestrator"
 LABEL version="1.0.0"

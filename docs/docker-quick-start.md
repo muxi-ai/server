@@ -178,7 +178,7 @@ This gives the container **full control** over Docker. Only use:
 **For production, use native install (system-level, requires sudo):**
 ```bash
 # Linux/macOS - System installation
-curl -sSL https://get.muxi.ai | sudo bash
+curl -sSL https://get.muxi.org | sudo bash
 
 # Much more secure!
 ```
@@ -344,7 +344,7 @@ docker-compose logs muxi-server
 1. **For production:** Install natively (system-level)
    ```bash
    # Linux/macOS - One-command install
-   curl -sSL https://get.muxi.ai | sudo bash
+   curl -sSL https://get.muxi.org | sudo bash
    
    # Native package managers (COMING SOON)
    # brew install muxi-ai/tap/muxi-server        # Homebrew

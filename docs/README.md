@@ -180,7 +180,7 @@ Solutions to common problems, debugging tips, and how to get help.
 - Discussions: [github.com/muxi-ai/server/discussions](https://github.com/muxi-ai/server/discussions)
 
 ### Commercial Support
-- Contact: support@muxi.ai
+- Contact: support@muxi.org
 - Enterprise plans available
 
 ---

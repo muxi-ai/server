@@ -238,7 +238,7 @@ After installing Singularity, run: muxi-server init --verify
 
 ### Phase 1: Install MUXI Server Binary
 ```bash
-curl -sSL https://get.muxi.ai | bash
+curl -sSL https://get.muxi.org | bash
 # Downloads and installs muxi-server binary only
 ```
 
@@ -285,7 +285,7 @@ muxi-server init
 
 ```bash
 # User runs install script
-$ curl -sSL https://get.muxi.ai | bash
+$ curl -sSL https://get.muxi.org | bash
 Downloading MUXI Server...
 ✓ Installed to /usr/local/bin/muxi-server
 
