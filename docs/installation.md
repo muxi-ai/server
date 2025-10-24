@@ -59,6 +59,41 @@ irm https://install.muxi.org/windows.ps1 | iex
 
 ---
 
+## Homebrew
+
+**macOS / Linux - Package Manager Installation:**
+
+```bash
+# Add MUXI tap
+brew tap muxi-ai/tap
+
+# Install MUXI Server
+brew install muxi-server
+```
+
+**Benefits:**
+- ✅ Automatic dependency management
+- ✅ Easy updates: `brew upgrade muxi-server`
+- ✅ Familiar workflow for developers
+- ✅ Integrates with existing Homebrew toolchain
+
+**Platforms:**
+- macOS (Intel & Apple Silicon)
+- Linux (Homebrew on Linux)
+
+**Update:**
+```bash
+brew upgrade muxi-server
+```
+
+**Uninstall:**
+```bash
+brew uninstall muxi-server
+brew untap muxi-ai/tap
+```
+
+---
+
 ## Manual Installation
 
 ### Download Binary

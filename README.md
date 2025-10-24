@@ -158,6 +158,19 @@ curl -sSL https://install.muxi.org | sudo bash
 irm https://install.muxi.org/windows.ps1 | iex
 ```
 
+### Homebrew
+
+**macOS / Linux:**
+```bash
+brew tap muxi-ai/tap
+brew install muxi-server
+```
+
+**Update:**
+```bash
+brew upgrade muxi-server
+```
+
 ### Manual Binary Download
 
 Download from [GitHub Releases](https://github.com/muxi-ai/server/releases):

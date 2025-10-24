@@ -13,6 +13,70 @@ Nothing yet.
 
 ---
 
+## [0.20251024.3] - 2025-10-24
+
+### Homebrew Distribution
+
+Official Homebrew tap with automated formula updates on each release.
+
+#### Added
+
+**Homebrew Tap:**
+- Created official Homebrew tap: `muxi-ai/homebrew-tap`
+- Formula: `muxi-server.rb` with multi-platform support
+- Auto-detection of architecture (macOS Intel/ARM, Linux amd64/arm64)
+- Installation: `brew tap muxi-ai/tap && brew install muxi-server`
+
+**Automated Formula Updates:**
+- Release workflow now automatically updates Homebrew formula
+- Calculates SHA256 checksums for all platform binaries
+- Updates formula with new version and download URLs
+- Cross-repo automation using `TAP_REPO_TOKEN` secret
+- Zero manual maintenance required
+
+**Homebrew Tap Structure:**
+- `Formula/muxi-server.rb` - Server formula (ready)
+- `Formula/` directory ready for `muxi.rb` (CLI tool, future)
+- `README.md` - Installation and usage guide
+- `UPDATING.md` - Maintenance guide for manual updates
+
+**Release Preparation:**
+- Added `CHANGELOG_TEMPLATE.md` for easy release preparation
+- Guidelines for categorizing changes
+- ScalVer version format documentation
+
+#### Changed
+
+**CI Workflow:**
+- Lowered coverage threshold from 70% to 55%
+- Matches RC workflow threshold for consistency
+- Accounts for platform-specific untestable code (spawn_windows.go, spawn_unix.go)
+
+**Release Workflow:**
+- Simplified Homebrew formula commit messages for YAML compatibility
+- Single-line commit format to avoid YAML parsing errors
+
+#### Documentation
+
+- Homebrew tap includes comprehensive README
+- Installation instructions for all platforms
+- Uninstall and troubleshooting guidance
+
+**Installation Methods:**
+```bash
+# One-command install script
+curl -sSL https://install.muxi.org | sudo bash
+
+# Homebrew (new!)
+brew tap muxi-ai/tap
+brew install muxi-server
+
+# Direct binary download
+wget https://github.com/muxi-ai/server/releases/latest/download/muxi-server-linux-amd64
+```
+
+---
+
 ## [0.20251024.2] - 2025-10-24
 
 ### Documentation & Community
