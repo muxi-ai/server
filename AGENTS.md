@@ -3,7 +3,17 @@
 **Project:** MUXI Server  
 **Version:** 1.0.0-dev  
 **Status:** API Architecture Refactor Complete ✅ - Production Ready  
-**Last Updated:** 2025-10-19
+**Last Updated:** 2025-10-24
+
+---
+
+## MUXI Ecosystem
+
+This repository is part of the larger MUXI ecosystem.
+
+**📋 Complete architectural overview:** See [MUXI-ARCHITECTURE.md](../MUXI-ARCHITECTURE.md) - explains how all 9 repositories fit together, dependencies, status, and roadmap.
+
+**🎯 This repo (server):** The orchestration platform - manages formation lifecycle, HTTP reverse proxy, process management, and HMAC authentication.
 
 ---
 
