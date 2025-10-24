@@ -89,6 +89,7 @@ jobs:
           
           echo "🔨 Building binaries for all platforms..."
           
+          # Unix platforms (Linux, macOS)
           for OS in linux darwin; do
             for ARCH in amd64 arm64; do
               echo "  → Building $OS-$ARCH..."
@@ -100,6 +101,18 @@ jobs:
                 -o ../dist/muxi-server-$OS-$ARCH ./cmd/server
               cd ..
             done
+          done
+          
+          # Windows platforms
+          for ARCH in amd64 arm64; do
+            echo "  → Building windows-$ARCH..."
+            cd src
+            GOOS=windows GOARCH=$ARCH go build -ldflags "\
+              -X 'main.Version=$VERSION' \
+              -X 'main.GitCommit=$COMMIT' \
+              -X 'main.BuildTime=$BUILD_TIME'" \
+              -o ../dist/muxi-server-windows-$ARCH.exe ./cmd/server
+            cd ..
           done
           
           echo "✓ All binaries built"
@@ -136,10 +149,17 @@ jobs:
             
             ### Binaries
             
+            **Linux:**
             - `muxi-server-linux-amd64` - Linux x86_64
             - `muxi-server-linux-arm64` - Linux ARM64
+            
+            **macOS:**
             - `muxi-server-darwin-amd64` - macOS Intel
             - `muxi-server-darwin-arm64` - macOS Apple Silicon
+            
+            **Windows:**
+            - `muxi-server-windows-amd64.exe` - Windows x86_64
+            - `muxi-server-windows-arm64.exe` - Windows ARM64
           files: dist/muxi-server-*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

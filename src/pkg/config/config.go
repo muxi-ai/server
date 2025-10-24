@@ -173,9 +173,24 @@ func GetConfigDir() (string, error) {
 		if runtime.GOOS == "linux" && strings.HasPrefix(exe, "/usr/") {
 			return "/etc/muxi/server", nil
 		}
+		
+		// Windows + installed in Program Files → system paths
+		if runtime.GOOS == "windows" && (strings.HasPrefix(exe, "C:\\Program Files") || strings.HasPrefix(exe, "C:\\Program Files (x86)")) {
+			return "C:\\ProgramData\\muxi\\server", nil
+		}
 	}
 
 	// 3. User paths (macOS, Windows, or non-system Linux)
+	if runtime.GOOS == "windows" {
+		// Windows user-level install: %APPDATA%\muxi\server
+		appData := os.Getenv("APPDATA")
+		if appData == "" {
+			return "", fmt.Errorf("APPDATA environment variable not set")
+		}
+		return filepath.Join(appData, "muxi", "server"), nil
+	}
+	
+	// Unix/macOS: ~/.muxi/server
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("failed to get user home directory: %w", err)
@@ -198,9 +213,24 @@ func GetDataDir() (string, error) {
 		if runtime.GOOS == "linux" && strings.HasPrefix(exe, "/usr/") {
 			return "/var/lib/muxi", nil
 		}
+		
+		// Windows + installed in Program Files → system paths
+		if runtime.GOOS == "windows" && (strings.HasPrefix(exe, "C:\\Program Files") || strings.HasPrefix(exe, "C:\\Program Files (x86)")) {
+			return "C:\\ProgramData\\muxi\\data", nil
+		}
 	}
 
 	// 3. User paths (macOS, Windows, or non-system Linux)
+	if runtime.GOOS == "windows" {
+		// Windows user-level install: %APPDATA%\muxi\server
+		appData := os.Getenv("APPDATA")
+		if appData == "" {
+			return "", fmt.Errorf("APPDATA environment variable not set")
+		}
+		return filepath.Join(appData, "muxi", "server"), nil
+	}
+	
+	// Unix/macOS: ~/.muxi/server
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("failed to get user home directory: %w", err)
@@ -223,9 +253,24 @@ func GetLogDir() (string, error) {
 		if runtime.GOOS == "linux" && strings.HasPrefix(exe, "/usr/") {
 			return "/var/log/muxi", nil
 		}
+		
+		// Windows + installed in Program Files → system paths
+		if runtime.GOOS == "windows" && (strings.HasPrefix(exe, "C:\\Program Files") || strings.HasPrefix(exe, "C:\\Program Files (x86)")) {
+			return "C:\\ProgramData\\muxi\\logs", nil
+		}
 	}
 
 	// 3. User paths (macOS, Windows, or non-system Linux)
+	if runtime.GOOS == "windows" {
+		// Windows user-level install: %APPDATA%\muxi\logs
+		appData := os.Getenv("APPDATA")
+		if appData == "" {
+			return "", fmt.Errorf("APPDATA environment variable not set")
+		}
+		return filepath.Join(appData, "muxi", "logs"), nil
+	}
+	
+	// Unix/macOS: ~/.muxi/server/logs
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("failed to get user home directory: %w", err)
@@ -234,7 +279,7 @@ func GetLogDir() (string, error) {
 }
 
 // GetInstallType returns the installation type for display purposes
-// Returns: "System", "User", or "Development"
+// Returns: "System", "User", or "Custom"
 func GetInstallType() string {
 	// Check if environment variable overrides are set
 	if os.Getenv("MUXI_CONFIG_DIR") != "" || os.Getenv("MUXI_DATA_DIR") != "" || os.Getenv("MUXI_LOG_DIR") != "" {
@@ -247,6 +292,11 @@ func GetInstallType() string {
 		// Linux + /usr → System install
 		if runtime.GOOS == "linux" && strings.HasPrefix(exe, "/usr/") {
 			return "System (Linux)"
+		}
+		
+		// Windows + Program Files → System install
+		if runtime.GOOS == "windows" && (strings.HasPrefix(exe, "C:\\Program Files") || strings.HasPrefix(exe, "C:\\Program Files (x86)")) {
+			return "System (Windows)"
 		}
 	}
 
