@@ -209,13 +209,7 @@ jobs:
           if git diff --cached --quiet; then
             echo "No changes to Homebrew formula"
           else
-            git commit -m "chore: update muxi-server to v$VERSION" -m "- Version: v$VERSION
-- Darwin ARM64: $SHA_DARWIN_ARM64
-- Darwin AMD64: $SHA_DARWIN_AMD64
-- Linux ARM64:  $SHA_LINUX_ARM64
-- Linux AMD64:  $SHA_LINUX_AMD64
-
-Auto-updated by muxi-ai/server release workflow"
+            git commit -m "chore: update muxi-server to v$VERSION (auto-update from release workflow)"
             git push origin main
             echo "✓ Homebrew formula updated"
           fi
