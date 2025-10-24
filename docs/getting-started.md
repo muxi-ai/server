@@ -25,15 +25,17 @@ Get your MUXI Server up and running in 5 minutes.
 
 ### Quick Install
 
-**Linux/macOS:**
+**Linux / macOS:**
 ```bash
-curl -sSL https://get.muxi.org | sudo bash
+curl -sSL https://install.muxi.org | sudo bash
 ```
 
 **Windows (PowerShell):**
 ```powershell
 irm https://install.muxi.org/windows.ps1 | iex
 ```
+
+> **Note:** Windows users must use PowerShell (not Command Prompt). Works with both Windows PowerShell and PowerShell Core.
 
 This installs:
 - `muxi-server` - Server binary

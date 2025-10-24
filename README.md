@@ -21,10 +21,18 @@
 
 ## Quick Start
 
+**Linux / macOS:**
 ```bash
-# Install (one command)
 curl -sSL https://install.muxi.org | sudo bash
+```
 
+**Windows (PowerShell):**
+```powershell
+irm https://install.muxi.org/windows.ps1 | iex
+```
+
+**After installation:**
+```bash
 # Initialize
 muxi-server init
 
