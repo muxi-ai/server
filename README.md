@@ -1,33 +1,62 @@
 # MUXI Server
 
+[![Release](https://img.shields.io/github/v/release/muxi-ai/server?label=version)](https://github.com/muxi-ai/server/releases)
+[![CI](https://img.shields.io/github/actions/workflow/status/muxi-ai/server/ci.yml?branch=develop&label=CI)](https://github.com/muxi-ai/server/actions)
+[![Docker](https://img.shields.io/badge/docker-ghcr.io-blue)](https://github.com/muxi-ai/server/pkgs/container/server)
+[![Coverage](https://img.shields.io/badge/coverage-91.2%25-brightgreen)](https://github.com/muxi-ai/server/actions)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 Production-grade orchestration platform for deploying and managing MUXI formations at scale.
 
 **Think:** Docker + PM2 + Nginx in a single Go binary, purpose-built for MUXI formations.
 
 ## Versioning
 
-**Current Version:** `0.20251023.0`
+**Current Version:** `v0.20251023.1` ([Release Notes](https://github.com/muxi-ai/server/releases/latest))
 
 MUXI Server uses **[ScalVer (Scalable Calendar Versioning)](https://scalver.org)** - a calendar-aware versioning scheme that's fully compatible with SemVer.
 
 **Format:** `MAJOR.YYYYMMDD.PATCH`
 - `0` - Alpha/experimental (current)
 - `20251023` - Release date (October 23, 2025)
-- `0` - First release of the day
+- `1` - Second release of the day
 
 **Learn more:** [docs/VERSIONING.md](docs/VERSIONING.md)
+
+## Quick Install
+
+```bash
+# One-command install (Linux/macOS)
+curl -sSL https://install.muxi.ai | sudo bash
+
+# Or download binary directly
+wget https://github.com/muxi-ai/server/releases/latest/download/muxi-server-linux-amd64
+chmod +x muxi-server-linux-amd64
+sudo mv muxi-server-linux-amd64 /usr/local/bin/muxi-server
+
+# Or use Docker
+docker pull ghcr.io/muxi-ai/server:latest
+docker run -p 7890:7890 ghcr.io/muxi-ai/server:latest
+```
+
+**Supported Platforms:**
+- Linux (amd64, arm64)
+- macOS (amd64, arm64 - Apple Silicon)
+- Docker (multi-arch: linux/amd64, linux/arm64)
 
 ## Features
 
 - 🚀 **One-Command Deploy** - Bundle upload with automatic metadata injection
-- 🔐 **HMAC Authentication** - AWS-style key/secret authentication
+- 🔐 **HMAC Authentication** - AWS-style key/secret authentication  
 - 🎯 **HTTP Proxy** - Automatic routing to formations (`/api/{formation_id}/*`)
 - 🔄 **Formation Versioning** - Update formations with rollback support
 - 📝 **Audit Logging** - Track all API requests to formations
 - 📊 **Server Telemetry** - Automatic `_server_id` and `_deployment_mode` injection
 - 🔄 **Auto-Restart** - Crashed formations automatically restart
-- 📝 **Complete API** - 14 endpoints for formations, versioning, and server management
+- 📝 **Complete API** - 14 RESTful endpoints for formations, versioning, and server management
 - 🎨 **Simple CLI** - `muxi-server init`, `version`, `config show`
+- 🐳 **Docker Support** - Multi-arch images on GitHub Container Registry
+- 🔧 **Zero Dependencies** - Single binary, no runtime requirements
 
 ## Repository Structure
 
@@ -74,12 +103,13 @@ MUXI Server uses **[ScalVer (Scalable Calendar Versioning)](https://scalver.org)
 │   ├── formations/      # Test bundles
 │   ├── *.sh             # Integration test scripts
 │   └── fixtures/        # Test data
-└── wip/                 # Work in progress docs & notes
-    ├── COVERAGE-ACHIEVEMENT.md  # Coverage analysis
-    ├── PHASE-1-FINAL-SUMMARY.md # Phase 1 recap
+└── notes/               # Implementation notes & design docs
+    ├── PRD.md           # Product Requirements Document
+    ├── AUTH.md          # Authentication design
+    ├── VERSIONING.md    # Versioning strategy
     └── ...
 
-Test Coverage: 88.3% average (11,500+ lines across 30 test files)
+Test Coverage: 91.2% average (11,500+ lines across 30 test files)
 - Unit tests: 200+
 - Integration tests: 20+
 - Security tests: 15+
@@ -157,13 +187,15 @@ go test ./... -v
 ```
 
 **Coverage Breakdown:**
-- `auth`: 97.3% ⭐
-- `registry`: 91.7% ⭐
+- `registry`: 91.2% ⭐
 - `process`: 90.3% ⭐
-- `formation`: 89.2% ✅
+- `formation`: 88.6% ✅
 - `config`: 88.9% ✅
 - `proxy`: 88.5% ✅
-- `api`: 72.5% ✅
+- `auth`: 100.0% ⭐
+- `api`: 77.2% ✅
+
+**All tests pass with race detector enabled** (`-race` flag)
 
 ### Development
 
@@ -208,48 +240,56 @@ curl -X POST http://localhost:8001/chat \
 
 ## Current Status
 
-- ✅ **Phase 1 Complete** - Production-ready server
-  - Process management with auto-restart
-  - Formation registry with port allocation
-  - RESTful API (14 endpoints)
-  - Formation versioning & rollback
-  - HTTP proxy routing
-  - HMAC authentication
-  - Audit logging
-  - Server CLI commands
-  - Formation bundle upload
-  - Server ID generation & metadata injection
-  - Localhost-only formation binding (security)
-  
-- 🔜 **Phase 2** - Client CLI tool (separate project)
+**✅ Production Ready** - Version v0.20251023.1
+
+### Completed Features
+- ✅ **Core Server** - Process management, registry, port allocation
+- ✅ **RESTful API** - 14 endpoints (formations, versioning, server management)
+- ✅ **Formation Versioning** - Update & rollback support
+- ✅ **HTTP Proxy** - Automatic routing with telemetry injection
+- ✅ **HMAC Authentication** - AWS-style key/secret auth
+- ✅ **Audit Logging** - JSON-lines format for all API requests
+- ✅ **CLI Commands** - init, version, config show
+- ✅ **Bundle Upload** - Tarball deployment with metadata injection
+- ✅ **Security** - Localhost-only formation binding
+- ✅ **Auto-Restart** - Crashed formations auto-recover
+- ✅ **Test Coverage** - 91.2% with race detector enabled
+- ✅ **CI/CD Pipeline** - develop → rc → main with auto-versioning
+- ✅ **Multi-Platform** - Linux & macOS (amd64/arm64)
+- ✅ **Docker Images** - Multi-arch on GHCR
+
+### Roadmap
+- 🔜 **Phase 2** - Client CLI tool (separate repository)
 - 🔜 **Phase 3** - Singularity/Apptainer SIF runtime
+- 📋 **Windows Support** - [Issue #9](https://github.com/muxi-ai/server/issues/9)
 
 ## Documentation
 
-### For Contributors
-- **[AGENTS.md](AGENTS.md)** - Development guide for AI agents
-- **[docs/VERSIONING.md](docs/VERSIONING.md)** - Versioning & release process
-- **CHANGELOG.md** - Version history
+### User Documentation
+- **[docs/getting-started.md](docs/getting-started.md)** - Quick start guide
+- **[docs/installation.md](docs/installation.md)** - Installation & setup
+- **[docs/api-reference.md](docs/api-reference.md)** - Complete API reference
+- **[docs/authentication.md](docs/authentication.md)** - HMAC authentication guide
+- **[docs/formations.md](docs/formations.md)** - Formation management
+- **[docs/configuration.md](docs/configuration.md)** - Server configuration
+- **[docs/docker-quick-start.md](docs/docker-quick-start.md)** - Docker deployment
+- **[docs/troubleshooting.md](docs/troubleshooting.md)** - Common issues & solutions
 
-### For Developers
-- **PRD.md** - Product Requirements Document
-- **AUTH.md** - Authentication design
-- **CLI-PROTOCOL.md** - Client-Server protocol specification
+### Developer Documentation
+- **[AGENTS.md](AGENTS.md)** - AI agent development guide
+- **[docs/VERSIONING.md](docs/VERSIONING.md)** - ScalVer versioning & release process
+- **[CHANGELOG.md](CHANGELOG.md)** - Version history
+- **[notes/PRD.md](notes/PRD.md)** - Product Requirements Document
+- **[notes/AUTH.md](notes/AUTH.md)** - Authentication design
+- **[notes/SERVICE-DAEMON-DESIGN.md](notes/SERVICE-DAEMON-DESIGN.md)** - Service management design
 
-### Implementation Summaries
-- **MANAGEMENT-API-COMPLETE.md** - Management API endpoints (5 endpoints)
-- **SERVER-CLI-COMPLETE.md** - Server CLI commands
-- **BUNDLE-UPLOAD-COMPLETE.md** - Formation bundle upload & server ID
-
-### For Users
-- **docs/** - User documentation (8 files)
-  - Getting started, installation, configuration
-  - Authentication, formations, API reference
-  - Troubleshooting
-
-### Testing
-- **TESTING.md** - Testing guide
-- **src/test/test_*.sh** - Test scripts for API, proxy, auth
+### CI/CD & Release
+- **[.github/workflows/](/.github/workflows/)** - GitHub Actions workflows
+  - `ci.yml` - Continuous Integration (develop branch)
+  - `rc.yml` - Release Candidate builds (rc branch)
+  - `release.yml` - Production releases (main branch)
+  - `docker-build-publish.yml` - Docker image builds
+- **[notes/BRANCH-SETUP-GUIDE.md](notes/BRANCH-SETUP-GUIDE.md)** - Branch workflow setup
 
 ## License
 
