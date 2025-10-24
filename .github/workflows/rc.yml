@@ -118,7 +118,7 @@ jobs:
           EOF
           
           # Start server in background
-          ./muxi-server serve &
+          ./muxi-server start &
           SERVER_PID=$!
           
           # Wait for startup
@@ -172,7 +172,7 @@ jobs:
           $initInput | .\muxi-server.exe init
           
           # Start server in background
-          $SERVER = Start-Process -FilePath ".\muxi-server.exe" -ArgumentList "serve" -PassThru -NoNewWindow
+          $SERVER = Start-Process -FilePath ".\muxi-server.exe" -ArgumentList "start" -PassThru -NoNewWindow
           
           # Wait for startup
           Start-Sleep -Seconds 5
