@@ -9,6 +9,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    # Skip if commit is from github-actions[bot] (prevent infinite loop)
+    if: github.actor != 'github-actions[bot]'
     
     steps:
       - name: Checkout
