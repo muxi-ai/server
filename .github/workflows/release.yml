@@ -9,8 +9,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    # Skip if commit is from github-actions[bot] (prevent infinite loop)
-    if: github.actor != 'github-actions[bot]'
+    # Skip if commit is a version bump (prevent infinite loop)
+    if: "!startsWith(github.event.head_commit.message, 'chore: bump version')"
     
     steps:
       - name: Checkout
