@@ -454,7 +454,9 @@ curl http://localhost:7890/rpc/formations/chat-api \
 
 ### Update Formation
 
-Update a formation to a new version (keeps previous version for rollback).
+**✨ NEW: Zero-Downtime Blue-Green Deployment**
+
+Update a formation to a new version without downtime. The old version continues serving traffic while the new version is validated.
 
 **Endpoint:**
 
@@ -464,35 +466,98 @@ PUT /rpc/formations/{id}
 
 **Authentication:** Required (HMAC)
 
-**Request:** Multipart form data with bundle file
+**Request:** Gzipped tarball bundle (Content-Type: application/gzip)
 
 **Example Request:**
 
 ```bash
+TIMESTAMP=$(date +%s)
+SIGNATURE=$(echo -n "${TIMESTAMP};PUT;/rpc/formations/chat-api" | openssl dgst -sha256 -hmac "$SECRET" -binary | base64)
+
 curl -X PUT http://localhost:7890/rpc/formations/chat-api \
-  -H "Authorization: MUXI-HMAC key=..., timestamp=..., signature=..." \
-  -F "bundle=@./chat-api-v2.tar.gz"
+  -H "Authorization: MUXI-HMAC key=$KEY, timestamp=$TIMESTAMP, signature=$SIGNATURE" \
+  -H "Content-Type: application/gzip" \
+  --data-binary "@chat-api-v2.tar.gz"
 ```
 
-**Response (200 OK):**
+**Response (200 OK - Successful Deployment):**
 
 ```json
 {
   "id": "chat-api",
   "status": "running",
-  "version": 3,
-  "previous_version": 2,
-  "message": "Formation updated successfully"
+  "version": 2,
+  "previous_version": 1,
+  "port": 8002,
+  "pid": 12345,
+  "message": "Formation updated with zero downtime",
+  "deployment_type": "blue-green"
 }
 ```
 
-**How it works:**
+**Response (400 Bad Request - Failed Deployment, Zero Downtime Maintained):**
 
-1. Stops current formation
-2. Moves `current/` → `previous/` (backup)
-3. Extracts new bundle to `current/`
-4. Updates version metadata
-5. Starts formation with new version
+```json
+{
+  "error": "New version failed health check: health check failed after 30 attempts. Old version still running - zero downtime maintained."
+}
+```
+
+**How Zero-Downtime Deployment Works:**
+
+1. **Old version keeps running** on current port (e.g., 8001) ✅
+2. **Allocate staging port** (e.g., 8002)
+3. **Extract new bundle** to `staging/` directory
+4. **Start new version** on staging port (with `-staging` process ID)
+5. **Health check** new version (30 second timeout, polling `/health`)
+6. **Decision point:**
+   - ✅ **If healthy:**
+     - Switch active port in registry (atomic)
+     - Stop old version (graceful → force kill if needed)
+     - Move directories: `staging/` → `current/`, old `current/` → `previous/`
+     - Update version metadata
+     - Return success
+   - ❌ **If unhealthy:**
+     - Force kill staging process
+     - Release staging port
+     - Clean up staging directory
+     - **Old version still running** - no downtime!
+     - Return error
+
+**Health Check Requirements:**
+
+For zero-downtime deployments, your formation **must** expose a `/health` endpoint that returns HTTP 2xx when healthy:
+
+```python
+# Python (FastAPI)
+@app.get("/health")
+async def health():
+    return {"status": "healthy"}
+```
+
+```javascript
+// Node.js (Express)
+app.get('/health', (req, res) => {
+  res.json({ status: 'healthy' });
+});
+```
+
+**Configuration:**
+
+Customize health check behavior in `~/.muxi/server/config.yaml`:
+
+```yaml
+formations:
+  deployment:
+    health_check:
+      enabled: true              # Enable zero-downtime deployments
+      endpoint: "/health"        # Health endpoint path
+      timeout: 30                # Timeout in seconds
+      interval: 1                # Poll interval in seconds
+      max_retries: 30            # Max health check attempts
+    force_kill_timeout: 5        # Seconds before force-killing old version
+    staging_health_delay: 2      # Delay before first health check
+```
 
 **Error Responses:**
 
@@ -500,8 +565,18 @@ curl -X PUT http://localhost:7890/rpc/formations/chat-api \
 |------|-------|-------------|
 | 401 | `Unauthorized` | Invalid authentication |
 | 404 | `Formation not found` | Formation doesn't exist |
-| 400 | `Invalid bundle` | Bundle format invalid |
+| 409 | `Conflict` | Formation is already being deployed |
+| 400 | `Health check failed` | New version failed health check (old version still running) |
+| 400 | `Invalid bundle` | Bundle extraction or parsing failed |
+| 507 | `No available ports` | Port pool exhausted for staging deployment |
 | 500 | `Update failed` | Internal server error |
+
+**Benefits:**
+
+- ✅ **Zero downtime** - Old version serves traffic during deployment
+- ✅ **Automatic validation** - New version must pass health check
+- ✅ **Instant rollback** - Failed deployments don't affect running service
+- ✅ **Production-grade** - Industry-standard blue-green deployment pattern
 
 ---
 

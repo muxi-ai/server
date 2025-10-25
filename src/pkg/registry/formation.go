@@ -14,8 +14,12 @@ type Formation struct {
 
 	// Process details
 	ProcessID int    `json:"process_id"` // PID of running process
-	Port      int    `json:"port"`       // Allocated port
+	Port      int    `json:"port"`       // Allocated port (active/serving traffic)
 	Status    string `json:"status"`     // "running", "stopped", "crashed"
+
+	// Zero-downtime deployment (blue-green)
+	StagingPort int  `json:"staging_port,omitempty"` // Port for staging version (0 if none)
+	Deploying   bool `json:"deploying,omitempty"`    // True during blue-green deployment
 
 	// Configuration
 	ConfigPath string   `json:"config_path"` // Path to formation YAML (future)

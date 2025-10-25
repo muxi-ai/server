@@ -24,6 +24,7 @@ MUXI Server is a single-binary orchestration platform that makes deploying and m
 
 - 🚀 **One-Command Deploy** - `muxi formation deploy` → production API
 - 📦 **Single Binary** - No dependencies, just install and run
+- ⚡ **Zero-Downtime Deployments** ✨ NEW - Blue-green deployment with automatic health checks
 - 🔄 **Auto-Recovery** - Formations restart automatically on crash
 - 🔐 **Secure** - HMAC-based authentication (AWS-style)
 - 🌐 **HTTP Proxy** - Smart routing with formation-level isolation

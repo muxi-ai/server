@@ -299,6 +299,165 @@ curl -X POST http://localhost:7890/rpc/formations/chat-api/restart \
 
 ---
 
+## Update Formation
+
+**✨ NEW: Zero-Downtime Deployments**
+
+MUXI Server uses **blue-green deployment** to update formations without downtime. The old version continues serving traffic while the new version is validated.
+
+### How It Works
+
+1. **Old version keeps running** on current port (e.g., 8001)
+2. **New version starts** on staging port (e.g., 8002)
+3. **Health check** validates new version (30 second timeout)
+4. **Decision:**
+   - ✅ **If healthy:** Switch traffic to new version, stop old version
+   - ❌ **If unhealthy:** Kill new version, keep old version running
+
+**Result:** Zero downtime, even if deployment fails!
+
+### Using CLI (Coming Soon)
+
+```bash
+# Update to new version (zero-downtime)
+muxi formation update chat-api --bundle=v2.tar.gz
+```
+
+### Using HTTP API
+
+```bash
+# Create new bundle
+tar -czf v2.tar.gz my-formation/
+
+# Update formation (zero-downtime deployment)
+TIMESTAMP=$(date +%s)
+SIGNATURE=$(echo -n "${TIMESTAMP};PUT;/rpc/formations/chat-api" | openssl dgst -sha256 -hmac "$SECRET" -binary | base64)
+
+curl -X PUT http://localhost:7890/rpc/formations/chat-api \
+  -H "Authorization: MUXI-HMAC key=$KEY, timestamp=$TIMESTAMP, signature=$SIGNATURE" \
+  -H "Content-Type: application/gzip" \
+  --data-binary "@v2.tar.gz"
+```
+
+### Success Response
+
+```json
+{
+  "id": "chat-api",
+  "status": "running",
+  "version": 2,
+  "previous_version": 1,
+  "port": 8002,
+  "pid": 12345,
+  "message": "Formation updated with zero downtime",
+  "deployment_type": "blue-green"
+}
+```
+
+### Failed Deployment (Zero Downtime Maintained!)
+
+If the new version fails health checks, the old version continues running:
+
+```json
+{
+  "error": "New version failed health check: health check failed after 30 attempts. Old version still running - zero downtime maintained."
+}
+```
+
+**Your formation never went down!** Fix the issue and try again.
+
+### Health Check Requirements
+
+For zero-downtime deployments to work, your formation **must** expose a health endpoint:
+
+**Python (FastAPI):**
+```python
+@app.get("/health")
+async def health():
+    return {"status": "healthy"}
+```
+
+**Node.js (Express):**
+```javascript
+app.get('/health', (req, res) => {
+  res.json({ status: 'healthy' });
+});
+```
+
+**Default endpoint:** `/health` (configurable in `config.yaml`)
+
+### Configuration
+
+Customize health check behavior in `~/.muxi/server/config.yaml`:
+
+```yaml
+formations:
+  deployment:
+    health_check:
+      enabled: true              # Enable zero-downtime deployments
+      endpoint: "/health"        # Health endpoint path
+      timeout: 30                # Timeout in seconds
+      interval: 1                # Poll interval in seconds
+      max_retries: 30            # Max health check attempts
+    
+    force_kill_timeout: 5        # Seconds before force-killing old version
+    staging_health_delay: 2      # Delay before first health check
+```
+
+### Rollback
+
+If you discover issues after a successful deployment:
+
+```bash
+# Rollback to previous version
+curl -X POST http://localhost:7890/rpc/formations/chat-api/rollback \
+  -H "Authorization: MUXI-HMAC key=..., timestamp=..., signature=..."
+```
+
+**Response:**
+```json
+{
+  "id": "chat-api",
+  "status": "running",
+  "version": 1,
+  "previous_version": 2,
+  "message": "Formation rolled back to previous version"
+}
+```
+
+### Best Practices
+
+1. **Always implement /health endpoint** - Required for zero-downtime deployments
+2. **Test health endpoint before deploying** - Verify it returns 200 OK
+3. **Handle graceful shutdown** - Listen for SIGTERM and clean up resources
+4. **For slow-starting formations** - Increase `timeout` and `staging_health_delay`
+
+### Monitoring Updates
+
+Watch deployment progress in real-time:
+
+```bash
+# Terminal 1: Watch logs
+tail -f ~/.muxi/server/logs/audit.log | grep deployment
+
+# Terminal 2: Deploy
+curl -X PUT http://localhost:7890/rpc/formations/chat-api \
+  -H "Content-Type: application/gzip" \
+  --data-binary "@v2.tar.gz"
+```
+
+**Successful deployment log:**
+```
+INFO  Starting zero-downtime deployment id=chat-api
+INFO  Allocated staging port id=chat-api current_port=8001 staging_port=8002
+INFO  Staging formation started, beginning health checks
+INFO  Formation is healthy formation_id=chat-api port=8002 attempt=1
+INFO  Staging formation is healthy - switching to new version
+INFO  ✓ Zero-downtime deployment successful version=2 pid=12345
+```
+
+---
+
 ## Delete Formation
 
 ### Using CLI

@@ -83,6 +83,55 @@ func Stop(proc *Process, logger *zerolog.Logger) error {
 	return nil
 }
 
+// ForceKill forcefully kills a process using SIGKILL on Unix systems
+func ForceKill(proc *Process, logger *zerolog.Logger) error {
+	if proc.cmd == nil || proc.cmd.Process == nil {
+		return fmt.Errorf("process not running")
+	}
+
+	if logger == nil {
+		l := zerolog.Nop()
+		logger = &l
+	}
+
+	logger.Warn().
+		Str("id", proc.ID).
+		Int("pid", proc.PID).
+		Msg("Force killing process with SIGKILL")
+
+	proc.SetStatus(StatusStopping)
+	proc.SetStopSignal(true)
+
+	// Send SIGKILL to process group (kills entire process tree)
+	pgid := -proc.PID // Negative PID targets process group
+	if err := syscall.Kill(pgid, syscall.SIGKILL); err != nil {
+		// If process group kill fails, try direct kill
+		logger.Warn().Err(err).Msg("Failed to kill process group, trying direct kill")
+		if err := proc.cmd.Process.Kill(); err != nil {
+			return fmt.Errorf("failed to force kill process: %w", err)
+		}
+	}
+
+	// Wait for process to exit
+	if err := proc.cmd.Wait(); err != nil {
+		// Exit error is expected with SIGKILL
+		logger.Debug().Err(err).Str("id", proc.ID).Msg("Process killed")
+	}
+
+	proc.SetStatus(StatusStopped)
+	proc.PID = 0
+	proc.cmd = nil
+
+	// Clean up PID file
+	if err := os.Remove(proc.PIDFile); err != nil {
+		logger.Debug().Err(err).Str("id", proc.ID).Msg("Failed to remove PID file")
+	}
+
+	logger.Info().Str("id", proc.ID).Msg("✓ Process force killed")
+
+	return nil
+}
+
 // IsProcessRunning checks if a process with the given PID is running on Unix systems
 func IsProcessRunning(pid int) bool {
 	if pid <= 0 {

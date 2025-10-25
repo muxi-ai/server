@@ -199,6 +199,66 @@ func (r *Registry) UpdateHealthCheck(formationID string, healthy bool) error {
 	})
 }
 
+// SetDeploying sets the deploying flag for a formation
+// Used to prevent concurrent updates during zero-downtime deployment
+func (r *Registry) SetDeploying(formationID string, deploying bool) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	formation, exists := r.formations[formationID]
+	if !exists {
+		return fmt.Errorf("formation %s not found", formationID)
+	}
+
+	// If trying to set deploying=true but already deploying, return error
+	if deploying && formation.Deploying {
+		return fmt.Errorf("formation %s is already being deployed", formationID)
+	}
+
+	formation.Deploying = deploying
+
+	r.triggerChange()
+
+	return nil
+}
+
+// SetStagingPort sets the staging port for a formation during zero-downtime deployment
+func (r *Registry) SetStagingPort(formationID string, stagingPort int) error {
+	return r.Update(formationID, func(f *Formation) {
+		f.StagingPort = stagingPort
+	})
+}
+
+// SwitchToStagingPort switches the active port to the staging port
+// Used after successful health check in zero-downtime deployment
+// Returns the old port that can be released
+func (r *Registry) SwitchToStagingPort(formationID string) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	formation, exists := r.formations[formationID]
+	if !exists {
+		return 0, fmt.Errorf("formation %s not found", formationID)
+	}
+
+	if formation.StagingPort == 0 {
+		return 0, fmt.Errorf("formation %s has no staging port", formationID)
+	}
+
+	// Swap ports
+	oldPort := formation.Port
+	formation.Port = formation.StagingPort
+	formation.StagingPort = 0
+
+	// Update port pool allocations
+	r.portPool.Release(oldPort)
+	r.portPool.allocated[formation.Port] = formationID
+
+	r.triggerChange()
+
+	return oldPort, nil
+}
+
 // triggerChange calls the onChange callback if set
 func (r *Registry) triggerChange() {
 	if r.onChange != nil {

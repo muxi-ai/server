@@ -201,6 +201,50 @@ func Stop(proc *Process, logger *zerolog.Logger) error {
 	return nil
 }
 
+// ForceKill forcefully terminates a process on Windows
+func ForceKill(proc *Process, logger *zerolog.Logger) error {
+	if proc.cmd == nil || proc.cmd.Process == nil {
+		return fmt.Errorf("process not running")
+	}
+
+	if logger == nil {
+		l := zerolog.Nop()
+		logger = &l
+	}
+
+	logger.Warn().
+		Str("id", proc.ID).
+		Int("pid", proc.PID).
+		Msg("Force killing process")
+
+	proc.SetStatus(StatusStopping)
+	proc.SetStopSignal(true)
+
+	// Force kill the process (Windows TerminateProcess)
+	if err := proc.cmd.Process.Kill(); err != nil {
+		return fmt.Errorf("failed to force kill process: %w", err)
+	}
+
+	// Wait for process to exit
+	if err := proc.cmd.Wait(); err != nil {
+		// Exit error is expected with forced termination
+		logger.Debug().Err(err).Str("id", proc.ID).Msg("Process killed")
+	}
+
+	proc.SetStatus(StatusStopped)
+	proc.PID = 0
+	proc.cmd = nil
+
+	// Clean up PID file
+	if err := os.Remove(proc.PIDFile); err != nil {
+		logger.Debug().Err(err).Str("id", proc.ID).Msg("Failed to remove PID file")
+	}
+
+	logger.Info().Str("id", proc.ID).Msg("✓ Process force killed")
+
+	return nil
+}
+
 // IsProcessRunning checks if a process with the given PID is running on Windows
 func IsProcessRunning(pid int) bool {
 	if pid <= 0 {

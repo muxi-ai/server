@@ -149,6 +149,17 @@ formations:
   # Health checks
   health_check_interval: 30           # Check every N seconds
   health_check_timeout: 10            # Timeout for /health endpoint
+  
+  # Zero-downtime deployment (✨ NEW!)
+  deployment:
+    health_check:
+      enabled: true                   # Enable zero-downtime deployments
+      endpoint: "/health"             # Health endpoint path
+      timeout: 30                     # Total timeout in seconds
+      interval: 1                     # Poll interval in seconds
+      max_retries: 30                 # Max health check attempts
+    force_kill_timeout: 5             # Seconds before force-killing old version
+    staging_health_delay: 2           # Delay before first health check
 ```
 
 **Options:**
@@ -164,6 +175,13 @@ formations:
 | `restart_delay` | int | `1` | Wait N seconds between restart attempts |
 | `health_check_interval` | int | `30` | Check formation health every N seconds |
 | `health_check_timeout` | int | `10` | Health check request timeout (seconds) |
+| `deployment.health_check.enabled` | bool | `true` | Enable zero-downtime deployments ✨ NEW |
+| `deployment.health_check.endpoint` | string | `"/health"` | Health endpoint path for deployments ✨ NEW |
+| `deployment.health_check.timeout` | int | `30` | Deployment health check timeout (seconds) ✨ NEW |
+| `deployment.health_check.interval` | int | `1` | Poll interval for deployment health checks ✨ NEW |
+| `deployment.health_check.max_retries` | int | `30` | Max health check attempts during deployment ✨ NEW |
+| `deployment.force_kill_timeout` | int | `5` | Seconds before force-killing old version ✨ NEW |
+| `deployment.staging_health_delay` | int | `2` | Delay before starting deployment health checks ✨ NEW |
 
 **Examples:**
 
@@ -189,6 +207,26 @@ formations:
 # Custom log directory
 formations:
   logs_dir: "/var/log/muxi/formations"
+
+# Custom health endpoint for deployments (✨ NEW)
+formations:
+  deployment:
+    health_check:
+      endpoint: "/api/health"  # Use custom endpoint
+
+# Longer timeout for slow-starting formations (✨ NEW)
+formations:
+  deployment:
+    health_check:
+      timeout: 120              # 2 minutes
+      interval: 2               # Check every 2 seconds
+    staging_health_delay: 10    # Wait 10 seconds before checking
+
+# Disable zero-downtime deployments (✨ NEW)
+formations:
+  deployment:
+    health_check:
+      enabled: false  # Use traditional deployment (not recommended)
 ```
 
 **Port Pool:**

@@ -66,10 +66,29 @@ type FormationsConfig struct {
 	HealthCheckTimeout  int `yaml:"health_check_timeout"`  // Health check timeout in seconds (default: 5)
 	StartupHealthDelay  int `yaml:"startup_health_delay"`  // Delay before first health check (default: 2)
 
+	// Zero-downtime deployment
+	Deployment DeploymentConfig `yaml:"deployment"` // Zero-downtime deployment settings
+
 	// Log rotation
 	LogRotationEnabled bool   `yaml:"log_rotation_enabled"` // Enable log rotation (default: true)
 	LogMaxSize         string `yaml:"log_max_size"`         // Max log file size (default: "10M")
 	LogMaxFiles        int    `yaml:"log_max_files"`        // Max log files to keep (default: 10)
+}
+
+// DeploymentConfig contains zero-downtime deployment settings
+type DeploymentConfig struct {
+	HealthCheck        HealthCheckConfig `yaml:"health_check"`         // Health check settings
+	ForceKillTimeout   int               `yaml:"force_kill_timeout"`   // Seconds to wait before force-killing old version (default: 5)
+	StagingHealthDelay int               `yaml:"staging_health_delay"` // Delay before starting health checks on staging (default: 2)
+}
+
+// HealthCheckConfig contains health check settings for deployments
+type HealthCheckConfig struct {
+	Enabled    bool   `yaml:"enabled"`     // Enable health checks during deployment (default: true)
+	Endpoint   string `yaml:"endpoint"`    // Health endpoint path (default: "/health")
+	Timeout    int    `yaml:"timeout"`     // Total timeout in seconds (default: 30)
+	Interval   int    `yaml:"interval"`    // Poll interval in seconds (default: 1)
+	MaxRetries int    `yaml:"max_retries"` // Max health check attempts (default: 30)
 }
 
 // DefaultConfig returns a configuration with sensible defaults
@@ -99,9 +118,20 @@ func DefaultConfig() *Config {
 			HealthCheckInterval: 30,
 			HealthCheckTimeout:  5,
 			StartupHealthDelay:  2,
-			LogRotationEnabled:  true,
-			LogMaxSize:          "10M",
-			LogMaxFiles:         10,
+			Deployment: DeploymentConfig{
+				HealthCheck: HealthCheckConfig{
+					Enabled:    true,
+					Endpoint:   "/health",
+					Timeout:    30,
+					Interval:   1,
+					MaxRetries: 30,
+				},
+				ForceKillTimeout:   5,
+				StagingHealthDelay: 2,
+			},
+			LogRotationEnabled: true,
+			LogMaxSize:         "10M",
+			LogMaxFiles:        10,
 		},
 		Logging: LoggingConfig{
 			Level:    "info",
