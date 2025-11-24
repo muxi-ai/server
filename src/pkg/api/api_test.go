@@ -45,7 +45,7 @@ func createTestServer(t *testing.T) *Server {
 	}
 	authMiddleware := auth.NewMiddleware(authConfig, &logger)
 
-	return NewServer(cfg, pm, reg, authMiddleware, &logger)
+	return NewServer(cfg, pm, reg, authMiddleware, &logger, "test-version")
 }
 
 func TestNewServer(t *testing.T) {

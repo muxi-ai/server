@@ -159,7 +159,7 @@ func cmdStart() error {
 	}
 
 	// Create API server
-	apiServer := api.NewServer(cfg, processManager, formationRegistry, authMiddleware, &logger)
+	apiServer := api.NewServer(cfg, processManager, formationRegistry, authMiddleware, &logger, Version)
 
 	// Setup graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())

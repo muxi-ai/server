@@ -37,7 +37,7 @@ func (s *Server) HandleServerStatus(w http.ResponseWriter, r *http.Request) {
 	status := map[string]interface{}{
 		"server": map[string]interface{}{
 			"id":      s.config.ServerID,
-			"version": "1.0.0", // TODO: Get from build info
+			"version": s.version, // Version from build-time injection
 			"uptime":  int(uptime.Seconds()),
 		},
 		"formations": map[string]interface{}{

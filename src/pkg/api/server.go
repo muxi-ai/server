@@ -25,6 +25,7 @@ type Server struct {
 	authMiddleware *auth.Middleware
 	proxyHandler   *proxy.Handler
 	logger         *zerolog.Logger
+	version        string // Server version (injected at build time)
 }
 
 // NewServer creates a new API server
@@ -34,6 +35,7 @@ func NewServer(
 	registry *registry.Registry,
 	authMiddleware *auth.Middleware,
 	logger *zerolog.Logger,
+	version string,
 ) *Server {
 	router := mux.NewRouter()
 
@@ -45,6 +47,7 @@ func NewServer(
 		authMiddleware: authMiddleware,
 		proxyHandler:   proxy.NewHandler(registry),
 		logger:         logger,
+		version:        version,
 	}
 
 	// Setup routes

@@ -10,11 +10,11 @@
 
 > [!IMPORTANT]
 > Agents aren't workflows. They don't follow predetermined sequences – they make decisions, evaluate context, and spawn tasks you didn't anticipate. Running them on infrastructure built for "step 1, step 2, step 3" means hacking around with Redis for state, Celery for tasks, and endless conditionals.
-> 
+>
 > **Agents deserve their own infrastructure.**
-> 
+>
 > MUXI Server treats **agents as native primitives** – declared in YAML, orchestrated at the infrastructure layer, scaled like containers.
-> 
+>
 > **Websites have web servers. APIs have application servers. Agents finally have their own.**
 
 ---
@@ -85,7 +85,7 @@ You built an AI agent that works. Don't spend 3 weeks deploying it. Deploy in 10
 
 Single binary. No runtime requirements. Runs on:
 - Linux (amd64, arm64)
-- macOS (amd64, arm64 - Apple Silicon)  
+- macOS (amd64, arm64 - Apple Silicon)
 - Windows (amd64, arm64)
 - Docker (multi-arch)
 
@@ -96,32 +96,32 @@ See the [Releases page](https://github.com/muxi-ai/server/releases)
 ## What You Get
 
 ### Deployment & Management
-✓ One-command formation deployment  
-✓ Hot updates without downtime  
-✓ Version tracking and instant rollback  
-✓ Automatic port management (no conflicts)  
-✓ Built-in formation registry  
+✓ One-command formation deployment
+✓ Hot updates without downtime
+✓ Version tracking and instant rollback
+✓ Automatic port management (no conflicts)
+✓ Built-in formation registry
 
 ### Security & Isolation
-✓ HMAC authentication (AWS-style)  
-✓ Per-user credential storage  
-✓ Session isolation (multi-tenant ready)  
-✓ Role-based access control  
-✓ Complete audit trails  
+✓ HMAC authentication (AWS-style)
+✓ Per-user credential storage
+✓ Session isolation (multi-tenant ready)
+✓ Role-based access control
+✓ Complete audit trails
 
 ### Operations & Monitoring
-✓ Auto-restart on crashes  
-✓ Health checks and monitoring  
-✓ Structured event logging (150+ types)  
-✓ HTTP proxy with formation routing  
-✓ Process lifecycle management  
+✓ Auto-restart on crashes
+✓ Health checks and monitoring
+✓ Structured event logging (150+ types)
+✓ HTTP proxy with formation routing
+✓ Process lifecycle management
 
 ### Developer Experience
-✓ Declarative YAML configuration  
-✓ RESTful API (14 endpoints)  
-✓ Simple CLI (`init`, `start`, `version`)  
-✓ Comprehensive documentation  
-✓ Easy integration with existing tools  
+✓ Declarative YAML configuration
+✓ RESTful API (14 endpoints)
+✓ Simple CLI (`init`, `start`, `version`)
+✓ Comprehensive documentation
+✓ Easy integration with existing tools
 
 ---
 
@@ -216,7 +216,7 @@ docker run -p 7890:7890 ghcr.io/muxi-ai/server:latest
 - [Getting Started](https://muxi.org/docs/getting-started) - Deploy your first formation
 - [Windows Development](https://muxi.org/docs/windows-dev) - Windows-specific setup
 
-### Core Concepts  
+### Core Concepts
 - [Formations](https://muxi.org/docs/formations) - What formations are and how they work
 - [Authentication](https://muxi.org/docs/authentication) - HMAC auth and API keys
 - [Configuration](https://muxi.org/docs/configuration) - Server configuration options
@@ -435,7 +435,7 @@ See the [LICENSE](LICENSE) file for the complete license text and [licensing det
 ## Community & Support
 
 - **Issues**: [GitHub Issues](https://github.com/muxi-ai/server/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/muxi-ai/community/discussions)
+- **Discussions**: [GitHub Discussions](https://muxi.org/community)
 - **Contributing**: See [CONTRIBUTING.md](CONTRIBUTING.md)
 - **Documentation:** [muxi.org/docs](https://muxi.org/docs)
 
