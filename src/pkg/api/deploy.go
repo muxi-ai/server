@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	goruntime "runtime"
 	"strings"
 	"time"
 
@@ -243,8 +244,14 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get environment variables from formation
+	// On macOS/Windows (Docker), use 0.0.0.0 so formation is accessible from host
+	// On Linux (Singularity), use 127.0.0.1 for security
+	bindHost := s.config.Formations.BindHost
+	if goruntime.GOOS == "darwin" || goruntime.GOOS == "windows" {
+		bindHost = "0.0.0.0"
+	}
 	serverURL := fmt.Sprintf("http://localhost:%d", s.config.Server.Port)
-	envVars := formationConfig.GetEnvironmentVars(port, serverURL, s.config.Formations.BindHost)
+	envVars := formationConfig.GetEnvironmentVars(port, serverURL, bindHost)
 
 	// Prepare spawn configuration
 	spawnConfig := process.SpawnConfig{
@@ -294,7 +301,7 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 
 		// Create resolver with available versions
 		availableVersions := runtimeRegistry.List()
-		resolver := runtime.NewResolver(availableVersions)
+		resolver := runtime.NewResolver(availableVersions, runtimesDir)
 
 		// Resolve version constraint
 		resolvedVersion, err := resolver.Resolve(formationConfig.Runtime)
@@ -315,8 +322,7 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 			Msg("Resolved runtime version")
 
 		// Get SIF path
-		downloader := runtime.NewDownloader(runtimesDir, runtimeRegistry)
-		sifPath := downloader.GetSIFPath(resolvedVersion)
+		sifPath := resolver.GetSIFPath(resolvedVersion)
 
 		// Check if SIF exists
 		if _, err := os.Stat(sifPath); os.IsNotExist(err) {
@@ -334,11 +340,23 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 		// Update spawn config for Singularity execution
 		spawnConfig.RuntimeType = "singularity"
 		spawnConfig.SIFPath = sifPath
+		
+		// For Singularity/Docker, we run: python -m muxi.utils.run_formation /formation/formation.yaml --port PORT --host HOST
+		// The formation directory is mounted as /formation inside the container
+		// bindHost was already set earlier based on platform
+		spawnConfig.Command = "python"
+		spawnConfig.Args = []string{
+			"-m", "muxi.utils.run_formation",
+			"/formation/formation.yaml",
+			"--port", fmt.Sprintf("%d", port),
+			"--host", bindHost,
+		}
 
 		s.logger.Info().
 			Str("id", formationID).
 			Str("runtime_version", resolvedVersion).
 			Str("sif_path", sifPath).
+			Strs("args", spawnConfig.Args).
 			Msg("Using Singularity runtime")
 
 		// Add formation reference to runtime registry

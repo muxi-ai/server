@@ -2,20 +2,32 @@ package runtime
 
 import (
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
 
 // Resolver resolves runtime version constraints to exact versions
 type Resolver struct {
-	available []string // List of available runtime versions
+	available   []string // List of available runtime versions
+	runtimesDir string   // Directory where SIF files are stored
 }
 
 // NewResolver creates a new runtime version resolver
-func NewResolver(available []string) *Resolver {
+func NewResolver(available []string, runtimesDir string) *Resolver {
 	return &Resolver{
-		available: available,
+		available:   available,
+		runtimesDir: runtimesDir,
 	}
+}
+
+// GetSIFPath returns the full path to the SIF file for a given version
+// Format: ~/.muxi/server/runtimes/muxi-runtime-{version}-{platform}.sif
+// Example: ~/.muxi/server/runtimes/muxi-runtime-0.2025.0-darwin-arm64.sif
+func (r *Resolver) GetSIFPath(version string) string {
+	platform := getPlatform()
+	filename := fmt.Sprintf("muxi-runtime-%s-%s.sif", version, platform)
+	return filepath.Join(r.runtimesDir, filename)
 }
 
 // Resolve resolves a version constraint to an exact version

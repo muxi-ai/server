@@ -181,9 +181,10 @@ func Spawn(config SpawnConfig) (*Process, error) {
 		Msg("✓ Process spawned")
 
 	// Build health check URL if port provided
+	// Runtime returns "Up" HTML page at root endpoint
 	healthCheckURL := ""
 	if config.Port > 0 {
-		healthCheckURL = fmt.Sprintf("http://localhost:%d/health", config.Port)
+		healthCheckURL = fmt.Sprintf("http://localhost:%d/", config.Port)
 	}
 
 	// Create Process struct
@@ -247,6 +248,9 @@ func buildNativeSingularityCommand(config SpawnConfig, logger *zerolog.Logger) *
 		args = append(args, "--env", fmt.Sprintf("%s=%s", key, value))
 	}
 
+	// Add bind mount for formation directory as /formation
+	args = append(args, "--bind", fmt.Sprintf("%s:/formation", config.WorkDir))
+	
 	// Add bind mount for /tmp (allows formations to write temporary files)
 	args = append(args, "--bind", "/tmp")
 
@@ -271,51 +275,37 @@ func buildNativeSingularityCommand(config SpawnConfig, logger *zerolog.Logger) *
 
 // buildDockerSingularityCommand builds a command for Docker-wrapped Singularity on macOS/Windows
 func buildDockerSingularityCommand(config SpawnConfig, logger *zerolog.Logger) *exec.Cmd {
-	// Docker image with Singularity inside
-	// Using GitHub Container Registry
-	runtimeImage := "ghcr.io/muxi-ai/runtime-runner:latest"
+	// For macOS/Windows, we use the runtime Docker image directly
+	// Extract version from SIF path
+	sifBase := filepath.Base(config.SIFPath)
+	version := strings.TrimPrefix(sifBase, "muxi-runtime-")
+	version = strings.TrimSuffix(version, "-darwin-arm64.sif")
+	version = strings.TrimSuffix(version, "-linux-amd64.sif")
+	
+	runtimeImage := fmt.Sprintf("muxi-runtime:%s", version)
 
 	args := []string{
 		"run",
 		"--rm",        // Remove container after exit
 		"--privileged", // Required for Singularity user namespaces
 		
-		// Mount SIF file into container
-		"-v", fmt.Sprintf("%s:/sif/runtime.sif:ro", config.SIFPath),
-		
-		// Mount formation working directory
-		"-v", fmt.Sprintf("%s:%s", config.WorkDir, config.WorkDir),
-		"-w", config.WorkDir,
+		// Mount formation working directory as /formation inside container
+		"-v", fmt.Sprintf("%s:/formation:ro", config.WorkDir),
 		
 		// Expose formation port
 		"-p", fmt.Sprintf("%d:%d", config.Port, config.Port),
 	}
 
-	// Pass environment variables to Docker (which passes to Singularity)
+	// Pass environment variables to Docker BEFORE image name
 	for key, value := range config.Env {
 		args = append(args, "-e", fmt.Sprintf("%s=%s", key, value))
 	}
 
-	// Runtime runner image
+	// Runtime image
 	args = append(args, runtimeImage)
 
-	// Singularity command inside Docker
-	args = append(args, "exec")
-	
-	// Pass env vars to Singularity as well (double-pass for safety)
-	for key, value := range config.Env {
-		args = append(args, "--env", fmt.Sprintf("%s=%s", key, value))
-	}
-	
-	// Bind /tmp inside Singularity
-	args = append(args, "--bind", "/tmp")
-	
-	// SIF file path (as seen inside Docker)
-	args = append(args, "/sif/runtime.sif")
-	
-	// Command and arguments to run
-	args = append(args, config.Command)
-	args = append(args, config.Args...)
+	// The Docker entrypoint handles everything - just pass formation path
+	args = append(args, "/formation/formation.yaml")
 
 	logger.Debug().
 		Str("id", config.ID).
