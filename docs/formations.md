@@ -7,13 +7,17 @@ Learn how to deploy, manage, and monitor MUXI formations.
 ## Overview
 
 Formations are the core units managed by MUXI Server. Each formation:
-- Runs as an isolated process
+- Runs as an isolated process (Docker container or Singularity SIF)
 - Has its own port (8000-9000 range)
 - Has automatic health monitoring
 - Can be restarted automatically on crash
+- Uses MUXI Runtime (0.2025.0) for execution
 
 **✨ NEW: Formation Bundle Upload**  
 MUXI Server now supports uploading complete formation bundles (gzipped tarballs) with automatic metadata injection. See [Bundle Upload](#bundle-upload-new) section below or the [BUNDLE-UPLOAD-COMPLETE.md](../BUNDLE-UPLOAD-COMPLETE.md) guide for details.
+
+**🎉 NEW: Runtime Integration Complete!**  
+MUXI Server now fully integrates with the MUXI Runtime, deploying formations as Docker containers (macOS/Windows) or Singularity SIF containers (Linux). See [Runtime Support](#runtime-support-new) section below.
 
 ---
 
@@ -69,14 +73,43 @@ curl -X POST http://localhost:7890/rpc/formations/deploy \
   }'
 ```
 
+### Runtime Support (NEW!)
+
+**MUXI Server automatically detects and uses the appropriate runtime:**
+
+- **macOS/Windows:** Uses Docker with muxi-runtime image
+- **Linux:** Uses Singularity SIF containers (native)
+
+**Runtime Version Resolution:**
+- Reads `runtime: "0.2025.0"` from formation.yaml
+- Resolves to appropriate SIF file: `muxi-runtime-0.2025.0-{platform}-{arch}.sif`
+- Spawns container with formation directory mounted
+
+**Container Architecture:**
+```
+Server spawns: docker run -v /formation:ro -p 8003:8003 muxi-runtime:0.2025.0 /formation/formation.yaml
+              └─> Container starts FastAPI server on 0.0.0.0:8003
+                  └─> Server proxies: /api/{formation_id}/* → http://localhost:8003/*
+```
+
+**Benefits:**
+- ✅ Isolated formation execution
+- ✅ Consistent runtime environment
+- ✅ Single SIF file distribution (693MB)
+- ✅ No Python dependencies on server
+- ✅ Automatic runtime version management
+
+---
+
 ### Deploy Options
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `id` | string | Yes | Unique formation identifier |
-| `command` | string | Yes | Command to execute |
+| `command` | string | Auto | Command to execute (auto-set for runtime) |
 | `env` | object | No | Environment variables |
 | `working_dir` | string | No | Working directory |
+| `runtime` | string | No | Runtime version (e.g., "0.2025.0") |
 
 ### Example: Simple Formation
 

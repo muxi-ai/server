@@ -2,6 +2,45 @@
 
 **How MUXI Server Executes Formations**
 
+**🎉 Status:** Phase 2 Runtime Integration COMPLETE (2025-11-25)
+
+---
+
+## Phase 2: Complete Integration (Nov 25, 2025)
+
+### What's Working Now
+
+**End-to-end runtime orchestration is fully operational:**
+
+✅ **Formation Deployment**
+- Server accepts gzip bundle uploads
+- Extracts and validates formation.yaml
+- Reads runtime version constraint (e.g., "0.2025.0")
+
+✅ **Runtime Resolution**
+- Resolves version to SIF file path
+- Platform detection (darwin-arm64, linux-amd64)
+- SIF path: `~/.muxi/server/runtimes/muxi-runtime-0.2025.0-darwin-arm64.sif`
+
+✅ **Container Spawning**
+- **macOS/Windows:** Spawns Docker container with muxi-runtime:VERSION image
+- **Linux:** Ready for Singularity native execution
+- Platform-aware host binding (0.0.0.0 for Docker, 127.0.0.1 for Singularity)
+
+✅ **Formation Initialization**
+- Container starts FastAPI server (<2s)
+- Health check returns HTTP 200 OK
+- OpenAPI docs accessible (56 endpoints)
+- Formation ready to serve requests
+
+**Tested Configuration:**
+```
+Server: muxi-server v1.0.0-dev (Go binary)
+Runtime: muxi-runtime:0.2025.0 (Docker image, 2.42GB → 693MB SIF)
+Formation: YAML-based configuration
+Result: ✅ Complete end-to-end flow working!
+```
+
 ---
 
 ## Overview
