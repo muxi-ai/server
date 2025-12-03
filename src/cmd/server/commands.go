@@ -315,7 +315,7 @@ func cmdInit() error {
 	fmt.Printf("  3. View configuration:  muxi-server config show\n")
 	fmt.Print("\n")
 
-	fmt.Println("Documentation: https://docs.muxi.ai/getting-started")
+	fmt.Println("Documentation: https://muxi.org/docs/getting-started")
 	fmt.Print("\n")
 
 	return nil
@@ -393,7 +393,7 @@ func cmdHelp() {
 	fmt.Printf("  %s muxi-server config show   %s View configuration\n", arrowRight, bullet)
 	fmt.Print("\n")
 	fmt.Println("DOCUMENTATION")
-	fmt.Printf("  %s https://docs.muxi.ai\n", arrowRight)
+	fmt.Printf("  %s https://muxi.org/docs\n", arrowRight)
 	fmt.Printf("  %s https://github.com/muxi-ai/server\n", arrowRight)
 	fmt.Print("\n")
 }

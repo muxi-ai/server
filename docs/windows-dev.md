@@ -12,7 +12,7 @@
 
 **One-command install:**
 ```powershell
-irm https://install.muxi.org/windows.ps1 | iex
+irm https://muxi.org/install/windows.ps1 | iex
 ```
 
 **Or manual download:**
@@ -527,7 +527,7 @@ A: Yes! We provide `windows-arm64` binaries.
 A: Yes! If you prefer Linux environment, run MUXI Server in WSL 2. It will use native Linux binaries.
 
 **Q: How do I update MUXI Server?**  
-A: Re-run the install script: `irm https://install.muxi.org/windows.ps1 | iex`
+A: Re-run the install script: `irm https://muxi.org/install/windows.ps1 | iex`
 
 ---
 

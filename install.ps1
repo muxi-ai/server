@@ -1,6 +1,6 @@
 # MUXI Server - Windows Installation Script
-# Usage: irm https://install.muxi.org/windows.ps1 | iex
-# Or:    Invoke-RestMethod -Uri https://install.muxi.org/windows.ps1 | Invoke-Expression
+# Usage: irm https://muxi.org/install/windows.ps1 | iex
+# Or:    Invoke-RestMethod -Uri https://muxi.org/install/windows.ps1 | Invoke-Expression
 
 param(
     [string]$Version = "latest",
@@ -16,10 +16,10 @@ if ($Help) {
 MUXI Server - Windows Installation Script
 
 USAGE:
-    irm https://install.muxi.org/windows.ps1 | iex
+    irm https://muxi.org/install/windows.ps1 | iex
     
     Or with options:
-    irm https://install.muxi.org/windows.ps1 | iex -Version v0.20251024.0 -AddToPath
+    irm https://muxi.org/install/windows.ps1 | iex -Version v0.20251024.0 -AddToPath
 
 OPTIONS:
     -Version <version>   Install specific version (default: latest)
@@ -28,13 +28,13 @@ OPTIONS:
 
 EXAMPLES:
     # Install latest version
-    irm https://install.muxi.org/windows.ps1 | iex
+    irm https://muxi.org/install/windows.ps1 | iex
     
     # Install specific version
-    irm https://install.muxi.org/windows.ps1 | iex -Version v0.20251024.0
+    irm https://muxi.org/install/windows.ps1 | iex -Version v0.20251024.0
     
     # Install and add to PATH
-    irm https://install.muxi.org/windows.ps1 | iex -AddToPath
+    irm https://muxi.org/install/windows.ps1 | iex -AddToPath
 
 AFTER INSTALLATION:
     muxi-server init       Initialize configuration

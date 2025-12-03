@@ -38,7 +38,7 @@ MUXI Server is a **system service** that:
 **One-Command Install (PowerShell):**
 
 ```powershell
-irm https://install.muxi.org/windows.ps1 | iex
+irm https://muxi.org/install/windows.ps1 | iex
 ```
 
 **User-Level Installation** - No admin required (default):

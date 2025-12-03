@@ -23,12 +23,12 @@
 
 **Linux / macOS:**
 ```bash
-curl -sSL https://install.muxi.org | sudo bash
+curl -sSL https://muxi.org/install | sudo bash
 ```
 
 **Windows (PowerShell):**
 ```powershell
-irm https://install.muxi.org/windows.ps1 | iex
+irm https://muxi.org/install/windows.ps1 | iex
 ```
 
 **After installation:**
@@ -158,12 +158,12 @@ Formation 1         Formation 2
 
 **Linux / macOS:**
 ```bash
-curl -sSL https://install.muxi.org | sudo bash
+curl -sSL https://muxi.org/install | sudo bash
 ```
 
 **Windows (PowerShell):**
 ```powershell
-irm https://install.muxi.org/windows.ps1 | iex
+irm https://muxi.org/install/windows.ps1 | iex
 ```
 
 ### Homebrew
@@ -443,8 +443,8 @@ See the [LICENSE](LICENSE) file for the complete license text and [licensing det
 
 For production deployments, SLA-backed support, and enterprise features:
 
-- **Email:** support@muxi.ai
-- **Website:** [muxi.ai](https://muxi.ai)
+- **Email:** support@muxi.org
+- **Website:** [muxi.org](https://muxi.org)
 
 ---
 

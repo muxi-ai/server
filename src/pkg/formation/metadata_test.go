@@ -15,7 +15,7 @@ func TestInjectMetadata(t *testing.T) {
 
 		// Create a test formation.yaml
 		formationPath := filepath.Join(tmpDir, "formation.yaml")
-		content := `schema: muxi.ai/formation/v1
+		content := `schema: muxi.org/formation/v1
 id: test-formation
 name: Test Formation
 version: 1.0.0`
@@ -65,7 +65,7 @@ version: 1.0.0`
 
 		// Create a formation.yaml with nested structure
 		formationPath := filepath.Join(tmpDir, "formation.yaml")
-		content := `schema: muxi.ai/formation/v1
+		content := `schema: muxi.org/formation/v1
 id: complex-formation
 name: Complex Formation
 runtime:

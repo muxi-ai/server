@@ -1,7 +1,7 @@
 # MUXI Server Install Script
 
 **Script:** `install.sh`  
-**Hosted at:** `https://install.muxi.org` (or `https://get.muxi.org`)  
+**Hosted at:** `https://muxi.org/install` (or `https://get.muxi.org`)  
 **Last Updated:** 2025-01-23
 
 ---
@@ -25,7 +25,7 @@ The MUXI Server install script provides a one-command installation experience si
 ### System Install (Linux with sudo)
 
 ```bash
-curl -sSL https://install.muxi.org | sudo bash
+curl -sSL https://muxi.org/install | sudo bash
 ```
 
 **What it does:**
@@ -46,7 +46,7 @@ sudo muxi-server start   # Start server
 ### User Install (No sudo)
 
 ```bash
-curl -sSL https://install.muxi.org | bash
+curl -sSL https://muxi.org/install | bash
 ```
 
 **What it does:**
@@ -65,7 +65,7 @@ muxi-server start       # Start server
 ### macOS Install
 
 ```bash
-curl -sSL https://install.muxi.org | bash
+curl -sSL https://muxi.org/install | bash
 ```
 
 **Note:** Even with `sudo`, macOS uses user-level paths (`~/.muxi/server`) because macOS apps typically don't use `/etc` and `/var` for third-party software.
@@ -79,17 +79,17 @@ curl -sSL https://install.muxi.org | bash
 ```bash
 # Install specific version
 export MUXI_VERSION=v1.0.0
-curl -sSL https://install.muxi.org | bash
+curl -sSL https://muxi.org/install | bash
 
 # Or inline
-curl -sSL https://install.muxi.org | MUXI_VERSION=v1.0.0 bash
+curl -sSL https://muxi.org/install | MUXI_VERSION=v1.0.0 bash
 ```
 
 ### Non-Interactive
 
 ```bash
 # Skip the "Run init now?" prompt
-curl -sSL https://install.muxi.org | bash -s -- --non-interactive
+curl -sSL https://muxi.org/install | bash -s -- --non-interactive
 ```
 
 ---
@@ -345,7 +345,7 @@ Users can inspect the script before running:
 
 ```bash
 # Download and inspect
-curl -sSL https://install.muxi.org > install.sh
+curl -sSL https://muxi.org/install > install.sh
 less install.sh
 
 # Run manually
@@ -393,7 +393,7 @@ MUXI_VERSION=v0.9.0 ./install.sh
 
 ### Requirements
 
-1. **Domain:** `install.muxi.ai` (or `get.muxi.ai`)
+1. **Domain:** `muxi.org/install` (or `get.muxi.org`)
 2. **HTTPS Certificate:** Let's Encrypt (required)
 3. **HTTP Server:** Nginx or Cloudflare Pages
 
@@ -402,16 +402,16 @@ MUXI_VERSION=v0.9.0 ./install.sh
 ```nginx
 server {
     listen 80;
-    server_name install.muxi.ai get.muxi.ai;
+    server_name muxi.org/install get.muxi.org;
     return 301 https://$server_name$request_uri;
 }
 
 server {
     listen 443 ssl http2;
-    server_name install.muxi.ai get.muxi.ai;
+    server_name muxi.org/install get.muxi.org;
     
-    ssl_certificate /etc/letsencrypt/live/install.muxi.ai/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/install.muxi.ai/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/muxi.org/install/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/muxi.org/install/privkey.pem;
     
     location / {
         alias /var/www/muxi/;
@@ -456,7 +456,7 @@ git commit -m "Add install script"
 git push origin gh-pages
 
 # Enable GitHub Pages in repository settings
-# Set custom domain: install.muxi.ai
+# Set custom domain: muxi.org/install
 ```
 
 ---
@@ -488,14 +488,14 @@ gpg --verify muxi-server.asc muxi-server
 
 ```bash
 # Add uninstall command
-curl -sSL https://install.muxi.org | bash -s -- --uninstall
+curl -sSL https://muxi.org/install | bash -s -- --uninstall
 ```
 
 ### Update Option
 
 ```bash
 # Add update command
-curl -sSL https://install.muxi.org | bash -s -- --update
+curl -sSL https://muxi.org/install | bash -s -- --update
 ```
 
 ---
@@ -525,10 +525,10 @@ export PATH="$HOME/.local/bin:$PATH"
 **Solution:**
 ```bash
 # Use sudo for system install
-curl -sSL https://install.muxi.org | sudo bash
+curl -sSL https://muxi.org/install | sudo bash
 
 # Or use user install (no sudo)
-curl -sSL https://install.muxi.org | bash
+curl -sSL https://muxi.org/install | bash
 ```
 
 ### "No release available for your platform"
@@ -558,4 +558,4 @@ go build -o muxi-server ./cmd/server
 ---
 
 **Status:** Ready for Testing  
-**Next Step:** Test on Ubuntu/RHEL, then publish to install.muxi.ai
+**Next Step:** Test on Ubuntu/RHEL, then publish to muxi.org/install

@@ -16,7 +16,7 @@ func TestParseFormationYAML(t *testing.T) {
 	}{
 		{
 			name: "valid formation",
-			content: `schema: muxi.ai/formation/v1
+			content: `schema: muxi.org/formation/v1
 id: test-formation
 name: Test Formation
 description: A test formation
@@ -24,8 +24,8 @@ version: 1.0.0
 runtime: "1.2.3"`,
 			wantErr: false,
 			validate: func(t *testing.T, f *Formation) {
-				if f.Schema != "muxi.ai/formation/v1" {
-					t.Errorf("Schema = %q, want %q", f.Schema, "muxi.ai/formation/v1")
+				if f.Schema != "muxi.org/formation/v1" {
+					t.Errorf("Schema = %q, want %q", f.Schema, "muxi.org/formation/v1")
 				}
 				if f.ID != "test-formation" {
 					t.Errorf("ID = %q, want %q", f.ID, "test-formation")

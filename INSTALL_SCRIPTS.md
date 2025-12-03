@@ -11,7 +11,7 @@ The installation scripts (`install.sh` and `install.ps1`) in this repository are
 Installation scripts are maintained separately to:
 - ✅ Decouple installation logic from server code
 - ✅ Allow independent evolution (install methods != server features)
-- ✅ Enable easier hosting at `install.muxi.org`
+- ✅ Enable easier hosting at `muxi.org/install`
 - ✅ Simplify versioning (install scripts don't need server version bumps)
 
 ---
@@ -23,7 +23,7 @@ Installation scripts are maintained separately to:
 2. Edit `install.sh` (Unix) or `install.ps1` (Windows)
 3. Test changes
 4. Create pull request
-5. Scripts are auto-deployed to `install.muxi.org`
+5. Scripts are auto-deployed to `muxi.org/install`
 
 **The copies in this repo** (`./install.sh`, `./install.ps1`) are:
 - For reference during development
