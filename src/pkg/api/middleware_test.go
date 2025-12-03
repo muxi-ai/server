@@ -209,9 +209,9 @@ func TestFormationURL(t *testing.T) {
 		formationID string
 		expected    string
 	}{
-		{3000, "api-v1", "http://localhost:3000/v1/api-v1"},
-		{8080, "test", "http://localhost:8080/v1/test"},
-		{80, "prod", "http://localhost:80/v1/prod"},
+		{3000, "api-v1", "http://localhost:3000/api/api-v1"},
+		{8080, "test", "http://localhost:8080/api/test"},
+		{80, "prod", "http://localhost:80/api/prod"},
 	}
 
 	for _, tt := range tests {

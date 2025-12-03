@@ -15,36 +15,11 @@ import (
 	"github.com/muxi-ai/server/pkg/registry"
 )
 
-func TestHandleDeployJSON(t *testing.T) {
+func TestHandleDeploy_RequiresBundle(t *testing.T) {
 	server := createTestServer(t)
 
-	t.Run("valid deploy request", func(t *testing.T) {
-		reqBody := DeployRequest{
-			ID:      "test-deploy",
-			Command: "echo",
-			Args:    []string{"hello"},
-		}
-		body, _ := json.Marshal(reqBody)
-
-		req := httptest.NewRequest("POST", "/formations/deploy", bytes.NewReader(body))
-		req.Header.Set("Content-Type", "application/json")
-		w := httptest.NewRecorder()
-
-		server.HandleDeploy(w, req)
-
-		resp := w.Result()
-		// May succeed or fail depending on process spawn, but should not panic
-		t.Logf("Deploy status: %d", resp.StatusCode)
-	})
-
-	t.Run("missing command", func(t *testing.T) {
-		reqBody := DeployRequest{
-			ID:   "test",
-			Args: []string{"arg1"},
-		}
-		body, _ := json.Marshal(reqBody)
-
-		req := httptest.NewRequest("POST", "/formations/deploy", bytes.NewReader(body))
+	t.Run("rejects JSON content type", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/rpc/formations", bytes.NewReader([]byte(`{"id": "test"}`)))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 
@@ -52,64 +27,173 @@ func TestHandleDeployJSON(t *testing.T) {
 
 		resp := w.Result()
 		if resp.StatusCode != http.StatusBadRequest {
-			t.Errorf("Status = %d, want %d for missing command", resp.StatusCode, http.StatusBadRequest)
+			t.Errorf("Status = %d, want %d for JSON content type", resp.StatusCode, http.StatusBadRequest)
+		}
+
+		body, _ := io.ReadAll(resp.Body)
+		if !strings.Contains(string(body), "application/gzip") {
+			t.Error("Error message should mention application/gzip")
 		}
 	})
 
-	t.Run("invalid JSON", func(t *testing.T) {
-		req := httptest.NewRequest("POST", "/formations/deploy", bytes.NewReader([]byte("invalid json")))
-		req.Header.Set("Content-Type", "application/json")
+	t.Run("rejects no content type", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/rpc/formations", bytes.NewReader([]byte("data")))
 		w := httptest.NewRecorder()
 
 		server.HandleDeploy(w, req)
 
 		resp := w.Result()
 		if resp.StatusCode != http.StatusBadRequest {
-			t.Errorf("Status = %d, want %d for invalid JSON", resp.StatusCode, http.StatusBadRequest)
+			t.Errorf("Status = %d, want %d for missing content type", resp.StatusCode, http.StatusBadRequest)
 		}
 	})
+}
 
-	t.Run("auto-generate ID", func(t *testing.T) {
-		reqBody := DeployRequest{
-			Command: "echo",
-			Args:    []string{"test"},
-		}
-		body, _ := json.Marshal(reqBody)
+func TestHandleDeploy_HeaderValidation(t *testing.T) {
+	server := createTestServer(t)
 
-		req := httptest.NewRequest("POST", "/formations/deploy", bytes.NewReader(body))
-		req.Header.Set("Content-Type", "application/json")
+	t.Run("rejects missing X-Formation-ID header", func(t *testing.T) {
+		bundle := createTestBundle(t, "test-missing-header")
+		req := httptest.NewRequest("POST", "/rpc/formations", bytes.NewReader(bundle))
+		req.Header.Set("Content-Type", "application/gzip")
+		// No X-Formation-ID header
 		w := httptest.NewRecorder()
 
 		server.HandleDeploy(w, req)
 
 		resp := w.Result()
-		// Should handle auto-generated ID
-		t.Logf("Auto-ID deploy status: %d", resp.StatusCode)
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("Status = %d, want %d for missing X-Formation-ID", resp.StatusCode, http.StatusBadRequest)
+		}
+
+		body, _ := io.ReadAll(resp.Body)
+		if !strings.Contains(string(body), "X-Formation-ID") {
+			t.Error("Error message should mention X-Formation-ID header")
+		}
 	})
 
-	t.Run("duplicate ID", func(t *testing.T) {
-		// Register a formation first
+	t.Run("rejects invalid formation ID format", func(t *testing.T) {
+		bundle := createTestBundle(t, "test")
+		req := httptest.NewRequest("POST", "/rpc/formations", bytes.NewReader(bundle))
+		req.Header.Set("Content-Type", "application/gzip")
+		req.Header.Set("X-Formation-ID", "INVALID_ID") // uppercase not allowed
+		w := httptest.NewRecorder()
+
+		server.HandleDeploy(w, req)
+
+		resp := w.Result()
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("Status = %d, want %d for invalid ID format", resp.StatusCode, http.StatusBadRequest)
+		}
+	})
+
+	t.Run("rejects conflicting formation ID", func(t *testing.T) {
+		// Pre-register a formation
 		server.registry.Register(&registry.Formation{
-			ID:   "duplicate-test",
+			ID:   "existing-formation",
 			Port: 8080,
 		})
 
-		reqBody := DeployRequest{
-			ID:      "duplicate-test",
-			Command: "echo",
-			Args:    []string{"test"},
-		}
-		body, _ := json.Marshal(reqBody)
-
-		req := httptest.NewRequest("POST", "/formations/deploy", bytes.NewReader(body))
-		req.Header.Set("Content-Type", "application/json")
+		bundle := createTestBundle(t, "existing-formation")
+		req := httptest.NewRequest("POST", "/rpc/formations", bytes.NewReader(bundle))
+		req.Header.Set("Content-Type", "application/gzip")
+		req.Header.Set("X-Formation-ID", "existing-formation")
 		w := httptest.NewRecorder()
 
 		server.HandleDeploy(w, req)
 
 		resp := w.Result()
-		// Should fail because ID already exists
-		t.Logf("Duplicate ID status: %d", resp.StatusCode)
+		if resp.StatusCode != http.StatusConflict {
+			t.Errorf("Status = %d, want %d for existing formation", resp.StatusCode, http.StatusConflict)
+		}
+
+		body, _ := io.ReadAll(resp.Body)
+		if !strings.Contains(string(body), "already exists") {
+			t.Error("Error message should mention formation already exists")
+		}
+	})
+
+	t.Run("rejects ID mismatch between header and bundle", func(t *testing.T) {
+		bundle := createTestBundle(t, "bundle-id")
+		req := httptest.NewRequest("POST", "/rpc/formations", bytes.NewReader(bundle))
+		req.Header.Set("Content-Type", "application/gzip")
+		req.Header.Set("X-Formation-ID", "header-id") // Different from bundle
+		w := httptest.NewRecorder()
+
+		server.HandleDeploy(w, req)
+
+		resp := w.Result()
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("Status = %d, want %d for ID mismatch", resp.StatusCode, http.StatusBadRequest)
+		}
+
+		body, _ := io.ReadAll(resp.Body)
+		if !strings.Contains(string(body), "mismatch") {
+			t.Error("Error message should mention ID mismatch")
+		}
+	})
+
+	t.Run("accepts matching header and bundle ID", func(t *testing.T) {
+		bundle := createTestBundle(t, "matching-id")
+		req := httptest.NewRequest("POST", "/rpc/formations", bytes.NewReader(bundle))
+		req.Header.Set("Content-Type", "application/gzip")
+		req.Header.Set("X-Formation-ID", "matching-id")
+		w := httptest.NewRecorder()
+
+		server.HandleDeploy(w, req)
+
+		resp := w.Result()
+		// Should not fail due to header validation
+		if resp.StatusCode == http.StatusBadRequest {
+			body, _ := io.ReadAll(resp.Body)
+			if strings.Contains(string(body), "X-Formation-ID") || strings.Contains(string(body), "mismatch") {
+				t.Error("Should not fail header validation when IDs match")
+			}
+		}
+		t.Logf("Deploy with matching IDs status: %d", resp.StatusCode)
+	})
+
+	t.Run("rejects version mismatch between header and bundle", func(t *testing.T) {
+		bundle := createTestBundleWithVersion(t, "version-mismatch", "2.0.0")
+		req := httptest.NewRequest("POST", "/rpc/formations", bytes.NewReader(bundle))
+		req.Header.Set("Content-Type", "application/gzip")
+		req.Header.Set("X-Formation-ID", "version-mismatch")
+		req.Header.Set("X-Formation-Version", "1.0.0") // Different from bundle
+		w := httptest.NewRecorder()
+
+		server.HandleDeploy(w, req)
+
+		resp := w.Result()
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("Status = %d, want %d for version mismatch", resp.StatusCode, http.StatusBadRequest)
+		}
+
+		body, _ := io.ReadAll(resp.Body)
+		if !strings.Contains(string(body), "version") && !strings.Contains(string(body), "mismatch") {
+			t.Error("Error message should mention version mismatch")
+		}
+	})
+
+	t.Run("uses default version when header not provided", func(t *testing.T) {
+		// Bundle with version 1.0.0 (the default)
+		bundle := createTestBundleWithVersion(t, "default-version", "1.0.0")
+		req := httptest.NewRequest("POST", "/rpc/formations", bytes.NewReader(bundle))
+		req.Header.Set("Content-Type", "application/gzip")
+		req.Header.Set("X-Formation-ID", "default-version")
+		// No X-Formation-Version header - should default to 1.0.0
+		w := httptest.NewRecorder()
+
+		server.HandleDeploy(w, req)
+
+		resp := w.Result()
+		// Should not fail due to version validation
+		if resp.StatusCode == http.StatusBadRequest {
+			body, _ := io.ReadAll(resp.Body)
+			if strings.Contains(string(body), "version") {
+				t.Error("Should not fail version validation when using default")
+			}
+		}
+		t.Logf("Deploy with default version status: %d", resp.StatusCode)
 	})
 }
 
@@ -423,7 +507,7 @@ func TestDeployResponse(t *testing.T) {
 		FormationID: "test-id",
 		Port:        8080,
 		Status:      "running",
-		URL:         "http://localhost:3000/v1/test-id",
+		URL:         "http://localhost:3000/api/test-id",
 		HealthURL:   "http://localhost:8080/health",
 		PID:         12345,
 	}

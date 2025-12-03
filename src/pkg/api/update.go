@@ -18,7 +18,16 @@ import (
 func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 	formationID := mux.Vars(r)["id"]
 
-	s.logger.Info().Str("id", formationID).Msg("Starting zero-downtime deployment")
+	// Optional: X-Formation-Version header (defaults to "1.0.0")
+	headerVersion := r.Header.Get("X-Formation-Version")
+	if headerVersion == "" {
+		headerVersion = "1.0.0"
+	}
+
+	s.logger.Info().
+		Str("id", formationID).
+		Str("version", headerVersion).
+		Msg("Starting zero-downtime deployment")
 
 	// Get existing formation
 	existingFormation, err := s.registry.Get(formationID)
@@ -147,6 +156,23 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 		s.logger.Error().Err(err).Msg("Failed to parse formation.yaml")
 		os.RemoveAll(stagingDir)
 		RespondError(w, http.StatusBadRequest, fmt.Sprintf("Failed to parse formation.yaml: %v", err))
+		return
+	}
+
+	// Verify bundle's version matches the header
+	bundleVersion := formationConfig.Version
+	if bundleVersion == "" {
+		bundleVersion = "1.0.0" // Default if not specified in bundle
+	}
+	if bundleVersion != headerVersion {
+		s.logger.Warn().
+			Str("header_version", headerVersion).
+			Str("bundle_version", bundleVersion).
+			Msg("Formation version mismatch between header and bundle")
+		os.RemoveAll(stagingDir)
+		RespondError(w, http.StatusBadRequest,
+			fmt.Sprintf("Formation version mismatch: header says '%s' but bundle contains '%s'",
+				headerVersion, bundleVersion))
 		return
 	}
 

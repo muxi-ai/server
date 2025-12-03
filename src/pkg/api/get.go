@@ -3,10 +3,18 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"path/filepath"
+	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/muxi-ai/server/pkg/formation"
 	"github.com/rs/zerolog/log"
 )
+
+// formatFormationURL creates the proxy URL for a formation
+func formatFormationURL(serverPort int, formationID string) string {
+	return fmt.Sprintf("http://localhost:%d/api/%s", serverPort, formationID)
+}
 
 // HandleGet handles GET /formations/{id}
 // Returns detailed information about a specific formation
@@ -19,7 +27,7 @@ func (s *Server) HandleGet(w http.ResponseWriter, r *http.Request) {
 		Msg("Getting formation details")
 
 	// Get formation from registry
-	formation, err := s.registry.Get(formationID)
+	f, err := s.registry.Get(formationID)
 	if err != nil {
 		log.Warn().
 			Err(err).
@@ -39,39 +47,56 @@ func (s *Server) HandleGet(w http.ResponseWriter, r *http.Request) {
 		// Update formation from what we know
 	} else {
 		// Update formation with latest process info
-		formation.UpdateFromProcess(proc)
+		f.UpdateFromProcess(proc)
 	}
 
-	// Build detailed response
+	// Calculate uptime in seconds
+	var uptimeSeconds int64
+	if !f.StartedAt.IsZero() && f.Status == "running" {
+		uptimeSeconds = int64(time.Since(f.StartedAt).Seconds())
+	}
+
+	// Load version info if available
+	var versionInfo *VersionInfo
+	formationDir := filepath.Join(s.config.Formations.FormationsDir, f.ID)
+	if history, err := formation.LoadVersionHistory(formationDir); err == nil && history.Current != nil {
+		versionInfo = &VersionInfo{
+			Current: history.Current.BundleHash,
+		}
+		if history.Previous != nil {
+			versionInfo.Previous = history.Previous.BundleHash
+		}
+	}
+
+	// Build detailed response aligned with API spec
 	response := map[string]interface{}{
-		"id":            formation.ID,
-		"name":          formation.Name,
-		"status":        formation.Status,
-		"port":          formation.Port,
-		"pid":           formation.ProcessID,
-		"url":           formatFormationURL(s.config.Server.Port, formation.ID),
-		"command":       formation.Command,
-		"args":          formation.Args,
-		"healthy":       formation.Healthy,
-		"created_at":    formation.DeployedAt,
-		"started_at":    formation.StartedAt,
-		"restart_count": formation.RestartCount,
+		"id":            f.ID,
+		"name":          f.Name,
+		"status":        f.Status,
+		"port":          f.Port,
+		"pid":           f.ProcessID,
+		"healthy":       f.Healthy,
+		"restart_count": f.RestartCount,
+		"uptime":        uptimeSeconds,
+		"created_at":    f.DeployedAt,
+		"deployed_at":   f.DeployedAt,
+		"updated_at":    f.StartedAt, // Use StartedAt as last update time
+	}
+
+	// Add version info if available
+	if versionInfo != nil {
+		response["version"] = versionInfo
 	}
 
 	// Add health check info if available
-	if !formation.LastHealthCheck.IsZero() {
-		response["last_health_check"] = formation.LastHealthCheck
+	if !f.LastHealthCheck.IsZero() {
+		response["last_health_check"] = f.LastHealthCheck
 	}
 
 	log.Info().
 		Str("formation_id", formationID).
-		Str("status", formation.Status).
+		Str("status", f.Status).
 		Msg("Formation details retrieved")
 
 	RespondSuccess(w, response)
-}
-
-// formatFormationURL creates the proxy URL for a formation
-func formatFormationURL(serverPort int, formationID string) string {
-	return fmt.Sprintf("http://localhost:%d/v1/%s", serverPort, formationID)
 }

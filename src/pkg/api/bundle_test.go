@@ -4,9 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -40,6 +38,7 @@ func TestHandleBundleDeploy_InvalidGzip(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/formations/deploy", bytes.NewReader(invalidData))
 	req.Header.Set("Content-Type", "application/gzip")
+	req.Header.Set("X-Formation-ID", "test-invalid")
 	w := httptest.NewRecorder()
 
 	server.HandleDeploy(w, req)
@@ -56,6 +55,7 @@ func TestHandleBundleDeploy_EmptyBody(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/formations/deploy", nil)
 	req.Header.Set("Content-Type", "application/gzip")
+	req.Header.Set("X-Formation-ID", "test-empty")
 	w := httptest.NewRecorder()
 
 	server.HandleDeploy(w, req)
@@ -74,6 +74,7 @@ func TestHandleBundleDeploy_ValidBundle(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/formations/deploy", bytes.NewReader(bundle))
 	req.Header.Set("Content-Type", "application/gzip")
+	req.Header.Set("X-Formation-ID", "test-formation")
 	w := httptest.NewRecorder()
 
 	server.HandleDeploy(w, req)
@@ -81,44 +82,6 @@ func TestHandleBundleDeploy_ValidBundle(t *testing.T) {
 	resp := w.Result()
 	// May succeed or fail depending on process spawning
 	t.Logf("Bundle deploy status: %d", resp.StatusCode)
-}
-
-func TestHandleDeploy_ContentTypeRouting(t *testing.T) {
-	server := createTestServer(t)
-
-	tests := []struct {
-		name        string
-		contentType string
-		expectJSON  bool
-	}{
-		{"application/json", "application/json", true},
-		{"application/gzip", "application/gzip", false},
-		{"application/x-gzip", "application/x-gzip", false},
-		{"application/octet-stream", "application/octet-stream", false},
-		{"no content-type", "", true}, // defaults to JSON
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var body io.Reader
-			if tt.expectJSON {
-				body = bytes.NewReader([]byte(`{"command": "echo"}`))
-			} else {
-				body = bytes.NewReader(createTestBundle(t, "test"))
-			}
-
-			req := httptest.NewRequest("POST", "/formations/deploy", body)
-			if tt.contentType != "" {
-				req.Header.Set("Content-Type", tt.contentType)
-			}
-			w := httptest.NewRecorder()
-
-			server.HandleDeploy(w, req)
-
-			resp := w.Result()
-			t.Logf("%s: status = %d", tt.name, resp.StatusCode)
-		})
-	}
 }
 
 func TestServer_Start(t *testing.T) {
@@ -195,6 +158,11 @@ func TestHandleStop_Conflict(t *testing.T) {
 
 // Helper to create a test bundle (gzipped tarball with formation.yaml)
 func createTestBundle(t *testing.T, formationID string) []byte {
+	return createTestBundleWithVersion(t, formationID, "1.0.0")
+}
+
+// Helper to create a test bundle with a specific version
+func createTestBundleWithVersion(t *testing.T, formationID string, version string) []byte {
 	t.Helper()
 
 	buf := &bytes.Buffer{}
@@ -202,11 +170,11 @@ func createTestBundle(t *testing.T, formationID string) []byte {
 	tarWriter := tar.NewWriter(gzipWriter)
 
 	// Create formation.yaml content
-	formationYAML := []byte(`schema: muxi.ai/formation/v1
+	formationYAML := []byte(`schema: muxi.org/formation/v1
 id: ` + formationID + `
 name: Test Formation
 description: Test formation for bundle deployment
-version: 1.0.0
+version: ` + version + `
 `)
 
 	// Add root directory
@@ -358,6 +326,7 @@ func TestHandleBundleDeploy_FormationAlreadyExists(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/formations/deploy", bytes.NewReader(bundle))
 	req.Header.Set("Content-Type", "application/gzip")
+	req.Header.Set("X-Formation-ID", "existing-formation")
 	w := httptest.NewRecorder()
 
 	server.HandleDeploy(w, req)
@@ -380,6 +349,7 @@ func TestHandleBundleDeploy_InvalidTarball(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/formations/deploy", bytes.NewReader(invalidData))
 	req.Header.Set("Content-Type", "application/gzip")
+	req.Header.Set("X-Formation-ID", "test-invalid-tarball")
 	w := httptest.NewRecorder()
 
 	server.HandleDeploy(w, req)
@@ -411,6 +381,7 @@ func TestHandleBundleDeploy_MissingFormationYAML(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/formations/deploy", &buf)
 	req.Header.Set("Content-Type", "application/gzip")
+	req.Header.Set("X-Formation-ID", "test-no-yaml")
 	w := httptest.NewRecorder()
 
 	server.HandleDeploy(w, req)
@@ -432,6 +403,7 @@ func TestHandleBundleDeploy_EmptyTarball(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/formations/deploy", &buf)
 	req.Header.Set("Content-Type", "application/gzip")
+	req.Header.Set("X-Formation-ID", "test-empty-tarball")
 	w := httptest.NewRecorder()
 
 	server.HandleDeploy(w, req)
@@ -449,6 +421,7 @@ func TestHandleBundleDeploy_LargeBundleSize(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/formations/deploy", bytes.NewReader(bundle))
 	req.Header.Set("Content-Type", "application/gzip")
+	req.Header.Set("X-Formation-ID", "large-formation")
 	w := httptest.NewRecorder()
 
 	server.HandleDeploy(w, req)
@@ -472,67 +445,13 @@ func TestHandleBundleDeploy_SpecialCharactersInFormationID(t *testing.T) {
 
 			req := httptest.NewRequest("POST", "/formations/deploy", bytes.NewReader(bundle))
 			req.Header.Set("Content-Type", "application/gzip")
+			req.Header.Set("X-Formation-ID", id)
 			w := httptest.NewRecorder()
 
 			server.HandleDeploy(w, req)
 
 			// Should handle special characters gracefully
 			t.Logf("ID %q: status %d", id, w.Code)
-		})
-	}
-}
-
-func TestDeployRequest_Validation(t *testing.T) {
-	server := createTestServer(t)
-
-	tests := []struct {
-		name    string
-		request DeployRequest
-		wantErr bool
-	}{
-		{
-			name: "valid with ID",
-			request: DeployRequest{
-				ID:      "test-1",
-				Command: "echo",
-				Args:    []string{"hello"},
-			},
-			wantErr: false,
-		},
-		{
-			name: "valid without ID",
-			request: DeployRequest{
-				Command: "echo",
-				Args:    []string{"hello"},
-			},
-			wantErr: false, // ID will be auto-generated
-		},
-		{
-			name: "missing command",
-			request: DeployRequest{
-				ID:   "test-2",
-				Args: []string{"hello"},
-			},
-			wantErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			body, _ := json.Marshal(tt.request)
-			req := httptest.NewRequest("POST", "/formations/deploy", bytes.NewReader(body))
-			req.Header.Set("Content-Type", "application/json")
-			w := httptest.NewRecorder()
-
-			server.HandleDeploy(w, req)
-
-			resp := w.Result()
-			gotErr := resp.StatusCode >= 400
-
-			if gotErr != tt.wantErr {
-				t.Errorf("Deploy %s: gotErr=%v, wantErr=%v (status=%d)",
-					tt.name, gotErr, tt.wantErr, resp.StatusCode)
-			}
 		})
 	}
 }
@@ -610,6 +529,7 @@ func TestHandleBundleDeploy_ExtractDirError(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/formations/deploy", &buf)
 	req.Header.Set("Content-Type", "application/gzip")
+	req.Header.Set("X-Formation-ID", "extract-error")
 	w := httptest.NewRecorder()
 
 	server.HandleDeploy(w, req)
@@ -642,6 +562,7 @@ func TestHandleBundleDeploy_ParseYAMLError(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/formations/deploy", &buf)
 	req.Header.Set("Content-Type", "application/gzip")
+	req.Header.Set("X-Formation-ID", "parse-error")
 	w := httptest.NewRecorder()
 
 	server.HandleDeploy(w, req)
@@ -659,6 +580,7 @@ func TestHandleBundleDeploy_MetadataInjectionContinues(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/formations/deploy", bytes.NewReader(bundle))
 	req.Header.Set("Content-Type", "application/gzip")
+	req.Header.Set("X-Formation-ID", "metadata-test")
 	w := httptest.NewRecorder()
 
 	server.HandleDeploy(w, req)
@@ -694,6 +616,7 @@ version: 1.0.0
 
 	req := httptest.NewRequest("POST", "/formations/deploy", &buf)
 	req.Header.Set("Content-Type", "application/gzip")
+	req.Header.Set("X-Formation-ID", "spawn-error")
 	w := httptest.NewRecorder()
 
 	server.HandleDeploy(w, req)
@@ -723,11 +646,12 @@ func TestHandleBundleDeploy_RegistrationError(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/formations/deploy", bytes.NewReader(bundle))
 	req.Header.Set("Content-Type", "application/gzip")
+	req.Header.Set("X-Formation-ID", "reg-error")
 	w := httptest.NewRecorder()
 
 	server.HandleDeploy(w, req)
 
-	// Should fail because formation already exists
+	// Should fail because formation already exists (early check via header)
 	if w.Code != http.StatusConflict {
 		t.Errorf("Status = %d, want %d (Conflict)", w.Code, http.StatusConflict)
 	}
@@ -788,6 +712,7 @@ environment:
 
 	req := httptest.NewRequest("POST", "/formations/deploy", &buf)
 	req.Header.Set("Content-Type", "application/gzip")
+	req.Header.Set("X-Formation-ID", "success-full")
 	w := httptest.NewRecorder()
 
 	server.HandleDeploy(w, req)
@@ -808,18 +733,21 @@ func TestHandleBundleDeploy_AllErrorPaths(t *testing.T) {
 		name        string
 		bundle      []byte
 		contentType string
+		formationID string
 		wantCode    int
 	}{
 		{
 			name:        "Invalid gzip",
 			bundle:      []byte("not gzip data"),
 			contentType: "application/gzip",
+			formationID: "test-invalid-gzip",
 			wantCode:    http.StatusBadRequest,
 		},
 		{
 			name:        "Empty body",
 			bundle:      []byte{},
 			contentType: "application/gzip",
+			formationID: "test-empty-body",
 			wantCode:    http.StatusBadRequest,
 		},
 	}
@@ -828,6 +756,7 @@ func TestHandleBundleDeploy_AllErrorPaths(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			req := httptest.NewRequest("POST", "/formations/deploy", bytes.NewReader(tc.bundle))
 			req.Header.Set("Content-Type", tc.contentType)
+			req.Header.Set("X-Formation-ID", tc.formationID)
 			w := httptest.NewRecorder()
 
 			server.HandleDeploy(w, req)
