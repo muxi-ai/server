@@ -50,19 +50,22 @@ func (s *Server) HandleDelete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Remove formation directory
-	formationDir := filepath.Join(s.config.Formations.FormationsDir, formationID)
-	if err := os.RemoveAll(formationDir); err != nil {
-		log.Warn().
-			Err(err).
-			Str("formation_id", formationID).
-			Str("dir", formationDir).
-			Msg("Failed to remove formation directory (continuing anyway)")
-		// Don't fail - formation is already unregistered
-	} else {
-		log.Debug().
-			Str("formation_id", formationID).
-			Str("dir", formationDir).
-			Msg("Removed formation directory")
+	muxiDir, err := getMuxiDir()
+	if err == nil {
+		formationDir := filepath.Join(muxiDir, "formations", formationID)
+		if err := os.RemoveAll(formationDir); err != nil {
+			log.Warn().
+				Err(err).
+				Str("formation_id", formationID).
+				Str("dir", formationDir).
+				Msg("Failed to remove formation directory (continuing anyway)")
+			// Don't fail - formation is already unregistered
+		} else {
+			log.Debug().
+				Str("formation_id", formationID).
+				Str("dir", formationDir).
+				Msg("Removed formation directory")
+		}
 	}
 
 	log.Info().
