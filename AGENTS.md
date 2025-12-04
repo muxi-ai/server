@@ -245,7 +245,26 @@ MUXI Server is a production-grade orchestration platform for deploying and manag
 - Audit logging (JSON lines format)
 - Enhanced security (formations on 127.0.0.1)
 
-### 🔜 Phase 2: Client CLI Tool (Separate Project)
+### ✅ Phase 2: Singularity/Apptainer Runtime (COMPLETE!)
+**Goal:** Container-based formation execution with auto-provisioning
+
+- [x] SIF-based formation execution via Singularity
+- [x] Docker-wrapped Singularity for macOS/Windows (runtime-runner)
+- [x] Multi-arch support (amd64 + arm64)
+- [x] Auto-download SIF from GitHub releases or custom URL
+- [x] Auto-pull runtime-runner Docker image
+- [x] Runtime version resolution from formation.yaml
+- [x] Auto-start formations on server restart
+- [x] Configurable log level (--log-level flag, MUXI_LOG_LEVEL env)
+- [x] Simplified /health endpoint (security)
+
+**Key Features:**
+- Clean server (no Python dependencies required)
+- Self-provisioning: auto-downloads runtime components
+- Cross-platform: Linux (native Singularity), macOS/Windows (Docker)
+- Runtime config: `sif_base_url`, `auto_download`, `runtime_runner_image`
+
+### 🔜 Phase 3: Client CLI Tool (Separate Project)
 Build standalone `muxi` CLI tool for formation management:
 - Profile management (`~/.muxi/profiles.yaml`)
 - HMAC request signing (reusable auth library)
@@ -256,12 +275,6 @@ Build standalone `muxi` CLI tool for formation management:
 
 **Timeline:** 1-2 weeks  
 **Repository:** Separate from server (independent evolution)
-
-### 🔜 Phase 3: Singularity/Apptainer Runtime
-- Replace direct Python spawning with SIF execution
-- Build runtime Docker image → convert to SIF
-- Update spawn logic to execute `.sif` files
-- Clean server (no Python dependencies)
 
 ### 🔜 Phase 4: Installation & Distribution
 - Install script (`curl | bash`)
@@ -322,27 +335,30 @@ type FormationNotFoundError struct {
 
 ### Configuration
 ```yaml
-# ~/.muxi-server/config.yaml
+# ~/.muxi/server/config.yaml
 server:
   port: 7890              # MUXI Port (default)
   host: "0.0.0.0"         # Server externally accessible
 
 formations:
-  runtime_type: "singularity"  # singularity|docker|native
   port_range_start: 8000
   port_range_end: 9000
-  logs_dir: "~/.muxi-server/logs"
-  formations_dir: "~/.muxi/server/formations"
-  
+  logs_dir: "logs"
+  formations_dir: "formations"
   bind_host: "127.0.0.1"  # Formations bind to localhost only (security)
   keep_backups: 1         # Number of version backups to keep
-  
   auto_restart: true
-  max_restart_count: 10
+  max_restarts: 10
   restart_delay: 1
 
+runtime:
+  sif_base_url: "https://github.com/muxi-ai/runtime/releases/download"
+  auto_download: true     # Auto-download SIF when missing
+  runtime_runner_image: "ghcr.io/muxi-ai/runtime-runner:latest"
+
 logging:
-  audit_log: "logs/audit.log"  # Audit log for /rpc/* requests
+  level: "info"           # debug|info|warn|error (also: --log-level flag, MUXI_LOG_LEVEL env)
+  audit_log: "logs/audit.log"
 ```
 
 ---
