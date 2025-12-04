@@ -100,31 +100,23 @@ func TestHandleHealth(t *testing.T) {
 	}
 
 	body, _ := io.ReadAll(resp.Body)
-	var result SuccessResponse
+	
+	// New simplified health response: {"success": true, "status": "ok", "version": "X.X.X"}
+	var result map[string]interface{}
 	if err := json.Unmarshal(body, &result); err != nil {
 		t.Fatalf("Failed to parse response: %v", err)
 	}
 
-	if !result.Success {
+	if result["success"] != true {
 		t.Error("Health check should return success=true")
 	}
 
-	// Verify health data structure
-	data, ok := result.Data.(map[string]interface{})
-	if !ok {
-		t.Fatal("Health data is not a map")
+	if result["status"] != "ok" {
+		t.Errorf("Health status = %v, want 'ok'", result["status"])
 	}
 
-	if _, ok := data["status"]; !ok {
-		t.Error("Health response missing 'status' field")
-	}
-
-	if _, ok := data["formations"]; !ok {
-		t.Error("Health response missing 'formations' field")
-	}
-
-	if _, ok := data["port_pool"]; !ok {
-		t.Error("Health response missing 'port_pool' field")
+	if _, ok := result["version"]; !ok {
+		t.Error("Health response missing 'version' field")
 	}
 }
 
