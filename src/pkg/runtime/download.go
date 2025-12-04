@@ -95,9 +95,14 @@ func (d *Downloader) Register(sifPath string, version string) error {
 	return nil
 }
 
-// getPlatform returns the current platform string (e.g., "linux-amd64")
+// getPlatform returns the platform string for SIF files
+// SIF files are always Linux containers, so we return "linux-{arch}"
+// The architecture matches the host (arm64 or amd64) since:
+// - On Linux: native Singularity runs the SIF directly
+// - On macOS/Windows: runtime-runner (Docker) provides the Linux environment,
+//   and we have matching architecture runtime-runner images (amd64 + arm64)
 func getPlatform() string {
-	return fmt.Sprintf("%s-%s", runtime.GOOS, runtime.GOARCH)
+	return fmt.Sprintf("linux-%s", runtime.GOARCH)
 }
 
 // computeFileHash computes SHA256 hash of a file

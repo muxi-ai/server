@@ -22,8 +22,8 @@ func NewResolver(available []string, runtimesDir string) *Resolver {
 }
 
 // GetSIFPath returns the full path to the SIF file for a given version
-// Format: ~/.muxi/server/runtimes/muxi-runtime-{version}-{platform}.sif
-// Example: ~/.muxi/server/runtimes/muxi-runtime-0.2025.0-darwin-arm64.sif
+// Format: ~/.muxi/server/runtimes/muxi-runtime-{version}-linux-{arch}.sif
+// Example: ~/.muxi/server/runtimes/muxi-runtime-0.2025.0-linux-arm64.sif
 func (r *Resolver) GetSIFPath(version string) string {
 	platform := getPlatform()
 	filename := fmt.Sprintf("muxi-runtime-%s-%s.sif", version, platform)
