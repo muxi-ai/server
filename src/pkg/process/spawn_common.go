@@ -97,12 +97,14 @@ func Spawn(config SpawnConfig) (*Process, error) {
 	}
 	defer nullFile.Close()
 
-	// Warn about Python buffering
-	if strings.HasSuffix(execPath, "python") || strings.HasSuffix(execPath, "python3") {
-		if len(config.Args) == 0 || config.Args[0] != "-u" {
-			logger.Warn().
-				Str("id", config.ID).
-				Msg("Python processes should use -u flag to prevent output buffering")
+	// Warn about Python buffering (only for native Python, not container runtimes)
+	if config.RuntimeType != "singularity" {
+		if strings.HasSuffix(execPath, "python") || strings.HasSuffix(execPath, "python3") {
+			if len(config.Args) == 0 || config.Args[0] != "-u" {
+				logger.Warn().
+					Str("id", config.ID).
+					Msg("Python processes should use -u flag to prevent output buffering")
+			}
 		}
 	}
 
