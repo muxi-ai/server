@@ -58,27 +58,49 @@ func (m *Monitor) run() {
 		Str("id", m.process.ID).
 		Msg("Monitor started")
 
-	// Initial health check (after startup delay)
+	// Initial health check with retries (formation may take time to start)
 	if m.process.HealthCheckURL != "" {
-		time.Sleep(2 * time.Second)
-		if err := m.healthCheck(); err != nil {
-			m.logger.Warn().
-				Err(err).
-				Str("id", m.process.ID).
-				Msg("Initial health check failed")
-		} else {
-			m.process.SetStatus(StatusRunning)
-			m.logger.Info().
-				Str("id", m.process.ID).
-				Msg("✓ Health check passed")
+		maxRetries := 30 // 30 retries * 2 seconds = 60 seconds max startup time
+		for i := 0; i < maxRetries; i++ {
+			time.Sleep(2 * time.Second)
+			
+			// Check if stopped while waiting
+			select {
+			case <-m.stopChan:
+				return
+			default:
+			}
+			
+			if err := m.healthCheck(); err != nil {
+				m.logger.Debug().
+					Err(err).
+					Str("id", m.process.ID).
+					Int("attempt", i+1).
+					Int("max_attempts", maxRetries).
+					Msg("Health check attempt failed, retrying...")
+			} else {
+				m.process.SetStatus(StatusRunning)
+				m.logger.Info().
+					Str("id", m.process.ID).
+					Int("attempts", i+1).
+					Msg("✓ Health check passed")
 
-			if m.onHealthy != nil {
-				m.onHealthy(m.process)
+				if m.onHealthy != nil {
+					m.onHealthy(m.process)
+				}
+				break
+			}
+			
+			// If we've exhausted retries, log error but keep monitoring
+			if i == maxRetries-1 {
+				m.logger.Error().
+					Str("id", m.process.ID).
+					Msg("Initial health check failed after max retries, will keep monitoring")
 			}
 		}
 	} else {
 		// No health check, assume running
-			m.process.SetStatus(StatusRunning)
+		m.process.SetStatus(StatusRunning)
 	}
 
 	// Monitor loop
