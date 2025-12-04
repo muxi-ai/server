@@ -9,20 +9,28 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/muxi-ai/server/pkg/process"
 	"github.com/muxi-ai/server/pkg/registry"
 	"github.com/rs/zerolog/log"
 )
 
+// ProcessGetter interface for getting process info
+type ProcessGetter interface {
+	Get(id string) (*process.Process, error)
+}
+
 // Handler is the HTTP proxy handler that forwards requests to formations
 type Handler struct {
-	registry *registry.Registry
-	client   *http.Client
+	registry       *registry.Registry
+	processManager ProcessGetter
+	client         *http.Client
 }
 
 // NewHandler creates a new proxy handler
-func NewHandler(reg *registry.Registry) *Handler {
+func NewHandler(reg *registry.Registry, pm ProcessGetter) *Handler {
 	return &Handler{
-		registry: reg,
+		registry:       reg,
+		processManager: pm,
 		client: &http.Client{
 			Timeout: 30 * time.Second,
 			// Don't follow redirects - pass them through
@@ -50,6 +58,13 @@ func (h *Handler) ProxyRequest(w http.ResponseWriter, r *http.Request) {
 			Msg("Formation not found for proxy request")
 		h.respondError(w, http.StatusNotFound, "Formation not found", fmt.Sprintf("No formation with id '%s'", formationID))
 		return
+	}
+
+	// Update formation with latest process status
+	if h.processManager != nil {
+		if proc, err := h.processManager.Get(formationID); err == nil {
+			formation.UpdateFromProcess(proc)
+		}
 	}
 
 	// Check formation status
