@@ -103,6 +103,13 @@ func (s *Server) restoreFormation(formationID string, port int) error {
 
 		spawnConfig.RuntimeType = "singularity"
 		spawnConfig.SIFPath = sifPath
+		spawnConfig.Command = "python"
+		spawnConfig.Args = []string{
+			"-m", "muxi.utils.run_formation",
+			"/formation/formation.yaml",
+			"--port", fmt.Sprintf("%d", port),
+			"--host", bindHost,
+		}
 	}
 
 	// Start the process
