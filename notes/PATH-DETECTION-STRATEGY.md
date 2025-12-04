@@ -121,12 +121,12 @@ func GetLogDir() (string, error) {
 
 ### 1. One-Command Install Script
 
-**URL:** `https://install.muxi.org` (or `get.muxi.org`)
+**URL:** `https://muxi.org/install` (or `get.muxi.org`)
 
 #### System Install (with sudo)
 
 ```bash
-curl -sSL https://install.muxi.org | sudo bash
+curl -sSL https://muxi.org/install | sudo bash
 ```
 
 **What it does:**
@@ -168,7 +168,7 @@ fi
 #### User Install (no sudo)
 
 ```bash
-curl -sSL https://install.muxi.org | bash
+curl -sSL https://muxi.org/install | bash
 ```
 
 **What it does:**
@@ -455,7 +455,7 @@ muxi-server start
   - [ ] Create directories
   - [ ] PATH management for user installs
   - [ ] Show appropriate next steps
-- [ ] Host at `https://install.muxi.org`
+- [ ] Host at `https://muxi.org/install`
 - [ ] Test on:
   - [ ] Ubuntu 22.04 (sudo)
   - [ ] Ubuntu 22.04 (user)
@@ -536,13 +536,13 @@ chmod 600 config.yaml  # Only owner can read
 
 ```bash
 # Test 1: System install (Linux)
-curl -sSL https://install.muxi.org | sudo bash
+curl -sSL https://muxi.org/install | sudo bash
 sudo muxi-server init
 sudo muxi-server start
 # Verify: Uses /etc, /var/lib, /var/log
 
 # Test 2: User install (Linux)
-curl -sSL https://install.muxi.org | bash
+curl -sSL https://muxi.org/install | bash
 muxi-server init
 muxi-server start
 # Verify: Uses ~/.muxi/server

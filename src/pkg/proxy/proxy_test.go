@@ -18,7 +18,7 @@ func TestNewHandler(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create registry: %v", err)
 	}
-	handler := NewHandler(reg)
+	handler := NewHandler(reg, nil)
 
 	if handler == nil {
 		t.Fatal("NewHandler() returned nil")
@@ -42,7 +42,7 @@ func TestProxyRequest_FormationNotFound(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create registry: %v", err)
 	}
-	handler := NewHandler(reg)
+	handler := NewHandler(reg, nil)
 
 	req := httptest.NewRequest("GET", "/v1/nonexistent/health", nil)
 	w := httptest.NewRecorder()
@@ -77,7 +77,7 @@ func TestProxyRequest_FormationNotRunning(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create registry: %v", err)
 	}
-	handler := NewHandler(reg)
+	handler := NewHandler(reg, nil)
 
 	// Register a formation that's not running
 	reg.Register(&registry.Formation{
@@ -143,7 +143,7 @@ func TestProxyRequest_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create registry: %v", err)
 	}
-	handler := NewHandler(reg)
+	handler := NewHandler(reg, nil)
 
 	// Register a running formation
 	reg.Register(&registry.Formation{
@@ -199,7 +199,7 @@ func TestProxyRequest_PreservesQueryParameters(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create registry: %v", err)
 	}
-	handler := NewHandler(reg)
+	handler := NewHandler(reg, nil)
 
 	reg.Register(&registry.Formation{
 		ID:      "test-formation",
@@ -246,7 +246,7 @@ func TestProxyRequest_CopiesHeaders(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create registry: %v", err)
 	}
-	handler := NewHandler(reg)
+	handler := NewHandler(reg, nil)
 
 	reg.Register(&registry.Formation{
 		ID:      "test-formation",
@@ -298,7 +298,7 @@ func TestProxyRequest_DifferentHTTPMethods(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Failed to create registry: %v", err)
 			}
-			handler := NewHandler(reg)
+			handler := NewHandler(reg, nil)
 
 			reg.Register(&registry.Formation{
 				ID:      "test-formation",
@@ -348,7 +348,7 @@ func TestProxyRequest_RootPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create registry: %v", err)
 	}
-	handler := NewHandler(reg)
+	handler := NewHandler(reg, nil)
 
 	reg.Register(&registry.Formation{
 		ID:      "test-formation",
@@ -477,7 +477,7 @@ func TestRespondError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create registry: %v", err)
 	}
-	handler := NewHandler(reg)
+	handler := NewHandler(reg, nil)
 
 	w := httptest.NewRecorder()
 	handler.respondError(w, http.StatusNotFound, "Not found", "The resource was not found")
@@ -505,7 +505,7 @@ func TestRespondError(t *testing.T) {
 
 func TestNewHandler_CheckRedirect(t *testing.T) {
 	reg, _ := registry.NewRegistry(8000, 8100)
-	handler := NewHandler(reg)
+	handler := NewHandler(reg, nil)
 
 	if handler.client == nil {
 		t.Fatal("Client not initialized")
@@ -523,7 +523,7 @@ func TestNewHandler_CheckRedirect(t *testing.T) {
 
 func TestNewHandler_Timeout(t *testing.T) {
 	reg, _ := registry.NewRegistry(8000, 8100)
-	handler := NewHandler(reg)
+	handler := NewHandler(reg, nil)
 
 	if handler.client.Timeout != 30*time.Second {
 		t.Errorf("Client timeout = %v, want 30s", handler.client.Timeout)
@@ -532,7 +532,7 @@ func TestNewHandler_Timeout(t *testing.T) {
 
 func TestProxyRequest_MethodPreserved(t *testing.T) {
 	reg, _ := registry.NewRegistry(8000, 8100)
-	handler := NewHandler(reg)
+	handler := NewHandler(reg, nil)
 
 	// Register formation
 	reg.Register(&registry.Formation{
@@ -562,7 +562,7 @@ func TestProxyRequest_MethodPreserved(t *testing.T) {
 
 func TestProxyRequest_HeadersPreserved(t *testing.T) {
 	reg, _ := registry.NewRegistry(8000, 8100)
-	handler := NewHandler(reg)
+	handler := NewHandler(reg, nil)
 
 	reg.Register(&registry.Formation{
 		ID:     "header-test",
@@ -589,7 +589,7 @@ func TestProxyRequest_HeadersPreserved(t *testing.T) {
 
 func TestProxyRequest_QueryParamsPreserved(t *testing.T) {
 	reg, _ := registry.NewRegistry(8000, 8100)
-	handler := NewHandler(reg)
+	handler := NewHandler(reg, nil)
 
 	reg.Register(&registry.Formation{
 		ID:     "query-test",
@@ -645,7 +645,7 @@ func TestGetClientIP_XRealIP(t *testing.T) {
 
 func TestProxyRequest_EmptyPath(t *testing.T) {
 	reg, _ := registry.NewRegistry(8000, 8100)
-	handler := NewHandler(reg)
+	handler := NewHandler(reg, nil)
 
 	reg.Register(&registry.Formation{
 		ID:     "empty-path-test",
@@ -668,7 +668,7 @@ func TestProxyRequest_EmptyPath(t *testing.T) {
 
 func TestProxyRequest_PathWithoutLeadingSlash(t *testing.T) {
 	reg, _ := registry.NewRegistry(8000, 8100)
-	handler := NewHandler(reg)
+	handler := NewHandler(reg, nil)
 
 	reg.Register(&registry.Formation{
 		ID:     "path-slash-test",
@@ -691,7 +691,7 @@ func TestProxyRequest_PathWithoutLeadingSlash(t *testing.T) {
 
 func TestProxyRequest_ComplexPath(t *testing.T) {
 	reg, _ := registry.NewRegistry(8000, 8100)
-	handler := NewHandler(reg)
+	handler := NewHandler(reg, nil)
 
 	reg.Register(&registry.Formation{
 		ID:     "complex-path",
@@ -714,7 +714,7 @@ func TestProxyRequest_ComplexPath(t *testing.T) {
 
 func TestProxyRequest_WithQueryString(t *testing.T) {
 	reg, _ := registry.NewRegistry(8000, 8100)
-	handler := NewHandler(reg)
+	handler := NewHandler(reg, nil)
 
 	reg.Register(&registry.Formation{
 		ID:     "query-string-test",
@@ -737,7 +737,7 @@ func TestProxyRequest_WithQueryString(t *testing.T) {
 
 func TestProxyRequest_AllHTTPMethods(t *testing.T) {
 	reg, _ := registry.NewRegistry(8000, 8100)
-	handler := NewHandler(reg)
+	handler := NewHandler(reg, nil)
 
 	reg.Register(&registry.Formation{
 		ID:     "methods-test",
@@ -766,7 +766,7 @@ func TestProxyRequest_AllHTTPMethods(t *testing.T) {
 
 func TestProxyRequest_WithCustomHeaders(t *testing.T) {
 	reg, _ := registry.NewRegistry(8000, 8100)
-	handler := NewHandler(reg)
+	handler := NewHandler(reg, nil)
 
 	reg.Register(&registry.Formation{
 		ID:     "headers-test",
@@ -793,7 +793,7 @@ func TestProxyRequest_WithCustomHeaders(t *testing.T) {
 
 func TestProxyRequest_HostHeaderNotCopied(t *testing.T) {
 	reg, _ := registry.NewRegistry(8000, 8100)
-	handler := NewHandler(reg)
+	handler := NewHandler(reg, nil)
 
 	reg.Register(&registry.Formation{
 		ID:     "host-header-test",
@@ -820,7 +820,7 @@ func TestProxyRequest_HostHeaderNotCopied(t *testing.T) {
 
 func TestProxyRequest_XForwardedHeaders(t *testing.T) {
 	reg, _ := registry.NewRegistry(8000, 8100)
-	handler := NewHandler(reg)
+	handler := NewHandler(reg, nil)
 
 	reg.Register(&registry.Formation{
 		ID:     "forwarded-test",

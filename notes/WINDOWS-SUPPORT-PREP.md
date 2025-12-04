@@ -105,7 +105,7 @@ Before implementing, review these existing files:
    - [ ] `muxi.nuspec`
    - [ ] Chocolatey submission
 
-**Deliverable:** `irm https://install.muxi.ai/windows | iex`
+**Deliverable:** `irm https://muxi.org/install/windows | iex`
 
 ### Phase 4: Testing & Polish - 2-3 days
 

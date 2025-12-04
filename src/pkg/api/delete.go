@@ -2,6 +2,8 @@ package api
 
 import (
 	"net/http"
+	"os"
+	"path/filepath"
 
 	"github.com/gorilla/mux"
 	"github.com/rs/zerolog/log"
@@ -45,6 +47,25 @@ func (s *Server) HandleDelete(w http.ResponseWriter, r *http.Request) {
 			Msg("Failed to remove formation from registry")
 		RespondError(w, http.StatusInternalServerError, "Failed to delete formation")
 		return
+	}
+
+	// Remove formation directory
+	muxiDir, err := getMuxiDir()
+	if err == nil {
+		formationDir := filepath.Join(muxiDir, "formations", formationID)
+		if err := os.RemoveAll(formationDir); err != nil {
+			log.Warn().
+				Err(err).
+				Str("formation_id", formationID).
+				Str("dir", formationDir).
+				Msg("Failed to remove formation directory (continuing anyway)")
+			// Don't fail - formation is already unregistered
+		} else {
+			log.Debug().
+				Str("formation_id", formationID).
+				Str("dir", formationDir).
+				Msg("Removed formation directory")
+		}
 	}
 
 	log.Info().

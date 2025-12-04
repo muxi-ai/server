@@ -457,7 +457,7 @@ install.ps1 cannot be loaded because running scripts is disabled
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 
 # Or bypass for single command
-powershell -ExecutionPolicy Bypass -Command "irm https://install.muxi.org/windows.ps1 | iex"
+powershell -ExecutionPolicy Bypass -Command "irm https://muxi.org/install/windows.ps1 | iex"
 ```
 
 ---

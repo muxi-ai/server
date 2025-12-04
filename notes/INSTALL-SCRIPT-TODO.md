@@ -46,7 +46,7 @@ gh release create v1.0.0 \
 ### 2. Domain Setup
 
 **Required:**
-- `install.muxi.org` or `get.muxi.ai` pointing to script host
+- `muxi.org/install` or `get.muxi.org` pointing to script host
 - HTTPS certificate (Let's Encrypt)
 
 **Options:**
@@ -62,8 +62,8 @@ git push origin gh-pages
 
 # In GitHub repo settings → Pages:
 # - Enable Pages from gh-pages branch
-# - Set custom domain: install.muxi.org
-# - Add CNAME record: install.muxi.org → muxi-ai.github.io
+# - Set custom domain: muxi.org/install
+# - Add CNAME record: muxi.org/install → muxi-ai.github.io
 ```
 
 **Option B: Cloudflare Workers**
@@ -86,7 +86,7 @@ export default {
 ```nginx
 server {
     listen 443 ssl;
-    server_name install.muxi.org;
+    server_name muxi.org/install;
     
     location / {
         alias /var/www/muxi/install.sh;
@@ -125,7 +125,7 @@ server {
 - [ ] **Ubuntu 22.04 LTS (System Install)**
   ```bash
   # In Docker or VM
-  curl -sSL https://install.muxi.org | sudo bash
+  curl -sSL https://muxi.org/install | sudo bash
   sudo muxi-server init
   sudo muxi-server start
   curl http://localhost:7890/health
@@ -133,7 +133,7 @@ server {
 
 - [ ] **Ubuntu 22.04 LTS (User Install)**
   ```bash
-  curl -sSL https://install.muxi.org | bash
+  curl -sSL https://muxi.org/install | bash
   muxi-server init
   muxi-server start
   curl http://localhost:7890/health
@@ -141,7 +141,7 @@ server {
 
 - [ ] **macOS (Intel)**
   ```bash
-  curl -sSL https://install.muxi.org | bash
+  curl -sSL https://muxi.org/install | bash
   muxi-server init
   muxi-server start
   curl http://localhost:7890/health
@@ -149,7 +149,7 @@ server {
 
 - [ ] **macOS (Apple Silicon)**
   ```bash
-  curl -sSL https://install.muxi.org | bash
+  curl -sSL https://muxi.org/install | bash
   muxi-server init
   muxi-server start
   curl http://localhost:7890/health
@@ -157,12 +157,12 @@ server {
 
 - [ ] **RHEL/CentOS 9**
   ```bash
-  curl -sSL https://install.muxi.org | sudo bash
+  curl -sSL https://muxi.org/install | sudo bash
   ```
 
 - [ ] **Debian 12**
   ```bash
-  curl -sSL https://install.muxi.org | sudo bash
+  curl -sSL https://muxi.org/install | sudo bash
   ```
 
 ---
@@ -278,11 +278,11 @@ git push origin v1.0.0
 ```bash
 # Option 1: GitHub Pages
 # - Enable in repo settings
-# - Add CNAME: install.muxi.org
+# - Add CNAME: muxi.org/install
 
 # Option 2: Cloudflare
 # - Create Worker with script proxy
-# - Add route: install.muxi.org/*
+# - Add route: muxi.org/install/*
 ```
 
 ### 5. Update Documentation
@@ -290,7 +290,7 @@ git push origin v1.0.0
 ```bash
 # Update docs/installation.md
 # - Add curl | bash as PRIMARY method
-# - Update all examples to use install.muxi.org
+# - Update all examples to use muxi.org/install
 # - Add troubleshooting section
 ```
 
@@ -300,7 +300,7 @@ git push origin v1.0.0
 
 ### Installation Works When:
 
-- ✅ User runs `curl -sSL https://install.muxi.org | bash`
+- ✅ User runs `curl -sSL https://muxi.org/install | bash`
 - ✅ Binary downloads successfully
 - ✅ Binary is executable and works (`muxi-server version`)
 - ✅ PATH is updated (user install)
@@ -327,7 +327,7 @@ git push origin v1.0.0
 - [ ] Test download from GitHub releases
 
 ### Week 2: Domain Setup & Platform Testing
-- [ ] Set up install.muxi.org domain
+- [ ] Set up muxi.org/install domain
 - [ ] Test on Ubuntu (Docker)
 - [ ] Test on macOS (local)
 - [ ] Test on RHEL (VM if available)
@@ -352,7 +352,7 @@ git push origin v1.0.0
 - 🔜 Create GitHub Actions release workflow
 - 🔜 Test locally with mock binary
 - 🔜 Create first GitHub release
-- 🔜 Set up install.muxi.org domain
+- 🔜 Set up muxi.org/install domain
 - 🔜 Full platform testing
 
 ---

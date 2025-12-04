@@ -190,7 +190,7 @@ curl http://localhost:7890/api/my-formation/health
 sudo apt install singularity-container
 
 # 2. Install MUXI Server
-curl -sSL https://get.muxi.ai | bash
+curl -sSL https://get.muxi.org | bash
 
 # 3. Deploy formation
 muxi formation deploy my-formation.tar.gz

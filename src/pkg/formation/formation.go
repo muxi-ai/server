@@ -14,11 +14,11 @@ type Formation struct {
 	Name        string `yaml:"name,omitempty"`
 	Description string `yaml:"description"`
 	Version     string `yaml:"version,omitempty"`
-	Runtime     string `yaml:"runtime,omitempty"` // Runtime SIF version (e.g., "1.2.3", "1.2", "latest")
+	MuxiRuntime string `yaml:"muxi_runtime,omitempty"` // MUXI Runtime SIF version (e.g., "0.2025.0", "latest")
 	Author      string `yaml:"author,omitempty"`
 	URL         string `yaml:"url,omitempty"`
 	License     string `yaml:"license,omitempty"`
-	// We can add more fields as needed, but ID and Runtime are critical
+	// Note: "runtime" field is reserved for MUXI runtime's own configuration
 }
 
 // ParseFormationYAML parses a formation.yaml file
@@ -42,8 +42,8 @@ func ParseFormationYAML(path string) (*Formation, error) {
 	}
 
 	// Set defaults
-	if f.Runtime == "" {
-		f.Runtime = "latest"
+	if f.MuxiRuntime == "" {
+		f.MuxiRuntime = "latest"
 	}
 	if f.License == "" {
 		f.License = "Unlicense"

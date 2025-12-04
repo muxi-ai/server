@@ -33,21 +33,21 @@ MUXI Server is a single-binary orchestration platform that makes deploying and m
 ### Architecture
 
 ```
-┌─────────────────────────────────────────────┐
-│ MUXI Server (Port 7890)                     │
-│                                             │
+┌───────────────────────────────────────────┐
+│ MUXI Server (Port 7890)                   │
+│                                           │
 │ ┌─────────────────────────────────────┐   │
 │ │ Management API (Protected)          │   │
-│ │  POST /rpc/rpc/formations/deploy            │   │
-│ │  GET  /rpc/formations                   │   │
-│ │  DELETE /rpc/rpc/formations/{id}            │   │
+│ │  POST /rpc/rpc/formations/deploy    │   │
+│ │  GET  /rpc/formations               │   │
+│ │  DELETE /rpc/rpc/formations/{id}    │   │
 │ └─────────────────────────────────────┘   │
-│                                             │
+│                                           │
 │ ┌─────────────────────────────────────┐   │
 │ │ Proxy API (Transparent)             │   │
 │ │  /{formation_id}/*                  │   │
 │ └─────────────────────────────────────┘   │
-└─────────────────────────────────────────────┘
+└───────────────────────────────────────────┘
                │
                ↓
 ┌─────────────────────────────────────────────┐

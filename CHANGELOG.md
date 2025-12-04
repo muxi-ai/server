@@ -16,7 +16,7 @@ This project uses **[ScalVer (Scalable Calendar Versioning)](https://scalver.org
 - Auto-detection of interactive vs non-interactive context
 - Optional email collection for community building
 - "Configure now?" prompt runs `muxi-server init` automatically
-- Hosted at `install.muxi.org`
+- Hosted at `muxi.org/install`
 
 **CLI Integration Architecture:**
 - Documented local server auto-detection strategy
@@ -89,7 +89,7 @@ Official Homebrew tap with automated formula updates on each release.
 **Installation Methods:**
 ```bash
 # One-command install script
-curl -sSL https://install.muxi.org | sudo bash
+curl -sSL https://muxi.org/install | sudo bash
 
 # Homebrew (new!)
 brew tap muxi-ai/tap
@@ -145,7 +145,7 @@ Domain corrections throughout all documentation.
 #### Changed
 
 **Domain Updates (muxi.ai → muxi.org):**
-- Install URLs: `install.muxi.ai` → `install.muxi.org`
+- Install URLs: `install.muxi.ai` → `muxi.org/install`
 - Getting started URLs: `get.muxi.ai` → `get.muxi.org`
 - Package URLs: `packages.muxi.ai` → `packages.muxi.org`
 - Documentation URLs: `docs.muxi.ai` → `docs.muxi.org`
@@ -178,7 +178,7 @@ Full Windows platform support for development environments.
 
 **Installation:**
 - PowerShell installation script (`install.ps1` - 271 lines)
-- One-command install: `irm https://install.muxi.org/windows.ps1 | iex`
+- One-command install: `irm https://muxi.org/install/windows.ps1 | iex`
 - Automatic architecture detection (amd64/arm64)
 - Optional PATH configuration with `-AddToPath` flag
 - Version selection support (`-Version v0.20251024.0`)

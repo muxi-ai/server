@@ -1,27 +1,19 @@
 package api
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
+	goruntime "runtime"
 	"strings"
-	"time"
 
 	"github.com/muxi-ai/server/pkg/formation"
 	"github.com/muxi-ai/server/pkg/process"
 	"github.com/muxi-ai/server/pkg/registry"
 	"github.com/muxi-ai/server/pkg/runtime"
 )
-
-// DeployRequest represents the request body for deploying a formation
-type DeployRequest struct {
-	ID      string   `json:"id"`      // Optional custom ID
-	Command string   `json:"command"` // Executable (e.g., "python3")
-	Args    []string `json:"args"`    // Arguments (e.g., ["test/dummy_app.py", "--port", "8001"])
-}
 
 // DeployResponse represents the response for a deployed formation
 type DeployResponse struct {
@@ -33,113 +25,61 @@ type DeployResponse struct {
 	PID         int    `json:"pid"`
 }
 
-// HandleDeploy handles POST /formations/deploy
-// Supports both JSON (legacy) and gzipped formation bundles
+// HandleDeploy handles POST /rpc/formations
+// Deploys a formation from a gzipped tarball bundle containing formation.yaml
 func (s *Server) HandleDeploy(w http.ResponseWriter, r *http.Request) {
 	contentType := r.Header.Get("Content-Type")
 
-	// Route based on content type
-	if strings.Contains(contentType, "application/gzip") ||
-		strings.Contains(contentType, "application/x-gzip") ||
-		strings.Contains(contentType, "application/octet-stream") {
-		s.handleBundleDeploy(w, r)
+	// Only accept gzipped bundles
+	if !strings.Contains(contentType, "application/gzip") &&
+		!strings.Contains(contentType, "application/x-gzip") &&
+		!strings.Contains(contentType, "application/octet-stream") {
+		RespondError(w, http.StatusBadRequest,
+			"Invalid Content-Type. Expected application/gzip with a formation bundle (tar.gz)")
 		return
 	}
 
-	// Default to JSON for backward compatibility
-	s.handleJSONDeploy(w, r)
-}
-
-// handleJSONDeploy handles the original JSON-based deployment
-func (s *Server) handleJSONDeploy(w http.ResponseWriter, r *http.Request) {
-	// Parse request
-	var req DeployRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.logger.Warn().Err(err).Msg("Failed to parse deploy request")
-		RespondError(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-
-	// Validate request
-	if req.Command == "" {
-		RespondError(w, http.StatusBadRequest, "command is required")
-		return
-	}
-
-	// Generate ID if not provided
-	if req.ID == "" {
-		req.ID = generateFormationID()
-	}
-	
-	// Validate formation ID
-	if err := registry.ValidateFormationID(req.ID); err != nil {
-		RespondError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	s.logger.Info().
-		Str("id", req.ID).
-		Str("command", req.Command).
-		Strs("args", req.Args).
-		Msg("Deploying formation")
-
-	// Allocate port
-	port, err := s.registry.AllocatePort(req.ID)
-	if err != nil {
-		s.logger.Error().Err(err).Msg("Failed to allocate port")
-		RespondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to allocate port: %v", err))
-		return
-	}
-
-	// Spawn process
-	proc, err := s.processManager.Start(process.SpawnConfig{
-		ID:          req.ID,
-		Name:        req.ID,
-		Command:     req.Command,
-		Args:        req.Args,
-		Port:        port,
-		AutoRestart: s.config.Formations.AutoRestart,
-	})
-	if err != nil {
-		s.logger.Error().Err(err).Str("id", req.ID).Msg("Failed to spawn process")
-		s.registry.ReleasePort(port)
-		RespondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to spawn process: %v", err))
-		return
-	}
-
-	// Register in registry
-	formation := registry.FromProcess(proc, port)
-	if err := s.registry.Register(formation); err != nil {
-		s.logger.Error().Err(err).Str("id", req.ID).Msg("Failed to register formation")
-		// Try to stop the process
-		s.processManager.Stop(req.ID)
-		s.registry.ReleasePort(port)
-		RespondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to register formation: %v", err))
-		return
-	}
-
-	s.logger.Info().
-		Str("id", req.ID).
-		Int("port", port).
-		Int("pid", proc.PID).
-		Msg("Formation deployed successfully")
-
-	// Build response
-	response := DeployResponse{
-		FormationID: req.ID,
-		Port:        port,
-		Status:      string(proc.Status),
-		URL:         fmt.Sprintf("http://localhost:%d", s.config.Server.Port),
-		HealthURL:   fmt.Sprintf("http://localhost:%d/health", port),
-		PID:         proc.PID,
-	}
-
-	RespondCreated(w, response)
+	s.handleBundleDeploy(w, r)
 }
 
 // handleBundleDeploy handles formation bundle (gzipped tarball) deployment
 func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
-	s.logger.Info().Msg("Deploying formation from bundle")
+	// === Early validation from headers (before reading body) ===
+
+	// Get and validate X-Formation-ID header
+	headerFormationID := r.Header.Get("X-Formation-ID")
+	if headerFormationID == "" {
+		RespondError(w, http.StatusBadRequest,
+			"Missing X-Formation-ID header. Provide the formation ID for early conflict detection.")
+		return
+	}
+
+	// Validate formation ID format
+	if err := registry.ValidateFormationID(headerFormationID); err != nil {
+		RespondError(w, http.StatusBadRequest, fmt.Sprintf("Invalid X-Formation-ID: %v", err))
+		return
+	}
+
+	// Check if formation already exists (early conflict detection)
+	if _, err := s.registry.Get(headerFormationID); err == nil {
+		s.logger.Warn().Str("id", headerFormationID).Msg("Formation already exists (early check)")
+		RespondError(w, http.StatusConflict,
+			fmt.Sprintf("Formation '%s' already exists. Use PUT to update.", headerFormationID))
+		return
+	}
+
+	// Optional: X-Formation-Version header (defaults to "1.0.0")
+	headerVersion := r.Header.Get("X-Formation-Version")
+	if headerVersion == "" {
+		headerVersion = "1.0.0"
+	}
+
+	s.logger.Info().
+		Str("formation_id", headerFormationID).
+		Str("version", headerVersion).
+		Msg("Deploying formation from bundle")
+
+	// === Now proceed with body processing ===
 
 	// Create temporary file for uploaded bundle
 	tmpFile, err := os.CreateTemp("", "formation-*.tar.gz")
@@ -192,6 +132,34 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 		Str("version", formationConfig.Version).
 		Msg("Parsed formation bundle")
 
+	// Verify bundle's formation ID matches the header
+	if formationID != headerFormationID {
+		s.logger.Warn().
+			Str("header_id", headerFormationID).
+			Str("bundle_id", formationID).
+			Msg("Formation ID mismatch between header and bundle")
+		RespondError(w, http.StatusBadRequest,
+			fmt.Sprintf("Formation ID mismatch: header says '%s' but bundle contains '%s'",
+				headerFormationID, formationID))
+		return
+	}
+
+	// Verify bundle's version matches the header (if bundle has a version)
+	bundleVersion := formationConfig.Version
+	if bundleVersion == "" {
+		bundleVersion = "1.0.0" // Default if not specified in bundle
+	}
+	if bundleVersion != headerVersion {
+		s.logger.Warn().
+			Str("header_version", headerVersion).
+			Str("bundle_version", bundleVersion).
+			Msg("Formation version mismatch between header and bundle")
+		RespondError(w, http.StatusBadRequest,
+			fmt.Sprintf("Formation version mismatch: header says '%s' but bundle contains '%s'",
+				headerVersion, bundleVersion))
+		return
+	}
+
 	// Inject server metadata into formation.yaml for telemetry
 	if err := formation.InjectMetadata(formationDir, s.config.ServerID); err != nil {
 		s.logger.Warn().Err(err).Msg("Failed to inject metadata (continuing anyway)")
@@ -200,13 +168,6 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 		s.logger.Debug().
 			Str("server_id", s.config.ServerID).
 			Msg("Injected server metadata into formation.yaml")
-	}
-
-	// Check if formation already exists
-	if _, err := s.registry.Get(formationID); err == nil {
-		s.logger.Warn().Str("id", formationID).Msg("Formation already exists")
-		RespondError(w, http.StatusConflict, fmt.Sprintf("Formation '%s' already exists", formationID))
-		return
 	}
 
 	// Allocate port
@@ -243,8 +204,14 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get environment variables from formation
+	// On macOS/Windows (Docker), use 0.0.0.0 so formation is accessible from host
+	// On Linux (Singularity), use 127.0.0.1 for security
+	bindHost := s.config.Formations.BindHost
+	if goruntime.GOOS == "darwin" || goruntime.GOOS == "windows" {
+		bindHost = "0.0.0.0"
+	}
 	serverURL := fmt.Sprintf("http://localhost:%d", s.config.Server.Port)
-	envVars := formationConfig.GetEnvironmentVars(port, serverURL, s.config.Formations.BindHost)
+	envVars := formationConfig.GetEnvironmentVars(port, serverURL, bindHost)
 
 	// Prepare spawn configuration
 	spawnConfig := process.SpawnConfig{
@@ -260,10 +227,10 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Handle runtime resolution if specified in formation.yaml
-	if formationConfig.Runtime != "" {
+	if formationConfig.MuxiRuntime != "" {
 		s.logger.Info().
 			Str("id", formationID).
-			Str("runtime_constraint", formationConfig.Runtime).
+			Str("runtime_constraint", formationConfig.MuxiRuntime).
 			Msg("Resolving runtime version")
 
 		// Initialize runtime components
@@ -294,14 +261,14 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 
 		// Create resolver with available versions
 		availableVersions := runtimeRegistry.List()
-		resolver := runtime.NewResolver(availableVersions)
+		resolver := runtime.NewResolver(availableVersions, runtimesDir)
 
 		// Resolve version constraint
-		resolvedVersion, err := resolver.Resolve(formationConfig.Runtime)
+		resolvedVersion, err := resolver.Resolve(formationConfig.MuxiRuntime)
 		if err != nil {
 			s.logger.Error().
 				Err(err).
-				Str("constraint", formationConfig.Runtime).
+				Str("constraint", formationConfig.MuxiRuntime).
 				Msg("Failed to resolve runtime version")
 			s.registry.ReleasePort(port)
 			os.RemoveAll(permanentDir)
@@ -310,35 +277,77 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 		}
 
 		s.logger.Info().
-			Str("constraint", formationConfig.Runtime).
+			Str("constraint", formationConfig.MuxiRuntime).
 			Str("resolved", resolvedVersion).
 			Msg("Resolved runtime version")
 
-		// Get SIF path
-		downloader := runtime.NewDownloader(runtimesDir, runtimeRegistry)
-		sifPath := downloader.GetSIFPath(resolvedVersion)
+		// Create downloader for auto-download
+		downloader := runtime.NewDownloader(
+			s.config.Runtime.SIFBaseURL,
+			s.config.Runtime.RuntimeRunnerImage,
+			runtimesDir,
+			s.logger,
+		)
 
-		// Check if SIF exists
-		if _, err := os.Stat(sifPath); os.IsNotExist(err) {
-			s.logger.Error().
-				Str("version", resolvedVersion).
-				Str("path", sifPath).
-				Msg("Runtime SIF file not found")
-			s.registry.ReleasePort(port)
-			os.RemoveAll(permanentDir)
-			RespondError(w, http.StatusNotFound,
-				fmt.Sprintf("Runtime %s not found at %s. Please ensure runtime SIF is installed.", resolvedVersion, sifPath))
-			return
+		// Ensure SIF exists (download if missing and auto_download enabled)
+		var sifPath string
+		if s.config.Runtime.AutoDownload {
+			sifPath, err = downloader.EnsureSIF(resolvedVersion)
+			if err != nil {
+				s.logger.Error().
+					Err(err).
+					Str("version", resolvedVersion).
+					Msg("Failed to ensure SIF file")
+				s.registry.ReleasePort(port)
+				os.RemoveAll(permanentDir)
+				RespondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to download runtime: %v", err))
+				return
+			}
+
+			// Also ensure runtime-runner is available (macOS/Windows)
+			if err := downloader.EnsureRuntimeRunner(); err != nil {
+				s.logger.Error().Err(err).Msg("Failed to ensure runtime-runner")
+				s.registry.ReleasePort(port)
+				os.RemoveAll(permanentDir)
+				RespondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to pull runtime-runner: %v", err))
+				return
+			}
+		} else {
+			// Auto-download disabled, just get path and check existence
+			sifPath = resolver.GetSIFPath(resolvedVersion)
+			if _, err := os.Stat(sifPath); os.IsNotExist(err) {
+				s.logger.Error().
+					Str("version", resolvedVersion).
+					Str("path", sifPath).
+					Msg("Runtime SIF file not found (auto_download disabled)")
+				s.registry.ReleasePort(port)
+				os.RemoveAll(permanentDir)
+				RespondError(w, http.StatusNotFound,
+					fmt.Sprintf("Runtime %s not found at %s. Enable auto_download or manually install.", resolvedVersion, sifPath))
+				return
+			}
 		}
 
 		// Update spawn config for Singularity execution
 		spawnConfig.RuntimeType = "singularity"
 		spawnConfig.SIFPath = sifPath
+		
+		// For Singularity/Docker, we run: python -m muxi.utils.run_formation /formation/formation.yaml --port PORT --host HOST
+		// The formation directory is mounted as /formation inside the container
+		// bindHost was already set earlier based on platform
+		spawnConfig.Command = "python"
+		spawnConfig.Args = []string{
+			"-m", "muxi.utils.run_formation",
+			"/formation/formation.yaml",
+			"--port", fmt.Sprintf("%d", port),
+			"--host", bindHost,
+		}
 
 		s.logger.Info().
 			Str("id", formationID).
 			Str("runtime_version", resolvedVersion).
 			Str("sif_path", sifPath).
+			Strs("args", spawnConfig.Args).
 			Msg("Using Singularity runtime")
 
 		// Add formation reference to runtime registry
@@ -383,7 +392,7 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 		FormationID: formationID,
 		Port:        port,
 		Status:      string(proc.Status),
-		URL:         fmt.Sprintf("http://localhost:%d/v1/%s", s.config.Server.Port, formationID),
+		URL:         fmt.Sprintf("http://localhost:%d/api/%s", s.config.Server.Port, formationID),
 		HealthURL:   fmt.Sprintf("http://localhost:%d/health", port),
 		PID:         proc.PID,
 	}
@@ -398,11 +407,4 @@ func getMuxiDir() (string, error) {
 		return "", err
 	}
 	return filepath.Join(home, ".muxi", "server"), nil
-}
-
-// generateFormationID generates a unique formation ID
-func generateFormationID() string {
-	// Simple implementation: timestamp-based
-	// In production, use UUIDs or nanoids
-	return fmt.Sprintf("formation-%d", time.Now().Unix())
 }

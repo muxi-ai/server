@@ -338,7 +338,7 @@ curl http://localhost:7890/ping
 mkdir test-formation
 cd test-formation
 cat > formation.yaml << 'EOF'
-schema: muxi.ai/formation/v1
+schema: muxi.org/formation/v1
 id: test-migration
 name: Test Migration
 version: 1.0.0

@@ -2,6 +2,46 @@
 
 **How MUXI Server Executes Formations**
 
+**🎉 Status:** Multi-Architecture Support COMPLETE (2025-12-04)
+
+---
+
+## Current Status
+
+### What's Working Now
+
+**End-to-end runtime orchestration with full multi-architecture support:**
+
+✅ **Formation Deployment**
+- Server accepts gzip bundle uploads
+- Extracts and validates formation.yaml
+- Reads runtime version constraint (e.g., "0.2025.0")
+
+✅ **Runtime Resolution**
+- Resolves version to SIF file path
+- Architecture detection (arm64, amd64)
+- SIF path: `~/.muxi/server/runtimes/muxi-runtime-0.2025.0-linux-{arch}.sif`
+
+✅ **Container Spawning**
+- **macOS/Windows:** Uses `runtime-runner` (Docker + Singularity) to execute SIF
+- **Linux:** Native Singularity execution
+- Platform-aware host binding (0.0.0.0 for Docker, 127.0.0.1 for Singularity)
+
+✅ **Multi-Architecture Support**
+- runtime-runner available for both amd64 and arm64
+- SIF files built for both architectures
+- Native performance on all platforms
+
+**Supported Platforms:**
+| Platform | Architecture | Runtime Method |
+|----------|-------------|----------------|
+| Linux | amd64 | Native Singularity |
+| Linux | arm64 | Native Singularity |
+| macOS | Intel (amd64) | runtime-runner + SIF |
+| macOS | Apple Silicon (arm64) | runtime-runner + SIF |
+| Windows | amd64 | runtime-runner + SIF |
+| Windows | arm64 | runtime-runner + SIF |
+
 ---
 
 ## Overview
@@ -588,6 +628,73 @@ Currently: Singularity + Docker wrapper
 
 ---
 
+## Building Runtime Components
+
+### Building SIF Files
+
+SIF files are built from the `muxi-runtime` Docker image:
+
+```bash
+# In the runtime repository
+cd ../runtime
+
+# Build Docker image for specific architecture
+./build-runtime.sh --platform linux/arm64   # For ARM (Apple Silicon, ARM servers)
+./build-runtime.sh --platform linux/amd64   # For Intel/AMD
+
+# Convert to SIF
+./build-sif.sh --arch arm64   # Creates muxi-runtime-X.X.X-linux-arm64.sif
+./build-sif.sh --arch amd64   # Creates muxi-runtime-X.X.X-linux-amd64.sif
+
+# Install to server runtimes directory
+cp muxi-runtime-*.sif ~/.muxi/server/runtimes/
+```
+
+**SIF Naming Convention:**
+```
+muxi-runtime-{version}-linux-{arch}.sif
+
+Examples:
+- muxi-runtime-0.2025.0-linux-arm64.sif
+- muxi-runtime-0.2025.0-linux-amd64.sif
+```
+
+### Building runtime-runner
+
+The runtime-runner Docker image provides Singularity for macOS/Windows:
+
+```bash
+# In the runtime-runner repository
+cd ../runtime-runner
+
+# Build for local architecture
+./build.sh
+
+# Build and push multi-arch to registry
+./build.sh v1.0.0 --push
+```
+
+**Image location:** `ghcr.io/muxi-ai/runtime-runner:latest`
+
+### Manual Testing
+
+Test the full runtime-runner + SIF flow:
+
+```bash
+# Test runtime-runner + SIF execution
+docker run --rm --privileged \
+  -v ~/.muxi/server/runtimes/muxi-runtime-0.2025.0-linux-arm64.sif:/sif/runtime.sif:ro \
+  -v /path/to/formation:/formation:ro \
+  -v /etc/localtime:/etc/localtime:ro \
+  -p 8001:8001 \
+  ghcr.io/muxi-ai/runtime-runner:latest \
+  exec --bind /formation:/formation --bind /tmp \
+  /sif/runtime.sif \
+  python -m muxi.utils.run_formation /formation/formation.yaml --port 8001 --host 0.0.0.0
+```
+
+---
+
 ## Summary
 
 **MUXI Server uses native Linux containers (Singularity SIF files) for formation execution.**
@@ -597,15 +704,16 @@ Currently: Singularity + Docker wrapper
 - Production-optimized (HPC-grade performance)
 - Strong isolation (security + resource limits)
 
-**Why Docker wrapper?**
+**Why runtime-runner?**
 - Singularity only works on Linux
 - macOS/Windows lack Linux kernel features
 - Docker Desktop provides Linux VM
 - runtime-runner brings Singularity to non-Linux
+- Multi-arch support (amd64 + arm64)
 
 **How it works:**
 - Linux: Native Singularity (fast, zero overhead)
-- macOS/Windows: Docker wrapper (transparent, just works)
+- macOS/Windows: runtime-runner (Docker + Singularity + SIF)
 - One container per formation (isolated, independent)
 - Same SIF file everywhere (true dev/prod parity)
 

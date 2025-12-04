@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -56,14 +57,56 @@ func main() {
 	}
 }
 
+// parseLogLevel parses a log level string (case-insensitive)
+func parseLogLevel(level string) zerolog.Level {
+	switch strings.ToLower(level) {
+	case "debug":
+		return zerolog.DebugLevel
+	case "info":
+		return zerolog.InfoLevel
+	case "warn", "warning":
+		return zerolog.WarnLevel
+	case "error":
+		return zerolog.ErrorLevel
+	default:
+		return zerolog.InfoLevel
+	}
+}
+
+// getLogLevel determines log level from flag > env > default
+func getLogLevel() zerolog.Level {
+	// Check for --log-level flag
+	for i, arg := range os.Args {
+		if arg == "--log-level" && i+1 < len(os.Args) {
+			return parseLogLevel(os.Args[i+1])
+		}
+		if strings.HasPrefix(arg, "--log-level=") {
+			return parseLogLevel(strings.TrimPrefix(arg, "--log-level="))
+		}
+	}
+
+	// Check MUXI_LOG_LEVEL env var
+	if level := os.Getenv("MUXI_LOG_LEVEL"); level != "" {
+		return parseLogLevel(level)
+	}
+
+	// Default to INFO
+	return zerolog.InfoLevel
+}
+
 // cmdStart starts the MUXI Server
 func cmdStart() error {
+	// Determine log level (--log-level > MUXI_LOG_LEVEL > INFO)
+	logLevel := getLogLevel()
+
 	// Setup logging
 	logger := zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).
 		With().
 		Timestamp().
-		Logger()
+		Logger().
+		Level(logLevel)
 	log.Logger = logger
+	zerolog.SetGlobalLevel(logLevel)
 
 	logger.Info().Msgf("MUXI Server (v%s): Starting...", Version)
 
@@ -159,7 +202,10 @@ func cmdStart() error {
 	}
 
 	// Create API server
-	apiServer := api.NewServer(cfg, processManager, formationRegistry, authMiddleware, &logger)
+	apiServer := api.NewServer(cfg, processManager, formationRegistry, authMiddleware, &logger, Version)
+
+	// Restore previously running formations
+	apiServer.RestoreFormations()
 
 	// Setup graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())

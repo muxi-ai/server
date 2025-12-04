@@ -117,7 +117,7 @@ sudo apt install muxi-server
 - Official Ubuntu/Debian support
 
 **Requirements:**
-- APT repository hosting: `packages.muxi.ai/apt/`
+- APT repository hosting: `packages.muxi.org/apt/`
 - GPG signing key
 - `.deb` package creation
 - Package metadata (control file)
@@ -155,7 +155,7 @@ sudo dnf install muxi-server  # Fedora
 - Enterprise Linux support
 
 **Requirements:**
-- YUM repository hosting: `packages.muxi.ai/yum/`
+- YUM repository hosting: `packages.muxi.org/yum/`
 - RPM package creation (`.rpm`)
 - GPG signing
 - Spec file for RPM build
@@ -326,7 +326,7 @@ end
 3. Write `postinst` script (systemd service setup)
 4. Write `prerm` script (cleanup)
 5. Build `.deb` for amd64 and arm64
-6. Host at `packages.muxi.ai/apt/`
+6. Host at `packages.muxi.org/apt/`
 7. Set up APT repository with GPG signing
 
 **Tools:**
@@ -343,7 +343,7 @@ end
 1. Write `muxi-server.spec` file
 2. Create build environment (rpmbuild)
 3. Build RPM for x86_64 and aarch64
-4. Host at `packages.muxi.ai/yum/`
+4. Host at `packages.muxi.org/yum/`
 5. Set up YUM repository with GPG signing
 6. Create `repodata/` metadata
 
@@ -489,7 +489,7 @@ docker run ghcr.io/muxi-ai/muxi-server:latest
 
 ## Open Questions
 
-1. **Package hosting:** Self-hosted (`packages.muxi.ai`) vs third-party (CloudSmith, Gemfury)?
+1. **Package hosting:** Self-hosted (`packages.muxi.org`) vs third-party (CloudSmith, Gemfury)?
 2. **GPG signing:** Who maintains the signing keys?
 3. **Update frequency:** How often to release new versions?
 4. **LTS versions:** Should we have long-term support versions?

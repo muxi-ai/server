@@ -1,12 +1,10 @@
 package api
 
 import (
-	"bytes"
 	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/muxi-ai/server/pkg/auth"
@@ -45,7 +43,7 @@ func createTestServer(t *testing.T) *Server {
 	}
 	authMiddleware := auth.NewMiddleware(authConfig, &logger)
 
-	return NewServer(cfg, pm, reg, authMiddleware, &logger)
+	return NewServer(cfg, pm, reg, authMiddleware, &logger, "test-version")
 }
 
 func TestNewServer(t *testing.T) {
@@ -102,31 +100,23 @@ func TestHandleHealth(t *testing.T) {
 	}
 
 	body, _ := io.ReadAll(resp.Body)
-	var result SuccessResponse
+	
+	// New simplified health response: {"success": true, "status": "ok", "version": "X.X.X"}
+	var result map[string]interface{}
 	if err := json.Unmarshal(body, &result); err != nil {
 		t.Fatalf("Failed to parse response: %v", err)
 	}
 
-	if !result.Success {
+	if result["success"] != true {
 		t.Error("Health check should return success=true")
 	}
 
-	// Verify health data structure
-	data, ok := result.Data.(map[string]interface{})
-	if !ok {
-		t.Fatal("Health data is not a map")
+	if result["status"] != "ok" {
+		t.Errorf("Health status = %v, want 'ok'", result["status"])
 	}
 
-	if _, ok := data["status"]; !ok {
-		t.Error("Health response missing 'status' field")
-	}
-
-	if _, ok := data["formations"]; !ok {
-		t.Error("Health response missing 'formations' field")
-	}
-
-	if _, ok := data["port_pool"]; !ok {
-		t.Error("Health response missing 'port_pool' field")
+	if _, ok := result["version"]; !ok {
+		t.Error("Health response missing 'version' field")
 	}
 }
 
@@ -159,13 +149,13 @@ func TestHandleList_Empty(t *testing.T) {
 		t.Fatal("List data is not a map")
 	}
 
-	count, ok := data["count"].(float64)
+	total, ok := data["total"].(float64)
 	if !ok {
-		t.Fatal("count field is not a number")
+		t.Fatal("total field is not a number")
 	}
 
-	if count != 0 {
-		t.Errorf("Empty registry should return 0 formations, got %.0f", count)
+	if total != 0 {
+		t.Errorf("Empty registry should return 0 formations, got %.0f", total)
 	}
 }
 
@@ -201,13 +191,13 @@ func TestHandleList_WithFormations(t *testing.T) {
 		t.Fatal("List data is not a map")
 	}
 
-	count, ok := data["count"].(float64)
+	total, ok := data["total"].(float64)
 	if !ok {
-		t.Fatal("count field is not a number")
+		t.Fatal("total field is not a number")
 	}
 
-	if count != 1 {
-		t.Errorf("Expected 1 formation, got %.0f", count)
+	if total != 1 {
+		t.Errorf("Expected 1 formation, got %.0f", total)
 	}
 }
 
@@ -387,46 +377,6 @@ func TestRespondJSON(t *testing.T) {
 	}
 }
 
-func TestHandleDeployJSON_InvalidRequest(t *testing.T) {
-	server := createTestServer(t)
-
-	// Invalid JSON
-	req := httptest.NewRequest("POST", "/formations/deploy", bytes.NewReader([]byte("invalid json")))
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-
-	server.router.ServeHTTP(w, req)
-
-	resp := w.Result()
-	// May return 400 or 401 depending on auth
-	if resp.StatusCode != http.StatusBadRequest && resp.StatusCode != http.StatusUnauthorized {
-		t.Logf("Status = %d", resp.StatusCode)
-	}
-}
-
-func TestHandleDeployJSON_MissingCommand(t *testing.T) {
-	server := createTestServer(t)
-
-	// Missing required field
-	reqBody := DeployRequest{
-		ID:   "test",
-		Args: []string{"arg1"},
-	}
-	body, _ := json.Marshal(reqBody)
-
-	req := httptest.NewRequest("POST", "/formations/deploy", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-
-	server.router.ServeHTTP(w, req)
-
-	resp := w.Result()
-	// May return 400 or 401
-	if resp.StatusCode != http.StatusBadRequest && resp.StatusCode != http.StatusUnauthorized {
-		t.Logf("Status = %d", resp.StatusCode)
-	}
-}
-
 func TestCORSMiddleware(t *testing.T) {
 	server := createTestServer(t)
 
@@ -462,20 +412,4 @@ func TestLoggingMiddleware(t *testing.T) {
 	}
 }
 
-func TestGenerateFormationID(t *testing.T) {
-	id1 := generateFormationID()
 
-	if id1 == "" {
-		t.Error("generateFormationID() returned empty string")
-	}
-
-	// Should have formation- prefix
-	if !strings.HasPrefix(id1, "formation-") {
-		t.Errorf("generateFormationID() = %q, want prefix 'formation-'", id1)
-	}
-
-	// Should have a reasonable length
-	if len(id1) < 10 {
-		t.Errorf("generateFormationID() = %q, seems too short", id1)
-	}
-}

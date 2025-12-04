@@ -1,11 +1,11 @@
 #!/bin/bash
 #
 # MUXI Server Installation Script
-# https://install.muxi.org (or https://get.muxi.org)
+# https://muxi.org/install (or https://get.muxi.org)
 #
 # Usage:
-#   System install (Linux):  curl -sSL https://install.muxi.org | sudo bash
-#   User install:            curl -sSL https://install.muxi.org | bash
+#   System install (Linux):  curl -sSL https://muxi.org/install | sudo bash
+#   User install:            curl -sSL https://muxi.org/install | bash
 #
 
 set -e  # Exit on error

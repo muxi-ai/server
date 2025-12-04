@@ -100,7 +100,7 @@ C:\ProgramData\muxi\logs
 #### PowerShell Installation Script (install.ps1)
 
 **Features:**
-- ✅ One-command install: `irm https://install.muxi.org/windows.ps1 | iex`
+- ✅ One-command install: `irm https://muxi.org/install/windows.ps1 | iex`
 - ✅ Automatic architecture detection (amd64/arm64)
 - ✅ Download from GitHub releases (latest or specific version)
 - ✅ Optional PATH configuration
@@ -112,13 +112,13 @@ C:\ProgramData\muxi\logs
 **Usage:**
 ```powershell
 # Install latest version
-irm https://install.muxi.org/windows.ps1 | iex
+irm https://muxi.org/install/windows.ps1 | iex
 
 # Install specific version
-irm https://install.muxi.org/windows.ps1 | iex -Version v0.20251024.0
+irm https://muxi.org/install/windows.ps1 | iex -Version v0.20251024.0
 
 # Install and add to PATH
-irm https://install.muxi.org/windows.ps1 | iex -AddToPath
+irm https://muxi.org/install/windows.ps1 | iex -AddToPath
 ```
 
 **Size:** 271 lines of PowerShell
@@ -215,7 +215,7 @@ Supported Platforms:
 **After:**
 ```
 Windows (PowerShell):
-irm https://install.muxi.org/windows.ps1 | iex
+irm https://muxi.org/install/windows.ps1 | iex
 
 Supported Platforms:
 - Linux (amd64, arm64)
@@ -286,7 +286,7 @@ Net: +1639 lines
 **Installation:**
 ```powershell
 # One command
-irm https://install.muxi.org/windows.ps1 | iex
+irm https://muxi.org/install/windows.ps1 | iex
 
 # Binary installed to: %LOCALAPPDATA%\muxi\bin
 # Config directory: %APPDATA%\muxi\server
@@ -590,7 +590,7 @@ Invoke-WebRequest `
 
 **Try it now:**
 ```powershell
-irm https://install.muxi.org/windows.ps1 | iex
+irm https://muxi.org/install/windows.ps1 | iex
 ```
 
 **Happy Windows Development! 🪟✨**

@@ -18,9 +18,9 @@ func TestFormatFormationURL(t *testing.T) {
 		formationID string
 		want        string
 	}{
-		{3000, "test-api", "http://localhost:3000/v1/test-api"},
-		{8080, "my-formation", "http://localhost:8080/v1/my-formation"},
-		{80, "prod-api", "http://localhost:80/v1/prod-api"},
+		{3000, "test-api", "http://localhost:3000/api/test-api"},
+		{8080, "my-formation", "http://localhost:8080/api/my-formation"},
+		{80, "prod-api", "http://localhost:80/api/prod-api"},
 	}
 
 	for _, tt := range tests {
@@ -391,9 +391,9 @@ func TestHandleGet_AllFields(t *testing.T) {
 	}
 
 	body := w.Body.String()
-	
-	// Verify all fields present in response
-	expectedFields := []string{"all-fields", "8080", "running", "python"}
+
+	// Verify key fields present in response (per API spec)
+	expectedFields := []string{"all-fields", "8080", "running", "healthy", "uptime"}
 	for _, field := range expectedFields {
 		if !containsStr(body, field) {
 			t.Errorf("Response missing field: %s", field)

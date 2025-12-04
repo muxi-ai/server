@@ -1,148 +1,191 @@
 package runtime
 
 import (
-	"crypto/sha256"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
-	"runtime"
+	goruntime "runtime"
+	"strings"
+
+	"github.com/rs/zerolog"
 )
 
-// Downloader handles downloading runtime SIF files
+// Downloader handles downloading runtime components
 type Downloader struct {
-	runtimesDir string // Directory to store runtime SIF files
-	registry    *Registry
+	sifBaseURL         string
+	runtimeRunnerImage string
+	runtimesDir        string
+	logger             *zerolog.Logger
 }
 
 // NewDownloader creates a new runtime downloader
-func NewDownloader(runtimesDir string, registry *Registry) *Downloader {
+func NewDownloader(sifBaseURL, runtimeRunnerImage, runtimesDir string, logger *zerolog.Logger) *Downloader {
 	return &Downloader{
-		runtimesDir: runtimesDir,
-		registry:    registry,
+		sifBaseURL:         sifBaseURL,
+		runtimeRunnerImage: runtimeRunnerImage,
+		runtimesDir:        runtimesDir,
+		logger:             logger,
 	}
 }
 
-// Download fetches a runtime SIF file
-// For now, this is a placeholder that expects SIF files to be present locally
-// TODO: Add GitHub/CDN download support
-func (d *Downloader) Download(version string) (string, error) {
-	sifPath := d.GetSIFPath(version)
+// EnsureSIF checks if the SIF file exists, downloads if missing
+// Returns the path to the SIF file
+func (d *Downloader) EnsureSIF(version string) (string, error) {
+	arch := getPlatform()
+	filename := fmt.Sprintf("muxi-runtime-%s-%s.sif", version, arch)
+	sifPath := filepath.Join(d.runtimesDir, filename)
 
-	// Check if already exists
+	// Check if SIF already exists
 	if _, err := os.Stat(sifPath); err == nil {
+		d.logger.Debug().
+			Str("path", sifPath).
+			Msg("SIF file already exists")
 		return sifPath, nil
 	}
 
-	// For now, we don't actually download - we expect SIF to be manually placed
-	// This is a placeholder for future GitHub/CDN integration
-	return "", fmt.Errorf("runtime %s not found at %s - please download manually", version, sifPath)
-}
-
-// GetSIFPath returns the expected path for a runtime SIF file
-func (d *Downloader) GetSIFPath(version string) string {
-	filename := fmt.Sprintf("muxi-runtime-%s-%s.sif", version, getPlatform())
-	return filepath.Join(d.runtimesDir, filename)
-}
-
-// Register registers a manually downloaded SIF file
-func (d *Downloader) Register(sifPath string, version string) error {
 	// Ensure runtimes directory exists
 	if err := os.MkdirAll(d.runtimesDir, 0755); err != nil {
-		return fmt.Errorf("failed to create runtimes directory: %w", err)
+		return "", fmt.Errorf("failed to create runtimes directory: %w", err)
 	}
 
-	// Get file info
-	stat, err := os.Stat(sifPath)
-	if err != nil {
-		return fmt.Errorf("failed to stat SIF file: %w", err)
-	}
-
-	// Compute hash
-	hash, err := computeFileHash(sifPath)
-	if err != nil {
-		return fmt.Errorf("failed to compute hash: %w", err)
-	}
-
-	// Get destination path
-	destPath := d.GetSIFPath(version)
-
-	// Copy to runtimes directory if not already there
-	if sifPath != destPath {
-		if err := copyFile(sifPath, destPath); err != nil {
-			return fmt.Errorf("failed to copy SIF: %w", err)
+	// Build download URL
+	var url string
+	if strings.HasPrefix(d.sifBaseURL, "http://") || strings.HasPrefix(d.sifBaseURL, "https://") {
+		// Check if it's a GitHub releases URL or direct URL
+		if strings.Contains(d.sifBaseURL, "github.com") && strings.Contains(d.sifBaseURL, "releases/download") {
+			// GitHub releases format: baseURL/v{version}/{filename}
+			url = fmt.Sprintf("%s/v%s/%s", d.sifBaseURL, version, filename)
+		} else {
+			// Direct URL format: baseURL/{filename}
+			url = fmt.Sprintf("%s/%s", strings.TrimSuffix(d.sifBaseURL, "/"), filename)
 		}
+	} else {
+		return "", fmt.Errorf("invalid SIF base URL: %s", d.sifBaseURL)
 	}
 
-	// Register in registry
-	info := &RuntimeInfo{
-		Version:      version,
-		Hash:         hash,
-		Path:         destPath,
-		Size:         stat.Size(),
-		DownloadedAt: stat.ModTime(),
-		Formations:   []string{},
+	d.logger.Info().
+		Str("url", url).
+		Str("destination", sifPath).
+		Msg("Downloading SIF file...")
+
+	// Download the file
+	if err := d.downloadFile(url, sifPath); err != nil {
+		return "", fmt.Errorf("failed to download SIF: %w", err)
 	}
 
-	if err := d.registry.Add(info); err != nil {
-		return fmt.Errorf("failed to add to registry: %w", err)
+	d.logger.Info().
+		Str("path", sifPath).
+		Msg("SIF file downloaded successfully")
+
+	return sifPath, nil
+}
+
+// downloadFile downloads a file from URL to destination
+func (d *Downloader) downloadFile(url, destination string) error {
+	// Create HTTP request
+	resp, err := http.Get(url)
+	if err != nil {
+		return fmt.Errorf("HTTP request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Check response status
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("download failed with status %d: %s", resp.StatusCode, resp.Status)
 	}
 
-	if err := d.registry.Save(); err != nil {
-		return fmt.Errorf("failed to save registry: %w", err)
+	// Create temporary file
+	tmpPath := destination + ".tmp"
+	out, err := os.Create(tmpPath)
+	if err != nil {
+		return fmt.Errorf("failed to create temp file: %w", err)
 	}
+
+	// Copy with progress logging
+	size := resp.ContentLength
+	written, err := io.Copy(out, resp.Body)
+	out.Close()
+
+	if err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("download failed: %w", err)
+	}
+
+	if size > 0 && written != size {
+		os.Remove(tmpPath)
+		return fmt.Errorf("incomplete download: got %d bytes, expected %d", written, size)
+	}
+
+	// Make executable
+	if err := os.Chmod(tmpPath, 0755); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("failed to set permissions: %w", err)
+	}
+
+	// Rename to final destination
+	if err := os.Rename(tmpPath, destination); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("failed to move file: %w", err)
+	}
+
+	d.logger.Debug().
+		Int64("bytes", written).
+		Msg("Download complete")
 
 	return nil
 }
 
-// getPlatform returns the current platform string (e.g., "linux-amd64")
-func getPlatform() string {
-	return fmt.Sprintf("%s-%s", runtime.GOOS, runtime.GOARCH)
+// EnsureRuntimeRunner checks if the Docker image exists, pulls if missing
+func (d *Downloader) EnsureRuntimeRunner() error {
+	// Only needed on macOS and Windows
+	if goruntime.GOOS == "linux" {
+		return nil
+	}
+
+	// Check if image exists locally
+	cmd := exec.Command("docker", "image", "inspect", d.runtimeRunnerImage)
+	if err := cmd.Run(); err == nil {
+		d.logger.Debug().
+			Str("image", d.runtimeRunnerImage).
+			Msg("Runtime runner image already exists")
+		return nil
+	}
+
+	d.logger.Info().
+		Str("image", d.runtimeRunnerImage).
+		Msg("Pulling runtime runner image...")
+
+	// Pull the image
+	cmd = exec.Command("docker", "pull", d.runtimeRunnerImage)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to pull runtime runner image: %w", err)
+	}
+
+	d.logger.Info().
+		Str("image", d.runtimeRunnerImage).
+		Msg("Runtime runner image pulled successfully")
+
+	return nil
 }
 
-// computeFileHash computes SHA256 hash of a file
-func computeFileHash(path string) (string, error) {
-	file, err := os.Open(path)
+// EnsureRuntime ensures both SIF and runtime-runner are available
+func (d *Downloader) EnsureRuntime(version string) (string, error) {
+	// Download SIF if needed
+	sifPath, err := d.EnsureSIF(version)
 	if err != nil {
 		return "", err
 	}
-	defer file.Close()
 
-	hash := sha256.New()
-	if _, err := io.Copy(hash, file); err != nil {
+	// Pull runtime-runner if needed (macOS/Windows only)
+	if err := d.EnsureRuntimeRunner(); err != nil {
 		return "", err
 	}
 
-	return fmt.Sprintf("%x", hash.Sum(nil)), nil
-}
-
-// copyFile copies a file from src to dst
-func copyFile(src, dst string) error {
-	// Ensure destination directory exists
-	dstDir := filepath.Dir(dst)
-	if err := os.MkdirAll(dstDir, 0755); err != nil {
-		return err
-	}
-
-	// Open source
-	srcFile, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer srcFile.Close()
-
-	// Create destination
-	dstFile, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer dstFile.Close()
-
-	// Copy
-	if _, err := io.Copy(dstFile, srcFile); err != nil {
-		return err
-	}
-
-	// Sync to disk
-	return dstFile.Sync()
+	return sifPath, nil
 }
