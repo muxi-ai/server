@@ -69,10 +69,6 @@ func (h *Handler) ProxyRequest(w http.ResponseWriter, r *http.Request) {
 
 	// Check formation status
 	if formation.Status != "running" {
-		log.Warn().
-			Str("formation_id", formationID).
-			Str("status", formation.Status).
-			Msg("Formation not running")
 		h.respondError(w, http.StatusServiceUnavailable, "Formation unavailable", fmt.Sprintf("Formation '%s' is not running (status: %s)", formationID, formation.Status))
 		return
 	}
