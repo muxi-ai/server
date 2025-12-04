@@ -161,6 +161,9 @@ func cmdStart() error {
 	// Create API server
 	apiServer := api.NewServer(cfg, processManager, formationRegistry, authMiddleware, &logger, Version)
 
+	// Restore previously running formations
+	apiServer.RestoreFormations()
+
 	// Setup graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
