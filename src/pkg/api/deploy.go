@@ -227,10 +227,10 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Handle runtime resolution if specified in formation.yaml
-	if formationConfig.Runtime != "" {
+	if formationConfig.MuxiRuntime != "" {
 		s.logger.Info().
 			Str("id", formationID).
-			Str("runtime_constraint", formationConfig.Runtime).
+			Str("runtime_constraint", formationConfig.MuxiRuntime).
 			Msg("Resolving runtime version")
 
 		// Initialize runtime components
@@ -264,11 +264,11 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 		resolver := runtime.NewResolver(availableVersions, runtimesDir)
 
 		// Resolve version constraint
-		resolvedVersion, err := resolver.Resolve(formationConfig.Runtime)
+		resolvedVersion, err := resolver.Resolve(formationConfig.MuxiRuntime)
 		if err != nil {
 			s.logger.Error().
 				Err(err).
-				Str("constraint", formationConfig.Runtime).
+				Str("constraint", formationConfig.MuxiRuntime).
 				Msg("Failed to resolve runtime version")
 			s.registry.ReleasePort(port)
 			os.RemoveAll(permanentDir)
@@ -277,7 +277,7 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 		}
 
 		s.logger.Info().
-			Str("constraint", formationConfig.Runtime).
+			Str("constraint", formationConfig.MuxiRuntime).
 			Str("resolved", resolvedVersion).
 			Msg("Resolved runtime version")
 
