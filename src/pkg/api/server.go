@@ -150,19 +150,15 @@ func (s *Server) Stop(ctx context.Context) error {
 
 // HandleHealth handles GET /health
 func (s *Server) HandleHealth(w http.ResponseWriter, r *http.Request) {
-	available, allocated, total := s.registry.PortPoolStatus()
-
-	health := map[string]interface{}{
-		"status":     "ok",
-		"formations": s.registry.Count(),
-		"port_pool": map[string]int{
-			"available": available,
-			"allocated": allocated,
-			"total":     total,
-		},
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	
+	version := s.version
+	if version == "" {
+		version = "1.0.0-dev"
 	}
-
-	RespondSuccess(w, health)
+	
+	fmt.Fprintf(w, `{"success":true,"status":"ok","version":"%s"}`, version)
 }
 
 // Middleware
