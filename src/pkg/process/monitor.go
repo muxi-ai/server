@@ -73,12 +73,14 @@ func (m *Monitor) run() {
 			}
 			
 			if err := m.healthCheck(); err != nil {
-				m.logger.Debug().
-					Err(err).
-					Str("id", m.process.ID).
-					Int("attempt", i+1).
-					Int("max_attempts", maxRetries).
-					Msg("Health check attempt failed, retrying...")
+				// Only log every 10 attempts to reduce noise
+				if (i+1)%10 == 1 {
+					m.logger.Info().
+						Str("id", m.process.ID).
+						Int("attempt", i+1).
+						Int("max_attempts", maxRetries).
+						Msg("Waiting for formation to start...")
+				}
 			} else {
 				m.process.SetStatus(StatusRunning)
 				m.logger.Info().
