@@ -26,7 +26,7 @@ type SpawnConfig struct {
 	PIDsDir     string            // Directory for PID files
 	AutoRestart bool              // Enable auto-restart
 	Logger      *zerolog.Logger   // Logger instance
-	
+
 	// SIF Runtime support
 	RuntimeType string            // "native" or "singularity"
 	SIFPath     string            // Path to SIF file (if RuntimeType is "singularity")
@@ -143,7 +143,7 @@ func Spawn(config SpawnConfig) (*Process, error) {
 
 	// Set environment (inherit parent environment)
 	cmd.Env = os.Environ()
-	
+
 	// For native processes, add custom env vars
 	// For singularity, env vars are already passed via --env flags
 	if config.RuntimeType != "singularity" {
@@ -250,7 +250,7 @@ func buildNativeSingularityCommand(config SpawnConfig, logger *zerolog.Logger) *
 
 	// Add bind mount for formation directory as /formation
 	args = append(args, "--bind", fmt.Sprintf("%s:/formation", config.WorkDir))
-	
+
 	// Add bind mount for /tmp (allows formations to write temporary files)
 	args = append(args, "--bind", "/tmp")
 
@@ -289,7 +289,8 @@ func buildDockerSingularityCommand(config SpawnConfig, logger *zerolog.Logger) *
 		"-v", fmt.Sprintf("%s:/sif/runtime.sif:ro", config.SIFPath),
 
 		// Mount formation directory from host into Docker container
-		"-v", fmt.Sprintf("%s:/formation:ro", config.WorkDir),
+		// Note: Not read-only because runtime may need to create .key file for secrets
+		"-v", fmt.Sprintf("%s:/formation", config.WorkDir),
 
 		// Mount /etc/localtime for Singularity (it expects this to exist)
 		"-v", "/etc/localtime:/etc/localtime:ro",
@@ -311,7 +312,8 @@ func buildDockerSingularityCommand(config SpawnConfig, logger *zerolog.Logger) *
 	args = append(args, "exec")
 
 	// Bind /formation inside the SIF (Singularity needs explicit bind)
-	args = append(args, "--bind", "/formation:/formation")
+	// Not read-only because runtime may need to write .key file for secrets
+	args = append(args, "--bind", "/formation")
 
 	// Bind /tmp for temporary files
 	args = append(args, "--bind", "/tmp")

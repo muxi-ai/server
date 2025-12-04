@@ -331,9 +331,9 @@ func (m *Manager) handleCrash(proc *Process) {
 }
 
 // Helper function to extract port from health check URL
-func extractPortFromURL(url string) int {
+func extractPortFromURL(_ string) int {
 	// Simple extraction: http://localhost:8001/health -> 8001
 	// For now, we'll return 0 if we can't parse it
-	// This can be improved later
+	// TODO: Implement proper URL parsing
 	return 0
 }
