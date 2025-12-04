@@ -16,7 +16,18 @@ type Config struct {
 	Server     ServerConfig     `yaml:"server"`
 	Auth       AuthConfig       `yaml:"auth"`
 	Formations FormationsConfig `yaml:"formations"`
+	Runtime    RuntimeConfig    `yaml:"runtime"`
 	Logging    LoggingConfig    `yaml:"logging"`
+}
+
+// RuntimeConfig contains runtime download settings
+type RuntimeConfig struct {
+	// SIF download settings
+	SIFBaseURL   string `yaml:"sif_base_url"`   // Base URL for SIF downloads (default: GitHub releases)
+	AutoDownload bool   `yaml:"auto_download"`  // Auto-download missing SIF files (default: true)
+
+	// Docker runtime-runner settings
+	RuntimeRunnerImage string `yaml:"runtime_runner_image"` // Docker image for runtime-runner (default: ghcr.io/muxi-ai/runtime-runner:latest)
 }
 
 // LoggingConfig contains logging settings
@@ -132,6 +143,11 @@ func DefaultConfig() *Config {
 			LogRotationEnabled: true,
 			LogMaxSize:         "10M",
 			LogMaxFiles:        10,
+		},
+		Runtime: RuntimeConfig{
+			SIFBaseURL:         "https://github.com/muxi-ai/runtime/releases/download",
+			AutoDownload:       true,
+			RuntimeRunnerImage: "ghcr.io/muxi-ai/runtime-runner:latest",
 		},
 		Logging: LoggingConfig{
 			Level:    "info",

@@ -3,9 +3,20 @@ package runtime
 import (
 	"fmt"
 	"path/filepath"
+	goruntime "runtime"
 	"strconv"
 	"strings"
 )
+
+// getPlatform returns the platform string for SIF filenames (linux-amd64 or linux-arm64)
+func getPlatform() string {
+	// SIF files are always Linux containers
+	arch := goruntime.GOARCH
+	if arch == "amd64" {
+		return "linux-amd64"
+	}
+	return "linux-arm64"
+}
 
 // Resolver resolves runtime version constraints to exact versions
 type Resolver struct {

@@ -281,20 +281,51 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 			Str("resolved", resolvedVersion).
 			Msg("Resolved runtime version")
 
-		// Get SIF path
-		sifPath := resolver.GetSIFPath(resolvedVersion)
+		// Create downloader for auto-download
+		downloader := runtime.NewDownloader(
+			s.config.Runtime.SIFBaseURL,
+			s.config.Runtime.RuntimeRunnerImage,
+			runtimesDir,
+			s.logger,
+		)
 
-		// Check if SIF exists
-		if _, err := os.Stat(sifPath); os.IsNotExist(err) {
-			s.logger.Error().
-				Str("version", resolvedVersion).
-				Str("path", sifPath).
-				Msg("Runtime SIF file not found")
-			s.registry.ReleasePort(port)
-			os.RemoveAll(permanentDir)
-			RespondError(w, http.StatusNotFound,
-				fmt.Sprintf("Runtime %s not found at %s. Please ensure runtime SIF is installed.", resolvedVersion, sifPath))
-			return
+		// Ensure SIF exists (download if missing and auto_download enabled)
+		var sifPath string
+		if s.config.Runtime.AutoDownload {
+			sifPath, err = downloader.EnsureSIF(resolvedVersion)
+			if err != nil {
+				s.logger.Error().
+					Err(err).
+					Str("version", resolvedVersion).
+					Msg("Failed to ensure SIF file")
+				s.registry.ReleasePort(port)
+				os.RemoveAll(permanentDir)
+				RespondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to download runtime: %v", err))
+				return
+			}
+
+			// Also ensure runtime-runner is available (macOS/Windows)
+			if err := downloader.EnsureRuntimeRunner(); err != nil {
+				s.logger.Error().Err(err).Msg("Failed to ensure runtime-runner")
+				s.registry.ReleasePort(port)
+				os.RemoveAll(permanentDir)
+				RespondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to pull runtime-runner: %v", err))
+				return
+			}
+		} else {
+			// Auto-download disabled, just get path and check existence
+			sifPath = resolver.GetSIFPath(resolvedVersion)
+			if _, err := os.Stat(sifPath); os.IsNotExist(err) {
+				s.logger.Error().
+					Str("version", resolvedVersion).
+					Str("path", sifPath).
+					Msg("Runtime SIF file not found (auto_download disabled)")
+				s.registry.ReleasePort(port)
+				os.RemoveAll(permanentDir)
+				RespondError(w, http.StatusNotFound,
+					fmt.Sprintf("Runtime %s not found at %s. Enable auto_download or manually install.", resolvedVersion, sifPath))
+				return
+			}
 		}
 
 		// Update spawn config for Singularity execution
