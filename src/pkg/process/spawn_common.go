@@ -33,6 +33,9 @@ type SpawnConfig struct {
 
 	// Skip initial health check in monitor (used when deploy does its own health check)
 	SkipInitialHealthCheck bool
+	
+	// Truncate log files on start (true for new deploys, false for updates/restarts)
+	TruncateLogs bool
 }
 
 // Spawn creates and starts a new process based on the configuration
@@ -81,14 +84,20 @@ func Spawn(config SpawnConfig) (*Process, error) {
 	errFile := filepath.Join(config.LogsDir, fmt.Sprintf("%s-err.log", config.ID))
 	pidFile := filepath.Join(config.PIDsDir, fmt.Sprintf("%s.pid", config.ID))
 
-	// Open log files
-	stdout, err := os.OpenFile(logFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
+	// Open log files (truncate on new deploy, append on update/restart)
+	logFlags := os.O_WRONLY | os.O_CREATE
+	if config.TruncateLogs {
+		logFlags |= os.O_TRUNC
+	} else {
+		logFlags |= os.O_APPEND
+	}
+	stdout, err := os.OpenFile(logFile, logFlags, 0640)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open stdout log: %w", err)
 	}
 	defer stdout.Close()
 
-	stderr, err := os.OpenFile(errFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
+	stderr, err := os.OpenFile(errFile, logFlags, 0640)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open stderr log: %w", err)
 	}

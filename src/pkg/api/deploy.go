@@ -298,6 +298,7 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 		AutoRestart:            s.config.Formations.AutoRestart,
 		RuntimeType:            "native", // Default to native execution
 		SkipInitialHealthCheck: true,     // Deploy does its own health check with progress
+		TruncateLogs:           true,     // Fresh logs for new deploy
 	}
 
 	// Handle runtime resolution if specified in formation.yaml
