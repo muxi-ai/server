@@ -112,17 +112,27 @@ func (s *Server) restoreFormation(formationID string, port int) error {
 		}
 	}
 
+	// Get old restart count from registry before starting
+	oldRestartCount := 0
+	if f, err := s.registry.Get(formationID); err == nil {
+		oldRestartCount = f.RestartCount
+	}
+
 	// Start the process
 	proc, err := s.processManager.Start(spawnConfig)
 	if err != nil {
 		return err
 	}
 
+	// Preserve restart count from before server restart
+	proc.RestartCount = oldRestartCount
+
 	// Update registry with new process info
 	f, err := s.registry.Get(formationID)
 	if err == nil {
 		f.ProcessID = proc.PID
 		f.Status = "starting"
+		f.RestartCount = oldRestartCount // Preserve across server restart
 	}
 
 	return nil
