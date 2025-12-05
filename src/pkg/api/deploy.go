@@ -538,6 +538,13 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Update status to running after successful health check
+	proc.SetStatus(process.StatusRunning)
+	s.registry.UpdateHealthCheck(formationID, true)
+	s.registry.Update(formationID, func(f *registry.Formation) {
+		f.Status = "running"
+	})
+
 	s.logger.Info().
 		Str("id", formationID).
 		Int("port", port).
