@@ -59,7 +59,7 @@ func NewServer(
 		Addr:         addr,
 		Handler:      server.router,
 		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
+		WriteTimeout: 0, // Disabled for SSE streaming (health checks can take 2+ minutes)
 		IdleTimeout:  60 * time.Second,
 	}
 

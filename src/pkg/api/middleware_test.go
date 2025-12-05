@@ -159,8 +159,9 @@ func TestServer_Start_Stop(t *testing.T) {
 		t.Error("ReadTimeout not set")
 	}
 
-	if server.httpServer.WriteTimeout == 0 {
-		t.Error("WriteTimeout not set")
+	// WriteTimeout is 0 (disabled) for SSE streaming support
+	if server.httpServer.WriteTimeout != 0 {
+		t.Error("WriteTimeout should be 0 for SSE streaming")
 	}
 
 	if server.httpServer.IdleTimeout == 0 {
