@@ -156,8 +156,8 @@ func extractErrorSection(filePath string) (string, error) {
 	}
 	
 	if idx >= 0 {
-		// Return everything from the marker onwards, trimmed
-		result := content[idx:]
+		// Return everything AFTER the marker, trimmed
+		result := content[idx+len(marker):]
 		// Trim leading/trailing whitespace
 		start := 0
 		for start < len(result) && (result[start] == ' ' || result[start] == '\t' || result[start] == '\n' || result[start] == '\r') {
