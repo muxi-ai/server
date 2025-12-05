@@ -94,11 +94,12 @@ func (m *Monitor) run() {
 				break
 			}
 			
-			// If we've exhausted retries, log error but keep monitoring
+			// If we've exhausted retries, set status to running (unhealthy) and keep monitoring
 			if i == maxRetries-1 {
+				m.process.SetStatus(StatusRunning)
 				m.logger.Error().
 					Str("id", m.process.ID).
-					Msg("Initial health check failed after max retries, will keep monitoring")
+					Msg("Initial health check failed after max retries - status set to running (unhealthy), will keep monitoring")
 			}
 		}
 	} else {
