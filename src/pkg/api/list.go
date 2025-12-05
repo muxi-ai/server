@@ -29,7 +29,7 @@ type FormationInfo struct {
 	PID          int          `json:"pid"`
 	Uptime       int64        `json:"uptime"`
 	RestartCount int          `json:"restart_count"`
-	Healthy      *bool        `json:"healthy,omitempty"` // nil when status is "starting"
+	Healthy      *bool        `json:"healthy"` // null when status is "starting"
 	Version      *VersionInfo `json:"version,omitempty"`
 }
 

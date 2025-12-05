@@ -82,9 +82,11 @@ func (s *Server) HandleGet(w http.ResponseWriter, r *http.Request) {
 		"updated_at":    f.StartedAt, // Use StartedAt as last update time
 	}
 
-	// Only include health when not starting (unknown during startup)
+	// Health is null when starting (unknown during startup)
 	if f.Status != "starting" {
 		response["healthy"] = f.Healthy
+	} else {
+		response["healthy"] = nil
 	}
 
 	// Add version info if available
