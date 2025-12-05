@@ -64,8 +64,18 @@ func (s *Server) HandleLogs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Determine log file paths based on stream parameter
-	stdoutPath := filepath.Join(s.config.Formations.LogsDir, formationID+"-out.log")
-	stderrPath := filepath.Join(s.config.Formations.LogsDir, formationID+"-err.log")
+	// LogsDir is relative to ~/.muxi/server/, so we need to construct the full path
+	logsDir := s.config.Formations.LogsDir
+	if !filepath.IsAbs(logsDir) {
+		// Get base dir from FormationsDir (e.g., ~/.muxi/server/formations -> ~/.muxi/server)
+		baseDir := filepath.Dir(s.config.Formations.FormationsDir)
+		if baseDir == "." {
+			baseDir = filepath.Join(os.Getenv("HOME"), ".muxi", "server")
+		}
+		logsDir = filepath.Join(baseDir, logsDir)
+	}
+	stdoutPath := filepath.Join(logsDir, formationID+"-out.log")
+	stderrPath := filepath.Join(logsDir, formationID+"-err.log")
 
 	// Handle SSE follow mode
 	if wantsFollow {
