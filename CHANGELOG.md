@@ -7,7 +7,7 @@ This project uses **[ScalVer (Scalable Calendar Versioning)](https://scalver.org
 
 ---
 
-## [Unreleased]
+## [0.20251205.1] - 2025-12-05
 
 ### SSE Streaming Progress for Update (PUT)
 
