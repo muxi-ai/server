@@ -37,16 +37,17 @@ type ProgressEvent struct {
 	StagingPort *int        `json:"staging_port,omitempty"` // For spawning_staging (update)
 }
 
-// CompleteEvent represents successful deployment/update completion
+// CompleteEvent represents successful deployment/update/restart completion
 type CompleteEvent struct {
 	FormationID     string `json:"formation_id"`
 	Port            int    `json:"port"`
 	Status          string `json:"status"`
-	URL             string `json:"url"`
+	URL             string `json:"url,omitempty"`
 	HealthURL       string `json:"health_url,omitempty"`
 	PID             int    `json:"pid,omitempty"`
 	PreviousVersion string `json:"previous_version,omitempty"` // For updates
 	NewVersion      string `json:"new_version,omitempty"`      // For updates
+	RestartCount    int    `json:"restart_count,omitempty"`    // For restarts
 }
 
 // ErrorEvent represents a deployment failure
