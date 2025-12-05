@@ -9,6 +9,38 @@ This project uses **[ScalVer (Scalable Calendar Versioning)](https://scalver.org
 
 ## [Unreleased]
 
+---
+
+## [0.20251205.0] - 2025-12-05
+
+### SSE Streaming Progress for Deploy
+
+Real-time deployment progress via Server-Sent Events (SSE).
+
+#### Added
+
+**SSE Streaming:**
+- `Accept: text/event-stream` header triggers streaming mode on POST /rpc/formations
+- Progress events emitted at each deployment stage
+- Stages: extracting, validating, resolving_runtime, downloading_sif, pulling_runner, spawning
+- Complete/error events as final response
+- Backwards compatible: without header, behaves as before
+
+**Progress Event Types:**
+- `progress` - Stage update with message and optional metadata (version, progress %)
+- `complete` - Deployment succeeded with formation details
+- `error` - Deployment failed with error type, message, and stage
+
+#### Fixed
+
+- Added Flush() to audit middleware responseWriter for SSE support
+- Delayed SSE initialization until after request body is read
+- Changed DELETE "not found" log from Warn to Debug (idempotent operation)
+
+---
+
+## [0.20251204.0] - 2025-12-04
+
 ### Install Flow Redesign
 
 **Installation Repository (muxi-ai/install):**
