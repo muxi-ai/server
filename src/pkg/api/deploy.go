@@ -255,6 +255,19 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Remove existing directory if it exists (leftover from failed deploy)
+	if _, err := os.Stat(permanentDir); err == nil {
+		s.logger.Warn().
+			Str("path", permanentDir).
+			Msg("Removing leftover formation directory from previous failed deploy")
+		if err := os.RemoveAll(permanentDir); err != nil {
+			s.logger.Error().Err(err).Msg("Failed to remove existing formation directory")
+			s.registry.ReleasePort(port)
+			respondErr(http.StatusInternalServerError, StageValidating, "CleanupError", "Failed to clean up existing formation directory")
+			return
+		}
+	}
+
 	// Move extracted directory to permanent location
 	if err := os.Rename(formationDir, permanentDir); err != nil {
 		s.logger.Error().Err(err).Msg("Failed to move formation to permanent location")
