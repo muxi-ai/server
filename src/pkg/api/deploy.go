@@ -525,10 +525,13 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 
 	if healthErr != nil {
 		s.logger.Error().Err(healthErr).Str("id", formationID).Msg("Formation failed health check")
-		// Clean up: stop process and unregister
-		s.processManager.Stop(formationID)
+		// Clean up: force kill process and unregister
+		if err := s.processManager.ForceKill(formationID); err != nil {
+			s.logger.Warn().Err(err).Str("id", formationID).Msg("Failed to force kill process during cleanup (may already be dead)")
+		}
 		s.registry.Unregister(formationID)
 		s.registry.ReleasePort(port)
+		os.RemoveAll(permanentDir)
 		respondErr(http.StatusBadRequest, StageHealthCheck, "HealthCheckFailed",
 			fmt.Sprintf("Formation failed health check after %v: %v", healthTimeout, healthErr))
 		return

@@ -132,6 +132,7 @@ func (m *Manager) Stop(id string) error {
 
 // ForceKill forcefully terminates a process with SIGKILL (Unix) or TerminateProcess (Windows)
 // Used when graceful shutdown fails or during zero-downtime deployments
+// Always removes from managed processes even if kill fails (process may already be dead)
 func (m *Manager) ForceKill(id string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -144,15 +145,17 @@ func (m *Manager) ForceKill(id string) error {
 	// Stop monitor first
 	managed.monitor.Stop()
 
-	// Force kill the process
+	// Force kill the process (ignore errors - process may already be dead)
+	var killErr error
 	if err := ForceKill(managed.process, m.logger); err != nil {
-		return fmt.Errorf("failed to force kill process: %w", err)
+		killErr = fmt.Errorf("failed to force kill process: %w", err)
+		m.logger.Warn().Err(err).Str("id", id).Msg("Force kill failed (process may already be dead)")
 	}
 
-	// Remove from managed processes
+	// Always remove from managed processes
 	delete(m.processes, id)
 
-	return nil
+	return killErr
 }
 
 // Restart stops and restarts a process
