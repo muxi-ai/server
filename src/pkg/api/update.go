@@ -213,6 +213,14 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate secrets references
+	if err := formation.ValidateSecrets(stagingDir); err != nil {
+		s.logger.Error().Err(err).Msg("Secrets validation failed")
+		os.RemoveAll(stagingDir)
+		respondErr(http.StatusBadRequest, StageValidating, "SecretsError", err.Error())
+		return
+	}
+
 	// Verify bundle's version matches the header
 	bundleVersion := formationConfig.Version
 	if bundleVersion == "" {

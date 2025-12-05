@@ -185,6 +185,13 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 		Str("version", formationConfig.Version).
 		Msg("Parsed formation bundle")
 
+	// Validate secrets references
+	if err := formation.ValidateSecrets(formationDir); err != nil {
+		s.logger.Error().Err(err).Msg("Secrets validation failed")
+		respondErr(http.StatusBadRequest, StageValidating, "SecretsError", err.Error())
+		return
+	}
+
 	// Verify bundle's formation ID matches the header
 	if formationID != headerFormationID {
 		s.logger.Warn().
