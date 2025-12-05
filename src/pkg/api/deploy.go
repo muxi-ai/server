@@ -49,8 +49,10 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 	wantsSSE := strings.Contains(acceptHeader, "text/event-stream")
 
 	var sse *SSEWriter
-	var progress *ProgressEmitter
 	sseInitialized := false
+
+	// Initialize progress emitter (no-op until SSE is initialized)
+	progress := NewProgressEmitter(nil)
 
 	// Helper to initialize SSE (delayed until after body is read)
 	initSSE := func() {
@@ -60,8 +62,8 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 			if ok {
 				sse.Init()
 				sseInitialized = true
+				progress = NewProgressEmitter(sse)
 			}
-			progress = NewProgressEmitter(sse)
 		}
 	}
 
