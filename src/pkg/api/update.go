@@ -280,13 +280,27 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 
 	// Health check staging formation
 	healthTimeout := time.Duration(s.config.Formations.Deployment.HealthCheck.Timeout) * time.Second
+	if healthTimeout == 0 {
+		healthTimeout = 60 * time.Second // Default 60 seconds
+	}
 	healthInterval := time.Duration(s.config.Formations.Deployment.HealthCheck.Interval) * time.Second
+	if healthInterval == 0 {
+		healthInterval = 1 * time.Second // Default 1 second
+	}
 	
 	// Wait a bit for formation to initialize
-	time.Sleep(time.Duration(s.config.Formations.Deployment.StagingHealthDelay) * time.Second)
+	stagingDelay := time.Duration(s.config.Formations.Deployment.StagingHealthDelay) * time.Second
+	if stagingDelay == 0 {
+		stagingDelay = 2 * time.Second // Default 2 seconds
+	}
+	time.Sleep(stagingDelay)
 	
 	healthChecker := process.NewHealthChecker(healthTimeout, healthInterval)
-	healthChecker.Endpoint = s.config.Formations.Deployment.HealthCheck.Endpoint
+	healthEndpoint := s.config.Formations.Deployment.HealthCheck.Endpoint
+	if healthEndpoint == "" {
+		healthEndpoint = "/health"
+	}
+	healthChecker.Endpoint = healthEndpoint
 
 	healthErr := healthChecker.WaitForHealthy(stagingPort, formationID)
 
