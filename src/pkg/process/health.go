@@ -68,32 +68,34 @@ func (hc *HealthChecker) WaitForHealthyWithPID(port int, formationID string, pid
 		attempt++
 
 		// Check if process crashed (if PID provided)
-		if pid > 0 && !IsProcessRunning(pid) {
-			errMsg := "Formation process crashed during startup"
-			// Try to read log files for details
+		// Also check logs for failure markers (for containerized formations where container stays alive)
+		if pid > 0 {
+			processDead := !IsProcessRunning(pid)
+			var logContent string
+			var hasFailureMarker bool
+			
+			// Check logs for failure markers (works for both native and containerized)
 			if logFile != "" {
-				var logContent string
-				// Try stdout log first (most errors go here)
 				if content, err := extractErrorSection(logFile); err == nil && content != "" {
 					logContent = content
+					hasFailureMarker = true
 				}
-				// Also check stderr log if stdout had no error section
-				if logContent == "" {
-					errFile := logFile[:len(logFile)-8] + "-err.log" // Replace -out.log with -err.log
-					if content, err := extractErrorSection(errFile); err == nil && content != "" {
-						logContent = content
-					}
-				}
+			}
+			
+			if processDead || hasFailureMarker {
+				errMsg := "Formation process crashed during startup"
 				if logContent != "" {
 					errMsg = fmt.Sprintf("Formation crashed during startup:\n%s", logContent)
 				}
+				log.Error().
+					Str("formation_id", formationID).
+					Int("pid", pid).
+					Int("attempt", attempt).
+					Bool("process_dead", processDead).
+					Bool("failure_marker", hasFailureMarker).
+					Msg("Formation process crashed")
+				return fmt.Errorf(errMsg)
 			}
-			log.Error().
-				Str("formation_id", formationID).
-				Int("pid", pid).
-				Int("attempt", attempt).
-				Msg("Formation process crashed")
-			return fmt.Errorf(errMsg)
 		}
 
 		// Notify progress callback
