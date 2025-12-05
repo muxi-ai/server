@@ -307,7 +307,7 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 	healthChecker := process.NewHealthChecker(healthTimeout, healthInterval)
 	healthEndpoint := s.config.Formations.Deployment.HealthCheck.Endpoint
 	if healthEndpoint == "" {
-		healthEndpoint = "/health"
+		healthEndpoint = "/v1/health"
 	}
 	healthChecker.Endpoint = healthEndpoint
 

@@ -510,7 +510,7 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 	healthChecker := process.NewHealthChecker(healthTimeout, healthInterval)
 	healthEndpoint := s.config.Formations.Deployment.HealthCheck.Endpoint
 	if healthEndpoint == "" {
-		healthEndpoint = "/health"
+		healthEndpoint = "/v1/health"
 	}
 	healthChecker.Endpoint = healthEndpoint
 
@@ -551,7 +551,7 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 		Port:        port,
 		Status:      string(proc.Status),
 		URL:         fmt.Sprintf("http://localhost:%d/api/%s", s.config.Server.Port, formationID),
-		HealthURL:   fmt.Sprintf("http://localhost:%d/health", port),
+		HealthURL:   fmt.Sprintf("http://localhost:%d/v1/health", port),
 		PID:         proc.PID,
 	}
 
