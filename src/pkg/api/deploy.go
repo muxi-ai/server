@@ -513,8 +513,8 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 	}
 	healthChecker.Endpoint = healthEndpoint
 
-	// Health check with progress callback
-	healthErr := healthChecker.WaitForHealthyWithProgress(port, formationID, func(attempt, maxAttempts int) {
+	// Health check with progress callback and crash detection
+	healthErr := healthChecker.WaitForHealthyWithPID(port, formationID, proc.PID, proc.ErrorFile, func(attempt, maxAttempts int) {
 		progress.Emit(ProgressEvent{
 			Stage:       StageHealthCheck,
 			Message:     fmt.Sprintf("Health check attempt %d/%d...", attempt, maxAttempts),

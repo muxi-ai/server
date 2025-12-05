@@ -311,8 +311,8 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 	healthChecker.Endpoint = healthEndpoint
 
-	// Health check with progress callback
-	healthErr := healthChecker.WaitForHealthyWithProgress(stagingPort, formationID, func(attempt, maxAttempts int) {
+	// Health check with progress callback and crash detection
+	healthErr := healthChecker.WaitForHealthyWithPID(stagingPort, formationID, proc.PID, proc.ErrorFile, func(attempt, maxAttempts int) {
 		progress.Emit(ProgressEvent{
 			Stage:       StageHealthCheck,
 			Message:     fmt.Sprintf("Health check attempt %d/%d...", attempt, maxAttempts),
