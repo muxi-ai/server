@@ -138,12 +138,25 @@ func IsProcessRunning(pid int) bool {
 		return false
 	}
 
+	// First check if process exists using signal 0
 	process, err := os.FindProcess(pid)
 	if err != nil {
 		return false
 	}
-
-	// Send signal 0 to check if process exists
 	err = process.Signal(syscall.Signal(0))
-	return err == nil
+	if err != nil {
+		return false
+	}
+
+	// Check if it's a zombie by trying to wait for it with WNOHANG
+	// If Wait4 returns the pid, the process has exited (zombie or otherwise)
+	var status syscall.WaitStatus
+	wpid, err := syscall.Wait4(pid, &status, syscall.WNOHANG, nil)
+	if err == nil && wpid == pid {
+		// Process has exited (was zombie, now reaped)
+		return false
+	}
+	// wpid == 0 means process is still running
+	// wpid == -1 or error means it's not our child (can't wait on it), assume running
+	return true
 }
