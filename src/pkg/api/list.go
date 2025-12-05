@@ -18,8 +18,9 @@ type FormationListResponse struct {
 
 // VersionInfo represents version information for API responses
 type VersionInfo struct {
-	Current  string `json:"current,omitempty"`
-	Previous string `json:"previous,omitempty"`
+	Semantic string `json:"semantic,omitempty"` // Semantic version from formation.yaml (e.g., "1.0.0")
+	Current  string `json:"current,omitempty"`  // Current bundle hash
+	Previous string `json:"previous,omitempty"` // Previous bundle hash (for rollback)
 }
 
 // FormationInfo represents formation info for API responses
@@ -77,11 +78,14 @@ func (s *Server) HandleList(w http.ResponseWriter, r *http.Request) {
 		formationDir := filepath.Join(s.config.Formations.FormationsDir, f.ID)
 		if history, err := formation.LoadVersionHistory(formationDir); err == nil && history.Current != nil {
 			versionInfo = &VersionInfo{
-				Current: history.Current.BundleHash,
+				Semantic: f.Version,
+				Current:  history.Current.BundleHash,
 			}
 			if history.Previous != nil {
 				versionInfo.Previous = history.Previous.BundleHash
 			}
+		} else if f.Version != "" {
+			versionInfo = &VersionInfo{Semantic: f.Version}
 		}
 
 		// Only include health status when not starting (unknown during startup)

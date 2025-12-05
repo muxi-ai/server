@@ -479,6 +479,7 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 
 	// Register in registry
 	reg := registry.FromProcess(proc, port)
+	reg.Version = formationConfig.Version
 	if err := s.registry.Register(reg); err != nil {
 		s.logger.Error().Err(err).Str("id", formationID).Msg("Failed to register formation")
 		s.processManager.Stop(formationID)

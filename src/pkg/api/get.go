@@ -84,11 +84,14 @@ func (s *Server) HandleGet(w http.ResponseWriter, r *http.Request) {
 	formationDir := filepath.Join(s.config.Formations.FormationsDir, f.ID)
 	if history, err := formation.LoadVersionHistory(formationDir); err == nil && history.Current != nil {
 		versionInfo = &VersionInfo{
-			Current: history.Current.BundleHash,
+			Semantic: f.Version,
+			Current:  history.Current.BundleHash,
 		}
 		if history.Previous != nil {
 			versionInfo.Previous = history.Previous.BundleHash
 		}
+	} else if f.Version != "" {
+		versionInfo = &VersionInfo{Semantic: f.Version}
 	}
 
 	// Build detailed response aligned with API spec
