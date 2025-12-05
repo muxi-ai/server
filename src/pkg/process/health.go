@@ -73,16 +73,14 @@ func (hc *HealthChecker) WaitForHealthyWithPID(port int, formationID string, pid
 			// Try to read log files for details (check both stdout and stderr)
 			if logFile != "" {
 				var logContent string
-				// Try stdout log first (most errors go here)
-				if content, err := readLastLines(logFile, 50); err == nil && content != "" {
+				// Try stdout log first (most errors go here) - just last 15 lines
+				if content, err := readLastLines(logFile, 15); err == nil && content != "" {
 					logContent = content
 				}
-				// Also check stderr log
-				errFile := logFile[:len(logFile)-8] + "-err.log" // Replace -out.log with -err.log
-				if content, err := readLastLines(errFile, 20); err == nil && content != "" {
-					if logContent != "" {
-						logContent += "\n\n--- STDERR ---\n" + content
-					} else {
+				// Also check stderr log if stdout was empty
+				if logContent == "" {
+					errFile := logFile[:len(logFile)-8] + "-err.log" // Replace -out.log with -err.log
+					if content, err := readLastLines(errFile, 15); err == nil && content != "" {
 						logContent = content
 					}
 				}
