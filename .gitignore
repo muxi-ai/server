@@ -43,3 +43,4 @@ temp/
 .muxi-server/
 *.pid
 .claude/
+test-formation.tar.gz

@@ -50,21 +50,24 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 
 	var sse *SSEWriter
 	var progress *ProgressEmitter
+	sseInitialized := false
 
-	if wantsSSE {
-		var ok bool
-		sse, ok = NewSSEWriter(w)
-		if !ok {
-			RespondError(w, http.StatusInternalServerError, "Streaming not supported")
-			return
+	// Helper to initialize SSE (delayed until after body is read)
+	initSSE := func() {
+		if wantsSSE && !sseInitialized {
+			var ok bool
+			sse, ok = NewSSEWriter(w)
+			if ok {
+				sse.Init()
+				sseInitialized = true
+			}
+			progress = NewProgressEmitter(sse)
 		}
-		sse.Init()
 	}
-	progress = NewProgressEmitter(sse)
 
 	// Helper to respond with error (handles both SSE and regular responses)
 	respondErr := func(status int, stage DeployStage, errType, message string) {
-		if wantsSSE {
+		if wantsSSE && sseInitialized {
 			progress.Error(ErrorEvent{
 				Error:   errType,
 				Message: message,
@@ -113,17 +116,11 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 
 	// === Now proceed with body processing ===
 
-	// Emit extracting progress
-	progress.Emit(ProgressEvent{
-		Stage:   StageExtracting,
-		Message: "Extracting bundle...",
-	})
-
 	// Create temporary file for uploaded bundle
 	tmpFile, err := os.CreateTemp("", "formation-*.tar.gz")
 	if err != nil {
 		s.logger.Error().Err(err).Msg("Failed to create temp file")
-		respondErr(http.StatusInternalServerError, StageExtracting, "TempFileError", "Failed to create temp file")
+		RespondError(w, http.StatusInternalServerError, "Failed to create temp file")
 		return
 	}
 	defer os.Remove(tmpFile.Name())
@@ -132,10 +129,19 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 	// Copy uploaded data to temp file
 	if _, err := io.Copy(tmpFile, r.Body); err != nil {
 		s.logger.Error().Err(err).Msg("Failed to save uploaded bundle")
-		respondErr(http.StatusInternalServerError, StageExtracting, "UploadError", "Failed to save bundle")
+		RespondError(w, http.StatusInternalServerError, "Failed to save bundle")
 		return
 	}
 	tmpFile.Close()
+
+	// Now that body is fully read, we can initialize SSE streaming
+	initSSE()
+
+	// Emit extracting progress
+	progress.Emit(ProgressEvent{
+		Stage:   StageExtracting,
+		Message: "Extracting bundle...",
+	})
 
 	// Create temporary extraction directory
 	extractDir, err := os.MkdirTemp("", "formation-extract-*")

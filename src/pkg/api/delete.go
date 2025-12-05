@@ -22,10 +22,10 @@ func (s *Server) HandleDelete(w http.ResponseWriter, r *http.Request) {
 	// Check if formation exists
 	formation, err := s.registry.Get(formationID)
 	if err != nil {
-		log.Warn().
-			Err(err).
+		// DELETE is idempotent - not finding a resource is not a warning
+		log.Debug().
 			Str("formation_id", formationID).
-			Msg("Formation not found")
+			Msg("Formation not found (already deleted or never existed)")
 		RespondError(w, http.StatusNotFound, "Formation not found")
 		return
 	}
