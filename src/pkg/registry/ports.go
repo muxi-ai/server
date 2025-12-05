@@ -63,13 +63,24 @@ func (pp *PortPool) Allocate(formationID string) (int, error) {
 }
 
 // isPortAvailable checks if a port is available at the OS level
+// Checks both 0.0.0.0 (Docker binding) and 127.0.0.1 (local binding)
 func isPortAvailable(port int) bool {
-	addr := fmt.Sprintf("127.0.0.1:%d", port)
+	// Check 0.0.0.0 (what Docker uses)
+	addr := fmt.Sprintf("0.0.0.0:%d", port)
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
 		return false
 	}
 	listener.Close()
+	
+	// Also check 127.0.0.1 (what native formations use)
+	addr = fmt.Sprintf("127.0.0.1:%d", port)
+	listener, err = net.Listen("tcp", addr)
+	if err != nil {
+		return false
+	}
+	listener.Close()
+	
 	// Small delay to ensure port is fully released
 	time.Sleep(10 * time.Millisecond)
 	return true
