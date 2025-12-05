@@ -195,10 +195,10 @@ func Spawn(config SpawnConfig) (*Process, error) {
 		Msg("✓ Process spawned")
 
 	// Build health check URL if port provided
-	// Runtime returns "Up" HTML page at root endpoint
+	// Runtime exposes health at /v1/health
 	healthCheckURL := ""
 	if config.Port > 0 {
-		healthCheckURL = fmt.Sprintf("http://localhost:%d/", config.Port)
+		healthCheckURL = fmt.Sprintf("http://localhost:%d/v1/health", config.Port)
 	}
 
 	// Create Process struct
