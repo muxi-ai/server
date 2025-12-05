@@ -258,14 +258,15 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 	// Start staging formation on new port
 	stagingProcessID := formationID + "-staging"
 	proc, err := s.processManager.Start(process.SpawnConfig{
-		ID:          stagingProcessID,
-		Name:        formationConfig.Name + " (staging)",
-		Command:     formationConfig.GetDefaultCommand(),
-		Args:        formationConfig.GetDefaultArgs(),
-		Port:        stagingPort,
-		WorkDir:     stagingDir,
-		Env:         envVars,
-		AutoRestart: false, // Don't auto-restart staging
+		ID:                     stagingProcessID,
+		Name:                   formationConfig.Name + " (staging)",
+		Command:                formationConfig.GetDefaultCommand(),
+		Args:                   formationConfig.GetDefaultArgs(),
+		Port:                   stagingPort,
+		WorkDir:                stagingDir,
+		Env:                    envVars,
+		AutoRestart:            false, // Don't auto-restart staging
+		SkipInitialHealthCheck: true,  // Update handler does its own health check with progress
 	})
 	if err != nil {
 		s.logger.Error().Err(err).Str("id", formationID).Msg("Failed to start staging formation")
@@ -289,7 +290,7 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 	// Health check staging formation
 	healthTimeout := time.Duration(s.config.Formations.Deployment.HealthCheck.Timeout) * time.Second
 	if healthTimeout == 0 {
-		healthTimeout = 120 * time.Second // Default 120 seconds
+		healthTimeout = 300 * time.Second // 5 minutes default
 	}
 	healthInterval := time.Duration(s.config.Formations.Deployment.HealthCheck.Interval) * time.Second
 	if healthInterval == 0 {

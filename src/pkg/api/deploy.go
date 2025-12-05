@@ -275,15 +275,16 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 
 	// Prepare spawn configuration
 	spawnConfig := process.SpawnConfig{
-		ID:          formationID,
-		Name:        formationConfig.Name,
-		Command:     formationConfig.GetDefaultCommand(),
-		Args:        formationConfig.GetDefaultArgs(),
-		Port:        port,
-		WorkDir:     permanentDir,
-		Env:         envVars,
-		AutoRestart: s.config.Formations.AutoRestart,
-		RuntimeType: "native", // Default to native execution
+		ID:                     formationID,
+		Name:                   formationConfig.Name,
+		Command:                formationConfig.GetDefaultCommand(),
+		Args:                   formationConfig.GetDefaultArgs(),
+		Port:                   port,
+		WorkDir:                permanentDir,
+		Env:                    envVars,
+		AutoRestart:            s.config.Formations.AutoRestart,
+		RuntimeType:            "native", // Default to native execution
+		SkipInitialHealthCheck: true,     // Deploy does its own health check with progress
 	}
 
 	// Handle runtime resolution if specified in formation.yaml
@@ -482,7 +483,7 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 	// Wait for formation to become healthy
 	healthTimeout := time.Duration(s.config.Formations.Deployment.HealthCheck.Timeout) * time.Second
 	if healthTimeout == 0 {
-		healthTimeout = 120 * time.Second
+		healthTimeout = 300 * time.Second // 5 minutes default
 	}
 	healthInterval := time.Duration(s.config.Formations.Deployment.HealthCheck.Interval) * time.Second
 	if healthInterval == 0 {

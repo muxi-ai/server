@@ -30,6 +30,9 @@ type SpawnConfig struct {
 	// SIF Runtime support
 	RuntimeType string            // "native" or "singularity"
 	SIFPath     string            // Path to SIF file (if RuntimeType is "singularity")
+
+	// Skip initial health check in monitor (used when deploy does its own health check)
+	SkipInitialHealthCheck bool
 }
 
 // Spawn creates and starts a new process based on the configuration
@@ -204,10 +207,11 @@ func Spawn(config SpawnConfig) (*Process, error) {
 		PIDFile:        pidFile,
 		LogFile:        logFile,
 		ErrorFile:      errFile,
-		AutoRestart:    config.AutoRestart,
-		MaxRestarts:    10, // Default
-		HealthCheckURL: healthCheckURL,
-		cmd:            cmd,
+		AutoRestart:            config.AutoRestart,
+		MaxRestarts:            10, // Default
+		HealthCheckURL:         healthCheckURL,
+		SkipInitialHealthCheck: config.SkipInitialHealthCheck,
+		cmd:                    cmd,
 	}
 
 	return process, nil

@@ -33,10 +33,11 @@ type Process struct {
 	ConfigPath string // Path to formation YAML (future)
 
 	// Configuration
-	AutoRestart    bool // Auto-restart on crash
-	MaxRestarts    int  // Max restart attempts (default: 10)
-	RestartDelay   time.Duration
-	HealthCheckURL string // URL for health checks (e.g., "http://localhost:8001/health")
+	AutoRestart            bool // Auto-restart on crash
+	MaxRestarts            int  // Max restart attempts (default: 10)
+	RestartDelay           time.Duration
+	HealthCheckURL         string // URL for health checks (e.g., "http://localhost:8001/health")
+	SkipInitialHealthCheck bool   // Skip initial health check (deploy does its own)
 
 	// Internal
 	cmd *exec.Cmd // Running command (nil if stopped)

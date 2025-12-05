@@ -60,8 +60,9 @@ func (m *Monitor) run() {
 
 	// Initial health check with retries (formation may take time to start)
 	// Docker + Singularity + Python startup can take 90+ seconds
-	if m.process.HealthCheckURL != "" {
-		maxRetries := 120 // 120 retries * 2 seconds = 240 seconds max startup time
+	// Skip if deploy is doing its own health check with progress callbacks
+	if m.process.HealthCheckURL != "" && !m.process.SkipInitialHealthCheck {
+		maxRetries := 150 // 150 retries * 2 seconds = 300 seconds max startup time
 		for i := 0; i < maxRetries; i++ {
 			time.Sleep(2 * time.Second)
 			
@@ -102,8 +103,14 @@ func (m *Monitor) run() {
 					Msg("Initial health check failed after max retries - status set to running (unhealthy), will keep monitoring")
 			}
 		}
+	} else if m.process.SkipInitialHealthCheck {
+		// Deploy handler does its own health check with progress callbacks
+		// Status will be set by deploy handler after health check completes
+		m.logger.Debug().
+			Str("id", m.process.ID).
+			Msg("Skipping initial health check (deploy handler will do it)")
 	} else {
-		// No health check, assume running
+		// No health check URL, assume running
 		m.process.SetStatus(StatusRunning)
 	}
 
