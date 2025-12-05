@@ -82,10 +82,11 @@ func (f *Formation) ValidateID() error {
 }
 
 // ValidateSecrets checks if secrets are referenced in formation.yaml and validates them
-// Returns an error if secrets are referenced but the secrets file doesn't exist or is missing required secrets
+// Returns an error if secrets are referenced but secrets.enc and .key files don't exist
 func ValidateSecrets(formationDir string) error {
 	formationPath := formationDir + "/formation.yaml"
-	secretsPath := formationDir + "/secrets"
+	secretsEncPath := formationDir + "/secrets.enc"
+	keyPath := formationDir + "/.key"
 
 	// Read formation.yaml content
 	data, err := os.ReadFile(formationPath)
@@ -100,28 +101,14 @@ func ValidateSecrets(formationDir string) error {
 		return nil // No secrets referenced
 	}
 
-	// Check if secrets file exists
-	secretsData, err := os.ReadFile(secretsPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return fmt.Errorf("formation references secrets (%v) but 'secrets' file not found", secretRefs)
-		}
-		return fmt.Errorf("failed to read secrets file: %w", err)
+	// Check if secrets.enc exists
+	if _, err := os.Stat(secretsEncPath); os.IsNotExist(err) {
+		return fmt.Errorf("formation references secrets (%v) but 'secrets.enc' file not found - encrypted secrets are required", secretRefs)
 	}
 
-	// Parse secrets file (format: KEY=value or KEY: value per line)
-	providedSecrets := parseSecretsFile(string(secretsData))
-
-	// Check all referenced secrets are provided
-	var missing []string
-	for _, ref := range secretRefs {
-		if _, ok := providedSecrets[ref]; !ok {
-			missing = append(missing, ref)
-		}
-	}
-
-	if len(missing) > 0 {
-		return fmt.Errorf("missing secrets in 'secrets' file: %v", missing)
+	// Check if .key exists
+	if _, err := os.Stat(keyPath); os.IsNotExist(err) {
+		return fmt.Errorf("formation references secrets (%v) but '.key' file not found - encryption key is required", secretRefs)
 	}
 
 	return nil
@@ -161,36 +148,6 @@ func findSecretsReferences(content string) []string {
 	return refs
 }
 
-// parseSecretsFile parses a secrets file (KEY=value or KEY: value format)
-func parseSecretsFile(content string) map[string]string {
-	secrets := make(map[string]string)
-	lines := splitLines(content)
-
-	for _, line := range lines {
-		line = trimSpace(line)
-		if line == "" || line[0] == '#' {
-			continue
-		}
-
-		// Try KEY=value format
-		if idx := indexOf(line, "="); idx > 0 {
-			key := trimSpace(line[:idx])
-			value := trimSpace(line[idx+1:])
-			secrets[key] = value
-			continue
-		}
-
-		// Try KEY: value format (YAML-style)
-		if idx := indexOf(line, ":"); idx > 0 {
-			key := trimSpace(line[:idx])
-			value := trimSpace(line[idx+1:])
-			secrets[key] = value
-		}
-	}
-
-	return secrets
-}
-
 // Helper functions to avoid importing strings package
 func indexOf(s, substr string) int {
 	for i := 0; i <= len(s)-len(substr); i++ {
@@ -211,21 +168,6 @@ func trimSpace(s string) string {
 		end--
 	}
 	return s[start:end]
-}
-
-func splitLines(s string) []string {
-	var lines []string
-	start := 0
-	for i := 0; i < len(s); i++ {
-		if s[i] == '\n' {
-			lines = append(lines, s[start:i])
-			start = i + 1
-		}
-	}
-	if start < len(s) {
-		lines = append(lines, s[start:])
-	}
-	return lines
 }
 
 // GetDefaultCommand returns the default command to run the formation
