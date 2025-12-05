@@ -45,7 +45,7 @@ jobs:
         id: version
         shell: bash
         run: |
-          VERSION=$(cat .version)
+          VERSION=$(cat src/cmd/server/.version)
           COMMIT=$(git rev-parse --short HEAD)
           BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           
