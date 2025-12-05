@@ -138,8 +138,8 @@ func (hc *HealthChecker) WaitForHealthyWithPID(port int, formationID string, pid
 	return err
 }
 
-// extractErrorSection reads a log file and extracts content after "[ FAIL ]" marker
-// Falls back to last 15 lines if no marker found
+// extractErrorSection reads a log file and extracts error content from the LATEST run
+// Looks for the last "====" separator (start of new run), then finds "[ FAIL ]" or "❌" after it
 func extractErrorSection(filePath string) (string, error) {
 	data, err := os.ReadFile(filePath)
 	if err != nil {
@@ -147,11 +147,27 @@ func extractErrorSection(filePath string) (string, error) {
 	}
 	content := string(data)
 	
-	// Look for LAST "[ FAIL ]" marker
+	// Find the LAST "====" separator (indicates start of latest run)
+	separator := "===================================================================="
+	lastSepIdx := -1
+	for i := len(content) - len(separator); i >= 0; i-- {
+		if i+len(separator) <= len(content) && content[i:i+len(separator)] == separator {
+			lastSepIdx = i
+			break
+		}
+	}
+	
+	// If found, only look at content after the last separator
+	searchContent := content
+	if lastSepIdx >= 0 {
+		searchContent = content[lastSepIdx:]
+	}
+	
+	// Look for "[ FAIL ]" marker in the latest run
 	marker := "[ FAIL ]"
 	idx := -1
-	for i := len(content) - len(marker); i >= 0; i-- {
-		if content[i:i+len(marker)] == marker {
+	for i := len(searchContent) - len(marker); i >= 0; i-- {
+		if searchContent[i:i+len(marker)] == marker {
 			idx = i
 			break
 		}
@@ -159,21 +175,38 @@ func extractErrorSection(filePath string) (string, error) {
 	
 	if idx >= 0 {
 		// Return everything AFTER the marker, trimmed
-		result := content[idx+len(marker):]
-		// Trim leading/trailing whitespace
-		start := 0
-		for start < len(result) && (result[start] == ' ' || result[start] == '\t' || result[start] == '\n' || result[start] == '\r') {
-			start++
-		}
-		end := len(result)
-		for end > start && (result[end-1] == ' ' || result[end-1] == '\t' || result[end-1] == '\n' || result[end-1] == '\r') {
-			end--
-		}
-		return result[start:end], nil
+		result := searchContent[idx+len(marker):]
+		return trimWhitespace(result), nil
 	}
 	
-	// No marker found, fall back to last 15 lines
-	return readLastLines(filePath, 15)
+	// Also check for "❌" marker (Unicode)
+	errorMarker := "❌"
+	for i := len(searchContent) - len(errorMarker); i >= 0; i-- {
+		if i+len(errorMarker) <= len(searchContent) && searchContent[i:i+len(errorMarker)] == errorMarker {
+			idx = i
+			break
+		}
+	}
+	
+	if idx >= 0 {
+		result := searchContent[idx:]
+		return trimWhitespace(result), nil
+	}
+	
+	// No marker found
+	return "", nil
+}
+
+func trimWhitespace(s string) string {
+	start := 0
+	for start < len(s) && (s[start] == ' ' || s[start] == '\t' || s[start] == '\n' || s[start] == '\r') {
+		start++
+	}
+	end := len(s)
+	for end > start && (s[end-1] == ' ' || s[end-1] == '\t' || s[end-1] == '\n' || s[end-1] == '\r') {
+		end--
+	}
+	return s[start:end]
 }
 
 // readLastLines reads the last n lines from a file
