@@ -259,6 +259,26 @@ func (r *Registry) SwitchToStagingPort(formationID string) (int, error) {
 	return oldPort, nil
 }
 
+// GetStagingPort returns the staging port for a formation (0 if none)
+func (r *Registry) GetStagingPort(formationID string) int {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	formation, exists := r.formations[formationID]
+	if !exists {
+		return 0
+	}
+	return formation.StagingPort
+}
+
+// ClearStagingPort clears the staging port for a formation
+// Used when cancelling an in-progress update
+func (r *Registry) ClearStagingPort(formationID string) error {
+	return r.Update(formationID, func(f *Formation) {
+		f.StagingPort = 0
+	})
+}
+
 // triggerChange calls the onChange callback if set
 func (r *Registry) triggerChange() {
 	if r.onChange != nil {
