@@ -70,17 +70,17 @@ func (hc *HealthChecker) WaitForHealthyWithPID(port int, formationID string, pid
 		// Check if process crashed (if PID provided)
 		if pid > 0 && !IsProcessRunning(pid) {
 			errMsg := "Formation process crashed during startup"
-			// Try to read log files for details (check both stdout and stderr)
+			// Try to read log files for details
 			if logFile != "" {
 				var logContent string
-				// Try stdout log first (most errors go here) - just last 15 lines
-				if content, err := readLastLines(logFile, 15); err == nil && content != "" {
+				// Try stdout log first (most errors go here)
+				if content, err := extractErrorSection(logFile); err == nil && content != "" {
 					logContent = content
 				}
-				// Also check stderr log if stdout was empty
+				// Also check stderr log if stdout had no error section
 				if logContent == "" {
 					errFile := logFile[:len(logFile)-8] + "-err.log" // Replace -out.log with -err.log
-					if content, err := readLastLines(errFile, 15); err == nil && content != "" {
+					if content, err := extractErrorSection(errFile); err == nil && content != "" {
 						logContent = content
 					}
 				}
@@ -134,6 +134,44 @@ func (hc *HealthChecker) WaitForHealthyWithPID(port int, formationID string, pid
 		Msg("Formation failed to become healthy")
 
 	return err
+}
+
+// extractErrorSection reads a log file and extracts content after "[ FAIL ]" marker
+// Falls back to last 15 lines if no marker found
+func extractErrorSection(filePath string) (string, error) {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return "", err
+	}
+	content := string(data)
+	
+	// Look for "[ FAIL ]" marker
+	marker := "[ FAIL ]"
+	idx := -1
+	for i := 0; i <= len(content)-len(marker); i++ {
+		if content[i:i+len(marker)] == marker {
+			idx = i
+			break
+		}
+	}
+	
+	if idx >= 0 {
+		// Return everything from the marker onwards, trimmed
+		result := content[idx:]
+		// Trim leading/trailing whitespace
+		start := 0
+		for start < len(result) && (result[start] == ' ' || result[start] == '\t' || result[start] == '\n' || result[start] == '\r') {
+			start++
+		}
+		end := len(result)
+		for end > start && (result[end-1] == ' ' || result[end-1] == '\t' || result[end-1] == '\n' || result[end-1] == '\r') {
+			end--
+		}
+		return result[start:end], nil
+	}
+	
+	// No marker found, fall back to last 15 lines
+	return readLastLines(filePath, 15)
 }
 
 // readLastLines reads the last n lines from a file
