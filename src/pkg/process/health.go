@@ -74,11 +74,22 @@ func (hc *HealthChecker) WaitForHealthyWithPID(port int, formationID string, pid
 			var logContent string
 			var hasFailureMarker bool
 			
-			// Check logs for failure markers (works for both native and containerized)
+			// Check stdout for failure markers (works for both native and containerized)
 			if logFile != "" {
 				if content, err := extractErrorSection(logFile); err == nil && content != "" {
 					logContent = content
 					hasFailureMarker = true
+				}
+				// Also check stderr for errors (Docker errors go here)
+				if logContent == "" {
+					errFile := logFile[:len(logFile)-8] + "-err.log" // Replace -out.log with -err.log
+					if content, err := readLastLines(errFile, 20); err == nil && content != "" {
+						logContent = content
+						// If process is dead and stderr has content, treat as failure
+						if processDead {
+							hasFailureMarker = true
+						}
+					}
 				}
 			}
 			
