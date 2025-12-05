@@ -44,26 +44,58 @@ func (s *Server) HandleDeploy(w http.ResponseWriter, r *http.Request) {
 
 // handleBundleDeploy handles formation bundle (gzipped tarball) deployment
 func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
+	// Check if client wants SSE streaming
+	acceptHeader := r.Header.Get("Accept")
+	wantsSSE := strings.Contains(acceptHeader, "text/event-stream")
+
+	var sse *SSEWriter
+	var progress *ProgressEmitter
+
+	if wantsSSE {
+		var ok bool
+		sse, ok = NewSSEWriter(w)
+		if !ok {
+			RespondError(w, http.StatusInternalServerError, "Streaming not supported")
+			return
+		}
+		sse.Init()
+	}
+	progress = NewProgressEmitter(sse)
+
+	// Helper to respond with error (handles both SSE and regular responses)
+	respondErr := func(status int, stage DeployStage, errType, message string) {
+		if wantsSSE {
+			progress.Error(ErrorEvent{
+				Error:   errType,
+				Message: message,
+				Stage:   stage,
+			})
+		} else {
+			RespondError(w, status, message)
+		}
+	}
+
 	// === Early validation from headers (before reading body) ===
 
 	// Get and validate X-Formation-ID header
 	headerFormationID := r.Header.Get("X-Formation-ID")
 	if headerFormationID == "" {
-		RespondError(w, http.StatusBadRequest,
+		respondErr(http.StatusBadRequest, StageValidating, "MissingHeader",
 			"Missing X-Formation-ID header. Provide the formation ID for early conflict detection.")
 		return
 	}
 
 	// Validate formation ID format
 	if err := registry.ValidateFormationID(headerFormationID); err != nil {
-		RespondError(w, http.StatusBadRequest, fmt.Sprintf("Invalid X-Formation-ID: %v", err))
+		respondErr(http.StatusBadRequest, StageValidating, "InvalidFormationID",
+			fmt.Sprintf("Invalid X-Formation-ID: %v", err))
 		return
 	}
 
 	// Check if formation already exists (early conflict detection)
 	if _, err := s.registry.Get(headerFormationID); err == nil {
 		s.logger.Warn().Str("id", headerFormationID).Msg("Formation already exists (early check)")
-		RespondError(w, http.StatusConflict,
+		respondErr(http.StatusConflict, StageValidating, "FormationExists",
 			fmt.Sprintf("Formation '%s' already exists. Use PUT to update.", headerFormationID))
 		return
 	}
@@ -81,11 +113,17 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 
 	// === Now proceed with body processing ===
 
+	// Emit extracting progress
+	progress.Emit(ProgressEvent{
+		Stage:   StageExtracting,
+		Message: "Extracting bundle...",
+	})
+
 	// Create temporary file for uploaded bundle
 	tmpFile, err := os.CreateTemp("", "formation-*.tar.gz")
 	if err != nil {
 		s.logger.Error().Err(err).Msg("Failed to create temp file")
-		RespondError(w, http.StatusInternalServerError, "Failed to create temp file")
+		respondErr(http.StatusInternalServerError, StageExtracting, "TempFileError", "Failed to create temp file")
 		return
 	}
 	defer os.Remove(tmpFile.Name())
@@ -94,7 +132,7 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 	// Copy uploaded data to temp file
 	if _, err := io.Copy(tmpFile, r.Body); err != nil {
 		s.logger.Error().Err(err).Msg("Failed to save uploaded bundle")
-		RespondError(w, http.StatusInternalServerError, "Failed to save bundle")
+		respondErr(http.StatusInternalServerError, StageExtracting, "UploadError", "Failed to save bundle")
 		return
 	}
 	tmpFile.Close()
@@ -103,7 +141,7 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 	extractDir, err := os.MkdirTemp("", "formation-extract-*")
 	if err != nil {
 		s.logger.Error().Err(err).Msg("Failed to create extraction directory")
-		RespondError(w, http.StatusInternalServerError, "Failed to create extraction directory")
+		respondErr(http.StatusInternalServerError, StageExtracting, "ExtractDirError", "Failed to create extraction directory")
 		return
 	}
 	defer os.RemoveAll(extractDir)
@@ -112,16 +150,22 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 	formationDir, err := formation.ExtractBundle(tmpFile.Name(), extractDir)
 	if err != nil {
 		s.logger.Error().Err(err).Msg("Failed to extract bundle")
-		RespondError(w, http.StatusBadRequest, fmt.Sprintf("Failed to extract bundle: %v", err))
+		respondErr(http.StatusBadRequest, StageExtracting, "ExtractError", fmt.Sprintf("Failed to extract bundle: %v", err))
 		return
 	}
+
+	// Emit validating progress
+	progress.Emit(ProgressEvent{
+		Stage:   StageValidating,
+		Message: "Validating formation.yaml...",
+	})
 
 	// Parse formation.yaml
 	formationYAMLPath := filepath.Join(formationDir, "formation.yaml")
 	formationConfig, err := formation.ParseFormationYAML(formationYAMLPath)
 	if err != nil {
 		s.logger.Error().Err(err).Msg("Failed to parse formation.yaml")
-		RespondError(w, http.StatusBadRequest, fmt.Sprintf("Failed to parse formation.yaml: %v", err))
+		respondErr(http.StatusBadRequest, StageValidating, "ParseError", fmt.Sprintf("Failed to parse formation.yaml: %v", err))
 		return
 	}
 
@@ -138,7 +182,7 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 			Str("header_id", headerFormationID).
 			Str("bundle_id", formationID).
 			Msg("Formation ID mismatch between header and bundle")
-		RespondError(w, http.StatusBadRequest,
+		respondErr(http.StatusBadRequest, StageValidating, "IDMismatch",
 			fmt.Sprintf("Formation ID mismatch: header says '%s' but bundle contains '%s'",
 				headerFormationID, formationID))
 		return
@@ -154,7 +198,7 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 			Str("header_version", headerVersion).
 			Str("bundle_version", bundleVersion).
 			Msg("Formation version mismatch between header and bundle")
-		RespondError(w, http.StatusBadRequest,
+		respondErr(http.StatusBadRequest, StageValidating, "VersionMismatch",
 			fmt.Sprintf("Formation version mismatch: header says '%s' but bundle contains '%s'",
 				headerVersion, bundleVersion))
 		return
@@ -174,7 +218,7 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 	port, err := s.registry.AllocatePort(formationID)
 	if err != nil {
 		s.logger.Error().Err(err).Msg("Failed to allocate port")
-		RespondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to allocate port: %v", err))
+		respondErr(http.StatusInternalServerError, StageValidating, "PortAllocationError", fmt.Sprintf("Failed to allocate port: %v", err))
 		return
 	}
 
@@ -183,7 +227,7 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		s.logger.Error().Err(err).Msg("Failed to get MUXI directory")
 		s.registry.ReleasePort(port)
-		RespondError(w, http.StatusInternalServerError, "Failed to get MUXI directory")
+		respondErr(http.StatusInternalServerError, StageValidating, "DirectoryError", "Failed to get MUXI directory")
 		return
 	}
 
@@ -191,7 +235,7 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 	if err := os.MkdirAll(filepath.Dir(permanentDir), 0755); err != nil {
 		s.logger.Error().Err(err).Msg("Failed to create formations directory")
 		s.registry.ReleasePort(port)
-		RespondError(w, http.StatusInternalServerError, "Failed to create formations directory")
+		respondErr(http.StatusInternalServerError, StageValidating, "DirectoryError", "Failed to create formations directory")
 		return
 	}
 
@@ -199,7 +243,7 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 	if err := os.Rename(formationDir, permanentDir); err != nil {
 		s.logger.Error().Err(err).Msg("Failed to move formation to permanent location")
 		s.registry.ReleasePort(port)
-		RespondError(w, http.StatusInternalServerError, "Failed to move formation")
+		respondErr(http.StatusInternalServerError, StageValidating, "MoveError", "Failed to move formation")
 		return
 	}
 
@@ -228,6 +272,12 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 
 	// Handle runtime resolution if specified in formation.yaml
 	if formationConfig.MuxiRuntime != "" {
+		// Emit resolving runtime progress
+		progress.Emit(ProgressEvent{
+			Stage:   StageResolvingRuntime,
+			Message: "Resolving runtime version...",
+		})
+
 		s.logger.Info().
 			Str("id", formationID).
 			Str("runtime_constraint", formationConfig.MuxiRuntime).
@@ -239,7 +289,7 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 			s.logger.Error().Err(err).Msg("Failed to get MUXI directory")
 			s.registry.ReleasePort(port)
 			os.RemoveAll(permanentDir)
-			RespondError(w, http.StatusInternalServerError, "Failed to get MUXI directory")
+			respondErr(http.StatusInternalServerError, StageResolvingRuntime, "DirectoryError", "Failed to get MUXI directory")
 			return
 		}
 
@@ -248,7 +298,7 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 			s.logger.Error().Err(err).Msg("Failed to create runtimes directory")
 			s.registry.ReleasePort(port)
 			os.RemoveAll(permanentDir)
-			RespondError(w, http.StatusInternalServerError, "Failed to create runtimes directory")
+			respondErr(http.StatusInternalServerError, StageResolvingRuntime, "DirectoryError", "Failed to create runtimes directory")
 			return
 		}
 
@@ -272,7 +322,7 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 				Msg("Failed to resolve runtime version")
 			s.registry.ReleasePort(port)
 			os.RemoveAll(permanentDir)
-			RespondError(w, http.StatusBadRequest, fmt.Sprintf("Failed to resolve runtime version: %v", err))
+			respondErr(http.StatusBadRequest, StageResolvingRuntime, "ResolveError", fmt.Sprintf("Failed to resolve runtime version: %v", err))
 			return
 		}
 
@@ -280,6 +330,13 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 			Str("constraint", formationConfig.MuxiRuntime).
 			Str("resolved", resolvedVersion).
 			Msg("Resolved runtime version")
+
+		// Emit resolved version progress
+		progress.Emit(ProgressEvent{
+			Stage:   StageResolvingRuntime,
+			Message: fmt.Sprintf("Resolved runtime version: %s", resolvedVersion),
+			Version: resolvedVersion,
+		})
 
 		// Create downloader for auto-download
 		downloader := runtime.NewDownloader(
@@ -292,6 +349,12 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 		// Ensure SIF exists (download if missing and auto_download enabled)
 		var sifPath string
 		if s.config.Runtime.AutoDownload {
+			// Emit downloading SIF progress
+			progress.Emit(ProgressEvent{
+				Stage:   StageDownloadingSIF,
+				Message: "Checking/downloading SIF runtime...",
+			})
+
 			sifPath, err = downloader.EnsureSIF(resolvedVersion)
 			if err != nil {
 				s.logger.Error().
@@ -300,8 +363,16 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 					Msg("Failed to ensure SIF file")
 				s.registry.ReleasePort(port)
 				os.RemoveAll(permanentDir)
-				RespondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to download runtime: %v", err))
+				respondErr(http.StatusInternalServerError, StageDownloadingSIF, "DownloadError", fmt.Sprintf("Failed to download runtime: %v", err))
 				return
+			}
+
+			// Emit pulling runner progress (macOS/Windows)
+			if goruntime.GOOS != "linux" {
+				progress.Emit(ProgressEvent{
+					Stage:   StagePullingRunner,
+					Message: "Checking/pulling runtime-runner Docker image...",
+				})
 			}
 
 			// Also ensure runtime-runner is available (macOS/Windows)
@@ -309,7 +380,7 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 				s.logger.Error().Err(err).Msg("Failed to ensure runtime-runner")
 				s.registry.ReleasePort(port)
 				os.RemoveAll(permanentDir)
-				RespondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to pull runtime-runner: %v", err))
+				respondErr(http.StatusInternalServerError, StagePullingRunner, "PullError", fmt.Sprintf("Failed to pull runtime-runner: %v", err))
 				return
 			}
 		} else {
@@ -322,7 +393,7 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 					Msg("Runtime SIF file not found (auto_download disabled)")
 				s.registry.ReleasePort(port)
 				os.RemoveAll(permanentDir)
-				RespondError(w, http.StatusNotFound,
+				respondErr(http.StatusNotFound, StageDownloadingSIF, "RuntimeNotFound",
 					fmt.Sprintf("Runtime %s not found at %s. Enable auto_download or manually install.", resolvedVersion, sifPath))
 				return
 			}
@@ -359,13 +430,19 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Emit spawning progress
+	progress.Emit(ProgressEvent{
+		Stage:   StageSpawning,
+		Message: "Starting formation. It might take 1-2 minutes.",
+	})
+
 	// Spawn process with environment variables
 	proc, err := s.processManager.Start(spawnConfig)
 	if err != nil {
 		s.logger.Error().Err(err).Str("id", formationID).Msg("Failed to spawn process")
 		s.registry.ReleasePort(port)
 		os.RemoveAll(permanentDir)
-		RespondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to spawn process: %v", err))
+		respondErr(http.StatusInternalServerError, StageSpawning, "SpawnError", fmt.Sprintf("Failed to spawn process: %v", err))
 		return
 	}
 
@@ -376,7 +453,7 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 		s.processManager.Stop(formationID)
 		s.registry.ReleasePort(port)
 		os.RemoveAll(permanentDir)
-		RespondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to register formation: %v", err))
+		respondErr(http.StatusInternalServerError, StageSpawning, "RegisterError", fmt.Sprintf("Failed to register formation: %v", err))
 		return
 	}
 
@@ -397,7 +474,19 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 		PID:         proc.PID,
 	}
 
-	RespondCreated(w, response)
+	if wantsSSE {
+		// Send complete event via SSE
+		progress.Complete(CompleteEvent{
+			FormationID: response.FormationID,
+			Port:        response.Port,
+			Status:      response.Status,
+			URL:         response.URL,
+			HealthURL:   response.HealthURL,
+			PID:         response.PID,
+		})
+	} else {
+		RespondCreated(w, response)
+	}
 }
 
 // getMuxiDir returns the MUXI directory path
