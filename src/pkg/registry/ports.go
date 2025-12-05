@@ -2,7 +2,9 @@ package registry
 
 import (
 	"fmt"
+	"net"
 	"sync"
+	"time"
 )
 
 // PortPool manages a pool of available ports for formations
@@ -45,15 +47,32 @@ func (pp *PortPool) Allocate(formationID string) (int, error) {
 		}
 	}
 
-	// Find next available port
+	// Find next available port (check both internal allocation and OS-level availability)
 	for port := pp.start; port < pp.end; port++ {
 		if _, used := pp.allocated[port]; !used {
-			pp.allocated[port] = formationID
-			return port, nil
+			// Also check if port is actually free at OS level
+			if isPortAvailable(port) {
+				pp.allocated[port] = formationID
+				return port, nil
+			}
+			// Port in use at OS level but not in our registry - skip it
 		}
 	}
 
 	return 0, fmt.Errorf("no available ports in range %d-%d", pp.start, pp.end)
+}
+
+// isPortAvailable checks if a port is available at the OS level
+func isPortAvailable(port int) bool {
+	addr := fmt.Sprintf("127.0.0.1:%d", port)
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		return false
+	}
+	listener.Close()
+	// Small delay to ensure port is fully released
+	time.Sleep(10 * time.Millisecond)
+	return true
 }
 
 // Release releases a port back to the pool
