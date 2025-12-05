@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	goruntime "runtime"
 	"strings"
+	"time"
 
 	"github.com/muxi-ai/server/pkg/formation"
 	"github.com/muxi-ai/server/pkg/process"
@@ -465,12 +466,46 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Emit health check progress
+	progress.Emit(ProgressEvent{
+		Stage:   StageHealthCheck,
+		Message: "Waiting for formation health check...",
+	})
+
+	// Wait for formation to become healthy
+	healthTimeout := time.Duration(s.config.Formations.Deployment.HealthCheck.Timeout) * time.Second
+	if healthTimeout == 0 {
+		healthTimeout = 60 * time.Second
+	}
+	healthInterval := time.Duration(s.config.Formations.Deployment.HealthCheck.Interval) * time.Second
+	if healthInterval == 0 {
+		healthInterval = 1 * time.Second
+	}
+
+	// Wait a bit for formation to initialize
+	time.Sleep(2 * time.Second)
+
+	healthChecker := process.NewHealthChecker(healthTimeout, healthInterval)
+	healthEndpoint := s.config.Formations.Deployment.HealthCheck.Endpoint
+	if healthEndpoint == "" {
+		healthEndpoint = "/health"
+	}
+	healthChecker.Endpoint = healthEndpoint
+
+	if err := healthChecker.WaitForHealthy(port, formationID); err != nil {
+		s.logger.Error().Err(err).Str("id", formationID).Msg("Formation failed health check")
+		// Don't clean up - leave formation running for debugging
+		respondErr(http.StatusBadRequest, StageHealthCheck, "HealthCheckFailed",
+			fmt.Sprintf("Formation started but failed health check: %v", err))
+		return
+	}
+
 	s.logger.Info().
 		Str("id", formationID).
 		Int("port", port).
 		Int("pid", proc.PID).
 		Str("location", permanentDir).
-		Msg("Formation deployed successfully from bundle")
+		Msg("Formation deployed and healthy")
 
 	// Build response
 	response := DeployResponse{
