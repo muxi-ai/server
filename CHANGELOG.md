@@ -2,16 +2,36 @@
 
 All notable changes to MUXI Server will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).  
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 This project uses **[ScalVer (Scalable Calendar Versioning)](https://scalver.org)** - format: `MAJOR.YYYYMMDD.PATCH`
 
 ---
 
 ## [Unreleased]
 
+### SSE Streaming Progress for Update (PUT)
+
+Real-time progress updates for blue-green deployments via Server-Sent Events (SSE).
+
+#### Added
+
+**SSE Streaming for PUT /rpc/formations/{id}:**
+- `Accept: text/event-stream` header triggers streaming mode on updates
+- Update-specific stages: spawning_staging, swapping, stopping_old
+- StagingPort field in progress events
+- PreviousVersion/NewVersion fields in complete events
+- Backwards compatible: without header, behaves as before
+
+#### Fixed
+
+- Fixed directory path resolution in update.go (use getMuxiDir())
+- Added default values for health check config to prevent divide-by-zero panic
+- Version embedded from src/cmd/server/.version at build time (single source of truth)
+- Release workflow auto-bumps version using ScalVer (MAJOR.YYYYMMDD.PATCH)
+
 ---
 
-## [0.20251205.0] - 2025-12-05
+
 
 ### SSE Streaming Progress for Deploy
 

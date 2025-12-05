@@ -1,3 +1,26 @@
+# MUXI Server Release Workflow
+#
+# RELEASE FLOW:
+#   develop → rc (PR) → main (merge) → auto-release
+#
+# VERSION FORMAT (ScalVer):
+#   MAJOR.YYYYMMDD.PATCH
+#   - MAJOR: Manual change only (breaking changes)
+#   - YYYYMMDD: Auto-set to today's date
+#   - PATCH: Auto-incremented (resets to 0 on new day)
+#
+# ON MERGE TO MAIN:
+#   1. Read current version from src/cmd/server/.version
+#   2. Calculate next version:
+#      - Same day? → bump PATCH (0.20251205.0 → 0.20251205.1)
+#      - New day?  → reset to MAJOR.TODAY.0 (0.20251205.1 → 0.20251206.0)
+#   3. Update src/cmd/server/.version (embedded in binary at build time)
+#   4. Update CHANGELOG.md ([Unreleased] → [VERSION] - DATE)
+#   5. Commit & push "chore: release vX.Y.Z"
+#   6. Create git tag vX.Y.Z
+#   7. Build binaries for all platforms
+#   8. Create GitHub Release with artifacts
+#
 name: Release
 
 on:
@@ -9,8 +32,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    # Skip if commit is a version bump (prevent infinite loop)
-    if: "!startsWith(github.event.head_commit.message, 'chore: bump version')"
+    # Skip if commit is a release (prevent infinite loop)
+    if: "!startsWith(github.event.head_commit.message, 'chore: release')"
     
     steps:
       - name: Checkout
@@ -22,43 +45,57 @@ jobs:
       - name: Calculate next version (ScalVer)
         id: version
         run: |
-          # Get last tag
-          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.20000101.0")
+          # Read current version from .version file (embedded in binary)
+          CURRENT_VERSION=$(cat src/cmd/server/.version 2>/dev/null || echo "0.20000101.0")
           
-          # Parse: v0.20251023.0 → 0 20251023 0
-          LAST_TAG=${LAST_TAG#v}  # Remove v prefix
-          MAJOR=$(echo $LAST_TAG | cut -d. -f1)
-          LAST_DATE=$(echo $LAST_TAG | cut -d. -f2)
-          LAST_PATCH=$(echo $LAST_TAG | cut -d. -f3)
+          # Parse: 0.20251205.1 → MAJOR=0, DATE=20251205, PATCH=1
+          MAJOR=$(echo $CURRENT_VERSION | cut -d. -f1)
+          CURRENT_DATE=$(echo $CURRENT_VERSION | cut -d. -f2)
+          CURRENT_PATCH=$(echo $CURRENT_VERSION | cut -d. -f3)
           
           # Today's date
           TODAY=$(date +%Y%m%d)
           
           # Calculate next version (ScalVer: MAJOR.YYYYMMDD.PATCH)
-          if [ "$LAST_DATE" = "$TODAY" ]; then
+          # MAJOR is never auto-bumped (manual change only)
+          if [ "$CURRENT_DATE" = "$TODAY" ]; then
             # Same day - increment patch
-            NEXT_PATCH=$((LAST_PATCH + 1))
+            NEXT_PATCH=$((CURRENT_PATCH + 1))
             NEXT_VERSION="${MAJOR}.${TODAY}.${NEXT_PATCH}"
           else
-            # New day - reset patch
+            # New day - reset to MAJOR.TODAY.0
             NEXT_VERSION="${MAJOR}.${TODAY}.0"
           fi
           
           echo "VERSION=$NEXT_VERSION" >> $GITHUB_OUTPUT
+          echo "CURRENT=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Current version: $CURRENT_VERSION"
           echo "📦 Next version: v$NEXT_VERSION"
       
-      - name: Update .version file
+      - name: Update .version and CHANGELOG
         run: |
-          echo "${{ steps.version.outputs.VERSION }}" > .version
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          TODAY=$(date +%Y-%m-%d)
+          
+          # Update .version file
+          echo "$VERSION" > src/cmd/server/.version
+          
+          # Update CHANGELOG.md - replace [Unreleased] with version and date
+          if grep -q "## \[Unreleased\]" CHANGELOG.md; then
+            sed -i.bak "s/## \[Unreleased\]/## [$VERSION] - $TODAY/" CHANGELOG.md
+            rm -f CHANGELOG.md.bak
+            echo "✓ Updated CHANGELOG.md with version $VERSION"
+          fi
+          
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add .version
+          git add src/cmd/server/.version CHANGELOG.md
           
           # Only commit if there are changes
           if git diff --cached --quiet; then
-            echo "No changes to .version file"
+            echo "No changes to commit"
           else
-            git commit -m "chore: bump version to ${{ steps.version.outputs.VERSION }}"
+            git commit -m "chore: release v$VERSION"
             git push
           fi
       
@@ -97,7 +134,6 @@ jobs:
               echo "  → Building $OS-$ARCH..."
               cd src
               GOOS=$OS GOARCH=$ARCH go build -ldflags "\
-                -X 'main.Version=$VERSION' \
                 -X 'main.GitCommit=$COMMIT' \
                 -X 'main.BuildTime=$BUILD_TIME'" \
                 -o ../dist/muxi-server-$OS-$ARCH ./cmd/server
@@ -110,14 +146,13 @@ jobs:
             echo "  → Building windows-$ARCH..."
             cd src
             GOOS=windows GOARCH=$ARCH go build -ldflags "\
-              -X 'main.Version=$VERSION' \
               -X 'main.GitCommit=$COMMIT' \
               -X 'main.BuildTime=$BUILD_TIME'" \
               -o ../dist/muxi-server-windows-$ARCH.exe ./cmd/server
             cd ..
           done
           
-          echo "✓ All binaries built"
+          echo "✓ All binaries built (version embedded from src/cmd/server/.version)"
           ls -lh dist/
       
       - name: Create GitHub Release

@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"crypto/rand"
+	_ "embed"
 	"encoding/hex"
 	"fmt"
 	"net"
@@ -17,12 +18,24 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Version information (set by build)
+// Version is embedded from .version file at build time
+//
+//go:embed .version
+var embeddedVersion string
+
+// Version information
 var (
-	Version   = "1.0.0-dev"
+	Version   = ""
 	GitCommit = "unknown"
 	BuildTime = "unknown"
 )
+
+func init() {
+	Version = strings.TrimSpace(embeddedVersion)
+	if Version == "" {
+		Version = "0.0.0-dev"
+	}
+}
 
 // ANSI constants for clean output
 const (

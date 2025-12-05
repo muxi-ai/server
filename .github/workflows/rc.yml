@@ -45,7 +45,7 @@ jobs:
         id: version
         shell: bash
         run: |
-          VERSION=$(cat .version)
+          VERSION=$(cat src/cmd/server/.version)
           COMMIT=$(git rev-parse --short HEAD)
           BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           
@@ -61,7 +61,6 @@ jobs:
           cd src
           GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} \
           go build -ldflags "\
-            -X 'main.Version=${{ steps.version.outputs.VERSION }}' \
             -X 'main.GitCommit=${{ steps.version.outputs.COMMIT }}' \
             -X 'main.BuildTime=${{ steps.version.outputs.BUILD_TIME }}'" \
             -o ../muxi-server-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goos == 'windows' && '.exe' || '' }} \
@@ -210,8 +209,9 @@ jobs:
           
           # Cleanup
           Stop-Process -Id $SERVER.Id -Force -ErrorAction SilentlyContinue
+          Start-Sleep -Seconds 2  # Wait for process to fully terminate
           Set-Location ..
-          Remove-Item -Recurse -Force $TEST_DIR
+          Remove-Item -Recurse -Force $TEST_DIR -ErrorAction SilentlyContinue
           
           Write-Host "✓ Integration tests passed"
       

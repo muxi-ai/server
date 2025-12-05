@@ -6,10 +6,11 @@ import (
 	"net/http"
 )
 
-// DeployStage represents the current stage of deployment
+// DeployStage represents the current stage of deployment/update
 type DeployStage string
 
 const (
+	// Common stages (deploy and update)
 	StageExtracting       DeployStage = "extracting"
 	StageValidating       DeployStage = "validating"
 	StageResolvingRuntime DeployStage = "resolving_runtime"
@@ -17,6 +18,11 @@ const (
 	StagePullingRunner    DeployStage = "pulling_runner"
 	StageSpawning         DeployStage = "spawning"
 	StageHealthCheck      DeployStage = "health_check"
+
+	// Update-specific stages (blue-green deployment)
+	StageSpawningStaging DeployStage = "spawning_staging"
+	StageSwapping        DeployStage = "swapping"
+	StageStoppingOld     DeployStage = "stopping_old"
 )
 
 // ProgressEvent represents a progress update during deployment
@@ -28,16 +34,19 @@ type ProgressEvent struct {
 	Version     string      `json:"version,omitempty"`      // For resolving_runtime
 	Attempt     *int        `json:"attempt,omitempty"`      // For health_check
 	MaxAttempts *int        `json:"max_attempts,omitempty"` // For health_check
+	StagingPort *int        `json:"staging_port,omitempty"` // For spawning_staging (update)
 }
 
-// CompleteEvent represents successful deployment completion
+// CompleteEvent represents successful deployment/update completion
 type CompleteEvent struct {
-	FormationID string `json:"formation_id"`
-	Port        int    `json:"port"`
-	Status      string `json:"status"`
-	URL         string `json:"url"`
-	HealthURL   string `json:"health_url,omitempty"`
-	PID         int    `json:"pid,omitempty"`
+	FormationID     string `json:"formation_id"`
+	Port            int    `json:"port"`
+	Status          string `json:"status"`
+	URL             string `json:"url"`
+	HealthURL       string `json:"health_url,omitempty"`
+	PID             int    `json:"pid,omitempty"`
+	PreviousVersion string `json:"previous_version,omitempty"` // For updates
+	NewVersion      string `json:"new_version,omitempty"`      // For updates
 }
 
 // ErrorEvent represents a deployment failure
