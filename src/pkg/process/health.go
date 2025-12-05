@@ -26,7 +26,7 @@ func NewHealthChecker(timeout, interval time.Duration) *HealthChecker {
 	}
 
 	return &HealthChecker{
-		Endpoint:   "/health",
+		Endpoint:   "/v1/health",
 		Timeout:    timeout,
 		Interval:   interval,
 		MaxRetries: maxRetries,
@@ -105,7 +105,7 @@ func (hc *HealthChecker) WaitForHealthyWithPID(port int, formationID string, pid
 					Bool("process_dead", processDead).
 					Bool("failure_marker", hasFailureMarker).
 					Msg("Formation process crashed")
-				return fmt.Errorf(errMsg)
+				return fmt.Errorf("%s", errMsg)
 			}
 		}
 

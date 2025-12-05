@@ -12,8 +12,8 @@ import (
 func TestHealthChecker_Success(t *testing.T) {
 	// Mock HTTP server returning 200 OK
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/health" {
-			t.Errorf("Expected path /health, got %s", r.URL.Path)
+		if r.URL.Path != "/v1/health" {
+			t.Errorf("Expected path /v1/health, got %s", r.URL.Path)
 		}
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status": "healthy"}`))
