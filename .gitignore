@@ -44,3 +44,4 @@ temp/
 *.pid
 .claude/
 test-formation.tar.gz
+test-formation-v2.tar.gz
