@@ -281,7 +281,7 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 	// Health check staging formation
 	healthTimeout := time.Duration(s.config.Formations.Deployment.HealthCheck.Timeout) * time.Second
 	if healthTimeout == 0 {
-		healthTimeout = 60 * time.Second // Default 60 seconds
+		healthTimeout = 120 * time.Second // Default 120 seconds
 	}
 	healthInterval := time.Duration(s.config.Formations.Deployment.HealthCheck.Interval) * time.Second
 	if healthInterval == 0 {

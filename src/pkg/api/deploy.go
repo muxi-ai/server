@@ -475,7 +475,7 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 	// Wait for formation to become healthy
 	healthTimeout := time.Duration(s.config.Formations.Deployment.HealthCheck.Timeout) * time.Second
 	if healthTimeout == 0 {
-		healthTimeout = 60 * time.Second
+		healthTimeout = 120 * time.Second
 	}
 	healthInterval := time.Duration(s.config.Formations.Deployment.HealthCheck.Interval) * time.Second
 	if healthInterval == 0 {
