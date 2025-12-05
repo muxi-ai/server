@@ -32,9 +32,17 @@ func NewHealthChecker(timeout, interval time.Duration) *HealthChecker {
 	}
 }
 
+// HealthCheckProgress is called during health check attempts
+type HealthCheckProgress func(attempt, maxAttempts int)
+
 // WaitForHealthy polls the formation's health endpoint until healthy or timeout
 // Returns nil if the formation becomes healthy, error otherwise
 func (hc *HealthChecker) WaitForHealthy(port int, formationID string) error {
+	return hc.WaitForHealthyWithProgress(port, formationID, nil)
+}
+
+// WaitForHealthyWithProgress polls with a progress callback
+func (hc *HealthChecker) WaitForHealthyWithProgress(port int, formationID string, onProgress HealthCheckProgress) error {
 	deadline := time.Now().Add(hc.Timeout)
 	attempt := 0
 
@@ -47,6 +55,11 @@ func (hc *HealthChecker) WaitForHealthy(port int, formationID string) error {
 
 	for time.Now().Before(deadline) && attempt < hc.MaxRetries {
 		attempt++
+
+		// Notify progress callback
+		if onProgress != nil {
+			onProgress(attempt, hc.MaxRetries)
+		}
 
 		// Try health check
 		if err := hc.checkHealth(port); err == nil {

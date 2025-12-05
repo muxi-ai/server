@@ -492,11 +492,21 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 	}
 	healthChecker.Endpoint = healthEndpoint
 
-	if err := healthChecker.WaitForHealthy(port, formationID); err != nil {
-		s.logger.Error().Err(err).Str("id", formationID).Msg("Formation failed health check")
+	// Health check with progress callback
+	healthErr := healthChecker.WaitForHealthyWithProgress(port, formationID, func(attempt, maxAttempts int) {
+		progress.Emit(ProgressEvent{
+			Stage:       StageHealthCheck,
+			Message:     fmt.Sprintf("Health check attempt %d/%d...", attempt, maxAttempts),
+			Attempt:     &attempt,
+			MaxAttempts: &maxAttempts,
+		})
+	})
+
+	if healthErr != nil {
+		s.logger.Error().Err(healthErr).Str("id", formationID).Msg("Formation failed health check")
 		// Don't clean up - leave formation running for debugging
 		respondErr(http.StatusBadRequest, StageHealthCheck, "HealthCheckFailed",
-			fmt.Sprintf("Formation started but failed health check: %v", err))
+			fmt.Sprintf("Formation started but failed health check: %v", healthErr))
 		return
 	}
 
