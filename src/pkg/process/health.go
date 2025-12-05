@@ -49,8 +49,8 @@ func (hc *HealthChecker) WaitForHealthyWithProgress(port int, formationID string
 
 // WaitForHealthyWithPID polls with process crash detection
 // If pid > 0, checks if process is still running and fails fast if it crashed
-// If errFile is provided, reads it on crash for error details
-func (hc *HealthChecker) WaitForHealthyWithPID(port int, formationID string, pid int, errFile string, onProgress HealthCheckProgress) error {
+// If logFile is provided, reads it on crash for error details (checks both stdout and stderr)
+func (hc *HealthChecker) WaitForHealthyWithPID(port int, formationID string, pid int, logFile string, onProgress HealthCheckProgress) error {
 	deadline := time.Now().Add(hc.Timeout)
 	attempt := 0
 
@@ -70,10 +70,24 @@ func (hc *HealthChecker) WaitForHealthyWithPID(port int, formationID string, pid
 		// Check if process crashed (if PID provided)
 		if pid > 0 && !IsProcessRunning(pid) {
 			errMsg := "Formation process crashed during startup"
-			// Try to read error log for details
-			if errFile != "" {
-				if errContent, err := readLastLines(errFile, 50); err == nil && errContent != "" {
-					errMsg = fmt.Sprintf("Formation crashed during startup. Last error output:\n%s", errContent)
+			// Try to read log files for details (check both stdout and stderr)
+			if logFile != "" {
+				var logContent string
+				// Try stdout log first (most errors go here)
+				if content, err := readLastLines(logFile, 50); err == nil && content != "" {
+					logContent = content
+				}
+				// Also check stderr log
+				errFile := logFile[:len(logFile)-8] + "-err.log" // Replace -out.log with -err.log
+				if content, err := readLastLines(errFile, 20); err == nil && content != "" {
+					if logContent != "" {
+						logContent += "\n\n--- STDERR ---\n" + content
+					} else {
+						logContent = content
+					}
+				}
+				if logContent != "" {
+					errMsg = fmt.Sprintf("Formation crashed during startup:\n%s", logContent)
 				}
 			}
 			log.Error().
