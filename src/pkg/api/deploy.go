@@ -504,9 +504,12 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 
 	if healthErr != nil {
 		s.logger.Error().Err(healthErr).Str("id", formationID).Msg("Formation failed health check")
-		// Don't clean up - leave formation running for debugging
+		// Clean up: stop process and unregister
+		s.processManager.Stop(formationID)
+		s.registry.Unregister(formationID)
+		s.registry.ReleasePort(port)
 		respondErr(http.StatusBadRequest, StageHealthCheck, "HealthCheckFailed",
-			fmt.Sprintf("Formation started but failed health check: %v", healthErr))
+			fmt.Sprintf("Formation failed health check after %v: %v", healthTimeout, healthErr))
 		return
 	}
 
