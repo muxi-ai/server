@@ -145,10 +145,10 @@ func extractErrorSection(filePath string) (string, error) {
 	}
 	content := string(data)
 	
-	// Look for "[ FAIL ]" marker
+	// Look for LAST "[ FAIL ]" marker
 	marker := "[ FAIL ]"
 	idx := -1
-	for i := 0; i <= len(content)-len(marker); i++ {
+	for i := len(content) - len(marker); i >= 0; i-- {
 		if content[i:i+len(marker)] == marker {
 			idx = i
 			break
