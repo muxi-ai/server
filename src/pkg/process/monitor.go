@@ -61,7 +61,7 @@ func (m *Monitor) run() {
 	// Initial health check with retries (formation may take time to start)
 	// Docker + Singularity + Python startup can take 90+ seconds
 	if m.process.HealthCheckURL != "" {
-		maxRetries := 60 // 60 retries * 2 seconds = 120 seconds max startup time
+		maxRetries := 120 // 120 retries * 2 seconds = 240 seconds max startup time
 		for i := 0; i < maxRetries; i++ {
 			time.Sleep(2 * time.Second)
 			
