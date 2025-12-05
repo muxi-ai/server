@@ -29,7 +29,7 @@ type FormationInfo struct {
 	PID          int          `json:"pid"`
 	Uptime       int64        `json:"uptime"`
 	RestartCount int          `json:"restart_count"`
-	Healthy      bool         `json:"healthy"`
+	Healthy      *bool        `json:"healthy,omitempty"` // nil when status is "starting"
 	Version      *VersionInfo `json:"version,omitempty"`
 }
 
@@ -61,6 +61,12 @@ func (s *Server) HandleList(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		// Only include health status when not starting (unknown during startup)
+		var healthy *bool
+		if f.Status != "starting" {
+			healthy = &f.Healthy
+		}
+
 		formationInfos = append(formationInfos, FormationInfo{
 			ID:           f.ID,
 			Name:         f.Name,
@@ -69,7 +75,7 @@ func (s *Server) HandleList(w http.ResponseWriter, r *http.Request) {
 			PID:          f.ProcessID,
 			Uptime:       uptimeSeconds,
 			RestartCount: f.RestartCount,
-			Healthy:      f.Healthy,
+			Healthy:      healthy,
 			Version:      versionInfo,
 		})
 	}

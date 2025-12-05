@@ -75,12 +75,16 @@ func (s *Server) HandleGet(w http.ResponseWriter, r *http.Request) {
 		"status":        f.Status,
 		"port":          f.Port,
 		"pid":           f.ProcessID,
-		"healthy":       f.Healthy,
 		"restart_count": f.RestartCount,
 		"uptime":        uptimeSeconds,
 		"created_at":    f.DeployedAt,
 		"deployed_at":   f.DeployedAt,
 		"updated_at":    f.StartedAt, // Use StartedAt as last update time
+	}
+
+	// Only include health when not starting (unknown during startup)
+	if f.Status != "starting" {
+		response["healthy"] = f.Healthy
 	}
 
 	// Add version info if available
