@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -17,6 +18,42 @@ import (
 // Updates a formation to a new version using zero-downtime blue-green deployment
 func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 	formationID := mux.Vars(r)["id"]
+
+	// Check if client wants SSE streaming
+	acceptHeader := r.Header.Get("Accept")
+	wantsSSE := strings.Contains(acceptHeader, "text/event-stream")
+
+	var sse *SSEWriter
+	sseInitialized := false
+
+	// Initialize progress emitter (no-op until SSE is initialized)
+	progress := NewProgressEmitter(nil)
+
+	// Helper to initialize SSE (delayed until after body is read)
+	initSSE := func() {
+		if wantsSSE && !sseInitialized {
+			var ok bool
+			sse, ok = NewSSEWriter(w)
+			if ok {
+				sse.Init()
+				sseInitialized = true
+				progress = NewProgressEmitter(sse)
+			}
+		}
+	}
+
+	// Helper to respond with error (handles both SSE and regular responses)
+	respondErr := func(status int, stage DeployStage, errType, message string) {
+		if wantsSSE && sseInitialized {
+			progress.Error(ErrorEvent{
+				Error:   errType,
+				Message: message,
+				Stage:   stage,
+			})
+		} else {
+			RespondError(w, status, message)
+		}
+	}
 
 	// Optional: X-Formation-Version header (defaults to "1.0.0")
 	headerVersion := r.Header.Get("X-Formation-Version")
@@ -70,6 +107,15 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 	tmpFile.Close()
 
+	// Now that body is fully read, we can initialize SSE streaming
+	initSSE()
+
+	// Emit extracting progress
+	progress.Emit(ProgressEvent{
+		Stage:   StageExtracting,
+		Message: "Extracting bundle to staging...",
+	})
+
 	// Get formation base directory
 	muxiDir, err := s.config.Formations.FormationsDir, nil
 	if muxiDir == "" {
@@ -81,7 +127,7 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 	history, err := formation.LoadVersionHistory(formationBaseDir)
 	if err != nil {
 		s.logger.Error().Err(err).Msg("Failed to load version history")
-		RespondError(w, http.StatusInternalServerError, "Failed to load version history")
+		respondErr(http.StatusInternalServerError, StageExtracting, "HistoryError", "Failed to load version history")
 		return
 	}
 
@@ -89,7 +135,7 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 	stagingPort, err := s.registry.AllocatePort(formationID + "-staging")
 	if err != nil {
 		s.logger.Error().Err(err).Msg("No available ports for staging")
-		RespondError(w, http.StatusInsufficientStorage, "No available ports for staging deployment")
+		respondErr(http.StatusInsufficientStorage, StageExtracting, "PortAllocationError", "No available ports for staging deployment")
 		return
 	}
 	defer func() {
@@ -108,7 +154,7 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 	// Update registry with staging port
 	if err := s.registry.SetStagingPort(formationID, stagingPort); err != nil {
 		s.logger.Error().Err(err).Msg("Failed to set staging port")
-		RespondError(w, http.StatusInternalServerError, "Failed to set staging port")
+		respondErr(http.StatusInternalServerError, StageExtracting, "RegistryError", "Failed to set staging port")
 		return
 	}
 
@@ -121,7 +167,7 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 	if _, err := os.Stat(stagingDir); err == nil {
 		if err := os.RemoveAll(stagingDir); err != nil {
 			s.logger.Error().Err(err).Msg("Failed to remove old staging")
-			RespondError(w, http.StatusInternalServerError, "Failed to clean staging directory")
+			respondErr(http.StatusInternalServerError, StageExtracting, "CleanupError", "Failed to clean staging directory")
 			return
 		}
 	}
@@ -130,7 +176,7 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 	extractDir, err := os.MkdirTemp("", "formation-extract-*")
 	if err != nil {
 		s.logger.Error().Err(err).Msg("Failed to create extraction directory")
-		RespondError(w, http.StatusInternalServerError, "Failed to create extraction directory")
+		respondErr(http.StatusInternalServerError, StageExtracting, "ExtractDirError", "Failed to create extraction directory")
 		return
 	}
 	defer os.RemoveAll(extractDir)
@@ -138,16 +184,22 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 	newFormationDir, err := formation.ExtractBundle(tmpFile.Name(), extractDir)
 	if err != nil {
 		s.logger.Error().Err(err).Msg("Failed to extract bundle")
-		RespondError(w, http.StatusBadRequest, fmt.Sprintf("Failed to extract bundle: %v", err))
+		respondErr(http.StatusBadRequest, StageExtracting, "ExtractError", fmt.Sprintf("Failed to extract bundle: %v", err))
 		return
 	}
 
 	// Move extracted formation to staging/
 	if err := os.Rename(newFormationDir, stagingDir); err != nil {
 		s.logger.Error().Err(err).Msg("Failed to move new version to staging")
-		RespondError(w, http.StatusInternalServerError, "Failed to move new version to staging")
+		respondErr(http.StatusInternalServerError, StageExtracting, "MoveError", "Failed to move new version to staging")
 		return
 	}
+
+	// Emit validating progress
+	progress.Emit(ProgressEvent{
+		Stage:   StageValidating,
+		Message: "Validating formation.yaml...",
+	})
 
 	// Parse staging formation.yaml
 	formationYAMLPath := filepath.Join(stagingDir, "formation.yaml")
@@ -155,7 +207,7 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		s.logger.Error().Err(err).Msg("Failed to parse formation.yaml")
 		os.RemoveAll(stagingDir)
-		RespondError(w, http.StatusBadRequest, fmt.Sprintf("Failed to parse formation.yaml: %v", err))
+		respondErr(http.StatusBadRequest, StageValidating, "ParseError", fmt.Sprintf("Failed to parse formation.yaml: %v", err))
 		return
 	}
 
@@ -170,7 +222,7 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 			Str("bundle_version", bundleVersion).
 			Msg("Formation version mismatch between header and bundle")
 		os.RemoveAll(stagingDir)
-		RespondError(w, http.StatusBadRequest,
+		respondErr(http.StatusBadRequest, StageValidating, "VersionMismatch",
 			fmt.Sprintf("Formation version mismatch: header says '%s' but bundle contains '%s'",
 				headerVersion, bundleVersion))
 		return
@@ -185,6 +237,13 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 	// Get environment variables (use staging port)
 	serverURL := fmt.Sprintf("http://localhost:%d", s.config.Server.Port)
 	envVars := formationConfig.GetEnvironmentVars(stagingPort, serverURL, s.config.Formations.BindHost)
+
+	// Emit spawning staging progress
+	progress.Emit(ProgressEvent{
+		Stage:       StageSpawningStaging,
+		Message:     fmt.Sprintf("Starting staging version on port %d", stagingPort),
+		StagingPort: &stagingPort,
+	})
 
 	// Start staging formation on new port
 	stagingProcessID := formationID + "-staging"
@@ -201,7 +260,7 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		s.logger.Error().Err(err).Str("id", formationID).Msg("Failed to start staging formation")
 		os.RemoveAll(stagingDir)
-		RespondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to start staging formation: %v", err))
+		respondErr(http.StatusInternalServerError, StageSpawningStaging, "SpawnError", fmt.Sprintf("Failed to start staging formation: %v", err))
 		return
 	}
 
@@ -210,6 +269,12 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 		Int("staging_port", stagingPort).
 		Int("staging_pid", proc.PID).
 		Msg("Staging formation started, beginning health checks")
+
+	// Emit health check progress
+	progress.Emit(ProgressEvent{
+		Stage:   StageHealthCheck,
+		Message: "Waiting for staging health check...",
+	})
 
 	// Health check staging formation
 	healthTimeout := time.Duration(s.config.Formations.Deployment.HealthCheck.Timeout) * time.Second
@@ -239,7 +304,7 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 		// Clean up staging directory
 		os.RemoveAll(stagingDir)
 
-		RespondError(w, http.StatusBadRequest, 
+		respondErr(http.StatusBadRequest, StageHealthCheck, "HealthCheckFailed",
 			fmt.Sprintf("New version failed health check: %v. Old version still running - zero downtime maintained.", healthErr))
 		return
 	}
@@ -250,6 +315,12 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 		Int("staging_port", stagingPort).
 		Msg("Staging formation is healthy - switching to new version")
 
+	// Emit swapping progress
+	progress.Emit(ProgressEvent{
+		Stage:   StageSwapping,
+		Message: "Switching traffic to new version...",
+	})
+
 	// Switch active port in registry (atomic operation)
 	oldPort, err := s.registry.SwitchToStagingPort(formationID)
 	if err != nil {
@@ -257,9 +328,15 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 		// Kill staging and clean up
 		s.processManager.ForceKill(stagingProcessID)
 		os.RemoveAll(stagingDir)
-		RespondError(w, http.StatusInternalServerError, "Failed to switch ports")
+		respondErr(http.StatusInternalServerError, StageSwapping, "SwitchError", "Failed to switch ports")
 		return
 	}
+
+	// Emit stopping old progress
+	progress.Emit(ProgressEvent{
+		Stage:   StageStoppingOld,
+		Message: "Stopping old version...",
+	})
 
 	// Stop old formation (with timeout for force kill)
 	stopErr := s.processManager.Stop(formationID)
@@ -321,16 +398,28 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 		Int("pid", proc.PID).
 		Msg("✓ Zero-downtime deployment successful")
 
-	response := map[string]interface{}{
-		"id":               formationID,
-		"status":           "running",
-		"version":          newVersion,
-		"previous_version": history.PreviousVersion,
-		"port":             oldPort, // Now using the port that was staging
-		"pid":              proc.PID,
-		"message":          "Formation updated with zero downtime",
-		"deployment_type":  "blue-green",
-	}
+	if wantsSSE {
+		// Send complete event via SSE
+		progress.Complete(CompleteEvent{
+			FormationID:     formationID,
+			Port:            oldPort, // Now using the port that was staging
+			Status:          "running",
+			URL:             fmt.Sprintf("http://localhost:%d/api/%s", s.config.Server.Port, formationID),
+			PreviousVersion: fmt.Sprintf("%d", history.PreviousVersion),
+			NewVersion:      fmt.Sprintf("%d", newVersion),
+		})
+	} else {
+		response := map[string]interface{}{
+			"id":               formationID,
+			"status":           "running",
+			"version":          newVersion,
+			"previous_version": history.PreviousVersion,
+			"port":             oldPort, // Now using the port that was staging
+			"pid":              proc.PID,
+			"message":          "Formation updated with zero downtime",
+			"deployment_type":  "blue-green",
+		}
 
-	RespondSuccess(w, response)
+		RespondSuccess(w, response)
+	}
 }
