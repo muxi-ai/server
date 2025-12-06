@@ -247,20 +247,22 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	permanentDir := filepath.Join(muxiDir, "formations", formationID)
-	if err := os.MkdirAll(filepath.Dir(permanentDir), 0755); err != nil {
+	formationBaseDir := filepath.Join(muxiDir, "formations", formationID)
+	currentDir := filepath.Join(formationBaseDir, "current")
+
+	if err := os.MkdirAll(formationBaseDir, 0755); err != nil {
 		s.logger.Error().Err(err).Msg("Failed to create formations directory")
 		s.registry.ReleasePort(port)
 		respondErr(http.StatusInternalServerError, StageValidating, "DirectoryError", "Failed to create formations directory")
 		return
 	}
 
-	// Remove existing directory if it exists (leftover from failed deploy)
-	if _, err := os.Stat(permanentDir); err == nil {
+	// Remove existing current directory if it exists (leftover from failed deploy)
+	if _, err := os.Stat(currentDir); err == nil {
 		s.logger.Warn().
-			Str("path", permanentDir).
+			Str("path", currentDir).
 			Msg("Removing leftover formation directory from previous failed deploy")
-		if err := os.RemoveAll(permanentDir); err != nil {
+		if err := os.RemoveAll(currentDir); err != nil {
 			s.logger.Error().Err(err).Msg("Failed to remove existing formation directory")
 			s.registry.ReleasePort(port)
 			respondErr(http.StatusInternalServerError, StageValidating, "CleanupError", "Failed to clean up existing formation directory")
@@ -268,13 +270,33 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Move extracted directory to permanent location
-	if err := os.Rename(formationDir, permanentDir); err != nil {
+	// Move extracted directory to current/
+	if err := os.Rename(formationDir, currentDir); err != nil {
 		s.logger.Error().Err(err).Msg("Failed to move formation to permanent location")
 		s.registry.ReleasePort(port)
 		respondErr(http.StatusInternalServerError, StageValidating, "MoveError", "Failed to move formation")
 		return
 	}
+
+	// Create initial version history
+	bundleData, _ := os.ReadFile(tmpFile.Name())
+	bundleHash := formation.ComputeBundleHash(bundleData)
+	versionHistory := &formation.VersionHistory{
+		CurrentVersion: 1,
+		Current: &formation.Version{
+			Version:    1,
+			DeployedAt: time.Now(),
+			BundleHash: bundleHash,
+			BackupPath: "current",
+		},
+	}
+	if err := versionHistory.Save(formationBaseDir); err != nil {
+		s.logger.Error().Err(err).Msg("Failed to save version history")
+		// Don't fail deploy for this - it's not critical
+	}
+
+	// Use currentDir as the working directory for the formation
+	permanentDir := currentDir
 
 	// Get environment variables from formation
 	// On macOS/Windows (Docker), use 0.0.0.0 so formation is accessible from host
@@ -319,7 +341,7 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			s.logger.Error().Err(err).Msg("Failed to get MUXI directory")
 			s.registry.ReleasePort(port)
-			os.RemoveAll(permanentDir)
+			os.RemoveAll(formationBaseDir)
 			respondErr(http.StatusInternalServerError, StageResolvingRuntime, "DirectoryError", "Failed to get MUXI directory")
 			return
 		}
@@ -328,7 +350,7 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 		if err := os.MkdirAll(runtimesDir, 0755); err != nil {
 			s.logger.Error().Err(err).Msg("Failed to create runtimes directory")
 			s.registry.ReleasePort(port)
-			os.RemoveAll(permanentDir)
+			os.RemoveAll(formationBaseDir)
 			respondErr(http.StatusInternalServerError, StageResolvingRuntime, "DirectoryError", "Failed to create runtimes directory")
 			return
 		}
@@ -352,7 +374,7 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 				Str("constraint", formationConfig.MuxiRuntime).
 				Msg("Failed to resolve runtime version")
 			s.registry.ReleasePort(port)
-			os.RemoveAll(permanentDir)
+			os.RemoveAll(formationBaseDir)
 			respondErr(http.StatusBadRequest, StageResolvingRuntime, "ResolveError", fmt.Sprintf("Failed to resolve runtime version: %v", err))
 			return
 		}
@@ -388,7 +410,7 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 					Str("version", resolvedVersion).
 					Msg("Failed to ensure SIF file")
 				s.registry.ReleasePort(port)
-				os.RemoveAll(permanentDir)
+				os.RemoveAll(formationBaseDir)
 				respondErr(http.StatusInternalServerError, StageDownloadingSIF, "DownloadError", fmt.Sprintf("Failed to download runtime: %v", err))
 				return
 			}
@@ -406,7 +428,7 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				s.logger.Error().Err(err).Msg("Failed to ensure runtime-runner")
 				s.registry.ReleasePort(port)
-				os.RemoveAll(permanentDir)
+				os.RemoveAll(formationBaseDir)
 				respondErr(http.StatusInternalServerError, StagePullingRunner, "PullError", fmt.Sprintf("Failed to pull runtime-runner: %v", err))
 				return
 			}
@@ -427,7 +449,7 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 					Str("path", sifPath).
 					Msg("Runtime SIF file not found (auto_download disabled)")
 				s.registry.ReleasePort(port)
-				os.RemoveAll(permanentDir)
+				os.RemoveAll(formationBaseDir)
 				respondErr(http.StatusNotFound, StageDownloadingSIF, "RuntimeNotFound",
 					fmt.Sprintf("Runtime %s not found at %s. Enable auto_download or manually install.", resolvedVersion, sifPath))
 				return
@@ -476,7 +498,7 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		s.logger.Error().Err(err).Str("id", formationID).Msg("Failed to spawn process")
 		s.registry.ReleasePort(port)
-		os.RemoveAll(permanentDir)
+		os.RemoveAll(formationBaseDir)
 		respondErr(http.StatusInternalServerError, StageSpawning, "SpawnError", fmt.Sprintf("Failed to spawn process: %v", err))
 		return
 	}
@@ -488,7 +510,7 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 		s.logger.Error().Err(err).Str("id", formationID).Msg("Failed to register formation")
 		s.processManager.Stop(formationID)
 		s.registry.ReleasePort(port)
-		os.RemoveAll(permanentDir)
+		os.RemoveAll(formationBaseDir)
 		respondErr(http.StatusInternalServerError, StageSpawning, "RegisterError", fmt.Sprintf("Failed to register formation: %v", err))
 		return
 	}
@@ -537,7 +559,7 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 		}
 		s.registry.Unregister(formationID)
 		s.registry.ReleasePort(port)
-		os.RemoveAll(permanentDir)
+		os.RemoveAll(formationBaseDir)
 		respondErr(http.StatusBadRequest, StageHealthCheck, "HealthCheckFailed",
 			fmt.Sprintf("Formation failed health check after %v: %v", healthTimeout, healthErr))
 		return
