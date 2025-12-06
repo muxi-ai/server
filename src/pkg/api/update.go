@@ -6,12 +6,14 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	goruntime "runtime"
 	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/muxi-ai/server/pkg/formation"
 	"github.com/muxi-ai/server/pkg/process"
+	"github.com/muxi-ai/server/pkg/runtime"
 )
 
 // HandleUpdate handles PUT /rpc/formations/{id}
@@ -245,19 +247,16 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get environment variables (use staging port)
+	bindHost := s.config.Formations.BindHost
+	if goruntime.GOOS == "darwin" || goruntime.GOOS == "windows" {
+		bindHost = "0.0.0.0"
+	}
 	serverURL := fmt.Sprintf("http://localhost:%d", s.config.Server.Port)
-	envVars := formationConfig.GetEnvironmentVars(stagingPort, serverURL, s.config.Formations.BindHost)
+	envVars := formationConfig.GetEnvironmentVars(stagingPort, serverURL, bindHost)
 
-	// Emit spawning staging progress
-	progress.Emit(ProgressEvent{
-		Stage:       StageSpawningStaging,
-		Message:     fmt.Sprintf("Starting staging version on port %d", stagingPort),
-		StagingPort: &stagingPort,
-	})
-
-	// Start staging formation on new port
+	// Build spawn config
 	stagingProcessID := formationID + "-staging"
-	proc, err := s.processManager.Start(process.SpawnConfig{
+	spawnConfig := process.SpawnConfig{
 		ID:                     stagingProcessID,
 		Name:                   formationConfig.Name + " (staging)",
 		Command:                formationConfig.GetDefaultCommand(),
@@ -267,7 +266,116 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 		Env:                    envVars,
 		AutoRestart:            false, // Don't auto-restart staging
 		SkipInitialHealthCheck: true,  // Update handler does its own health check with progress
+		RuntimeType:            "native",
+	}
+
+	// Handle runtime resolution if specified in formation.yaml
+	if formationConfig.MuxiRuntime != "" {
+		progress.Emit(ProgressEvent{
+			Stage:   StageResolvingRuntime,
+			Message: fmt.Sprintf("Resolving runtime version: %s", formationConfig.MuxiRuntime),
+		})
+
+		muxiDir, err := getMuxiDir()
+		if err != nil {
+			os.RemoveAll(stagingDir)
+			respondErr(http.StatusInternalServerError, StageResolvingRuntime, "DirectoryError", err.Error())
+			return
+		}
+
+		runtimesDir := filepath.Join(muxiDir, "runtimes")
+		if err := os.MkdirAll(runtimesDir, 0755); err != nil {
+			os.RemoveAll(stagingDir)
+			respondErr(http.StatusInternalServerError, StageResolvingRuntime, "RuntimeError", err.Error())
+			return
+		}
+
+		runtimeRegistryPath := filepath.Join(runtimesDir, "registry.json")
+		runtimeRegistry := runtime.NewRegistry(runtimeRegistryPath)
+		if err := runtimeRegistry.Load(); err != nil {
+			s.logger.Warn().Err(err).Msg("Failed to load runtimes registry")
+		}
+
+		availableVersions := runtimeRegistry.List()
+		resolver := runtime.NewResolver(availableVersions, runtimesDir)
+
+		resolvedVersion, err := resolver.Resolve(formationConfig.MuxiRuntime)
+		if err != nil {
+			os.RemoveAll(stagingDir)
+			respondErr(http.StatusInternalServerError, StageResolvingRuntime, "RuntimeError", err.Error())
+			return
+		}
+
+		progress.Emit(ProgressEvent{
+			Stage:   StageResolvingRuntime,
+			Message: fmt.Sprintf("Resolved runtime version: %s", resolvedVersion),
+			Version: resolvedVersion,
+		})
+
+		// Create downloader for auto-download
+		downloader := runtime.NewDownloader(
+			s.config.Runtime.SIFBaseURL,
+			s.config.Runtime.RuntimeRunnerImage,
+			runtimesDir,
+			s.logger,
+		)
+
+		var sifPath string
+		if s.config.Runtime.AutoDownload {
+			progress.Emit(ProgressEvent{
+				Stage:   StageDownloadingSIF,
+				Message: "Checking/downloading SIF runtime...",
+			})
+
+			sifPath, err = downloader.EnsureSIF(resolvedVersion)
+			if err != nil {
+				os.RemoveAll(stagingDir)
+				respondErr(http.StatusInternalServerError, StageDownloadingSIF, "DownloadError", fmt.Sprintf("Failed to download runtime: %v", err))
+				return
+			}
+
+			if goruntime.GOOS != "linux" {
+				progress.Emit(ProgressEvent{
+					Stage:   StagePullingRunner,
+					Message: "Checking/pulling runtime-runner Docker image...",
+				})
+			}
+
+			if err := downloader.EnsureRuntimeRunner(); err != nil {
+				os.RemoveAll(stagingDir)
+				respondErr(http.StatusInternalServerError, StagePullingRunner, "PullError", fmt.Sprintf("Failed to pull runtime-runner: %v", err))
+				return
+			}
+		} else {
+			sifPath = resolver.GetSIFPath(resolvedVersion)
+			if _, err := os.Stat(sifPath); os.IsNotExist(err) {
+				os.RemoveAll(stagingDir)
+				respondErr(http.StatusNotFound, StageDownloadingSIF, "RuntimeNotFound",
+					fmt.Sprintf("Runtime %s not found at %s. Enable auto_download or manually install.", resolvedVersion, sifPath))
+				return
+			}
+		}
+
+		spawnConfig.RuntimeType = "singularity"
+		spawnConfig.SIFPath = sifPath
+		spawnConfig.Command = "python"
+		spawnConfig.Args = []string{
+			"-m", "muxi.utils.run_formation",
+			"/formation/formation.yaml",
+			"--port", fmt.Sprintf("%d", stagingPort),
+			"--host", bindHost,
+		}
+	}
+
+	// Emit spawning staging progress
+	progress.Emit(ProgressEvent{
+		Stage:       StageSpawningStaging,
+		Message:     fmt.Sprintf("Starting staging version on port %d", stagingPort),
+		StagingPort: &stagingPort,
 	})
+
+	// Start staging formation on new port
+	proc, err := s.processManager.Start(spawnConfig)
 	if err != nil {
 		s.logger.Error().Err(err).Str("id", formationID).Msg("Failed to start staging formation")
 		os.RemoveAll(stagingDir)
