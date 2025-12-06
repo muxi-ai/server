@@ -137,6 +137,8 @@ func Spawn(config SpawnConfig) (*Process, error) {
 			cmd = buildNativeSingularityCommand(config, logger)
 		} else {
 			// Docker wrapper for macOS/Windows
+			// Clean up any existing containers first (handles orphans from crashes/restarts)
+			CleanupDockerContainer(config.ID, config.Port, logger)
 			cmd = buildDockerSingularityCommand(config, logger)
 		}
 	} else {
@@ -297,10 +299,14 @@ func buildDockerSingularityCommand(config SpawnConfig, logger *zerolog.Logger) *
 	// It allows running SIF files on platforms where Singularity isn't available natively
 	runtimeRunnerImage := "ghcr.io/muxi-ai/runtime-runner:latest"
 
+	// Container name for easy cleanup
+	containerName := fmt.Sprintf("muxi-%s", config.ID)
+
 	args := []string{
 		"run",
-		"--rm",         // Remove container after exit
-		"--privileged", // Required for Singularity user namespaces
+		"--rm",                  // Remove container after exit
+		"--name", containerName, // Named container for cleanup
+		"--privileged",          // Required for Singularity user namespaces
 
 		// Mount SIF file from host into Docker container
 		"-v", fmt.Sprintf("%s:/sif/runtime.sif:ro", config.SIFPath),
@@ -349,8 +355,49 @@ func buildDockerSingularityCommand(config SpawnConfig, logger *zerolog.Logger) *
 		Str("platform", runtime.GOOS).
 		Str("sif_path", config.SIFPath).
 		Str("runtime_runner", runtimeRunnerImage).
+		Str("container_name", containerName).
 		Strs("docker_args", args).
 		Msg("Spawning formation via runtime-runner (Docker + Singularity + SIF)")
 
 	return exec.Command("docker", args...)
+}
+
+// CleanupDockerContainer stops and removes any existing Docker container for a formation.
+// This handles orphaned containers from crashes, restarts, or server restarts.
+// It first tries to stop by container name (muxi-{id}), then as fallback kills anything on the port.
+func CleanupDockerContainer(formationID string, port int, logger *zerolog.Logger) {
+	containerName := fmt.Sprintf("muxi-%s", formationID)
+
+	// Try to stop and remove by name first
+	if out, err := exec.Command("docker", "stop", containerName).CombinedOutput(); err == nil {
+		logger.Debug().
+			Str("container", containerName).
+			Msg("Stopped existing Docker container")
+	} else {
+		// Container might not exist, that's fine
+		logger.Debug().
+			Str("container", containerName).
+			Str("output", strings.TrimSpace(string(out))).
+			Msg("No existing container to stop (or already stopped)")
+	}
+
+	// Remove the container (in case --rm didn't clean it up)
+	exec.Command("docker", "rm", "-f", containerName).Run()
+
+	// Fallback: kill any container using this port (handles edge cases)
+	out, err := exec.Command("docker", "ps", "-q", "--filter", fmt.Sprintf("publish=%d", port)).Output()
+	if err == nil && len(strings.TrimSpace(string(out))) > 0 {
+		containerIDs := strings.TrimSpace(string(out))
+		logger.Warn().
+			Str("containers", containerIDs).
+			Int("port", port).
+			Msg("Found orphaned containers on port, removing")
+		
+		for _, id := range strings.Split(containerIDs, "\n") {
+			id = strings.TrimSpace(id)
+			if id != "" {
+				exec.Command("docker", "rm", "-f", id).Run()
+			}
+		}
+	}
 }
