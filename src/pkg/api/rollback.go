@@ -18,17 +18,19 @@ import (
 
 // Rollback stages
 const (
-	StageRollbackValidating DeployStage = "validating"
-	StageRollbackStopping   DeployStage = "stopping"
-	StageRollbackSwapping   DeployStage = "swapping"
+	StageRollbackValidating    DeployStage = "validating"
+	StageRollbackSpawnPrevious DeployStage = "spawning_previous"
+	StageRollbackStopping      DeployStage = "stopping_current"
+	StageRollbackSwapping      DeployStage = "swapping"
 )
 
 // HandleRollback handles POST /rpc/formations/{id}/rollback
-// Rolls back a formation to its previous version
+// Uses blue-green deployment: starts previous version on staging port,
+// health checks it, then switches over (keeping current running until previous is healthy)
 func (s *Server) HandleRollback(w http.ResponseWriter, r *http.Request) {
 	formationID := mux.Vars(r)["id"]
 
-	s.logger.Info().Str("id", formationID).Msg("Rolling back formation")
+	s.logger.Info().Str("id", formationID).Msg("Rolling back formation (blue-green)")
 
 	// Check if client wants SSE
 	acceptHeader := r.Header.Get("Accept")
@@ -104,7 +106,6 @@ func (s *Server) HandleRollback(w http.ResponseWriter, r *http.Request) {
 
 	currentDir := filepath.Join(formationBaseDir, "current")
 	previousDir := filepath.Join(formationBaseDir, "previous")
-	tempDir := filepath.Join(formationBaseDir, "temp")
 
 	// Ensure both directories exist
 	if _, err := os.Stat(currentDir); os.IsNotExist(err) {
@@ -118,90 +119,54 @@ func (s *Server) HandleRollback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Stage: Stopping current formation
-	progress.Emit(ProgressEvent{
-		Stage:   StageRollbackStopping,
-		Message: "Stopping current formation...",
-	})
-
-	if err := s.processManager.Stop(formationID); err != nil {
-		s.logger.Warn().Err(err).Msg("Failed to stop formation (continuing anyway)")
-	}
-
-	// Stage: Swapping versions
-	progress.Emit(ProgressEvent{
-		Stage:   StageRollbackSwapping,
-		Message: "Swapping to previous version...",
-	})
-
-	// Three-way swap
-	if err := os.Rename(currentDir, tempDir); err != nil {
-		s.logger.Error().Err(err).Msg("Failed to move current to temp")
-		respondErr(http.StatusInternalServerError, StageRollbackSwapping, "SwapError", "Failed to perform rollback (step 1)")
+	// Allocate staging port for previous version (blue-green)
+	stagingPort, err := s.registry.AllocatePort(formationID + "-rollback")
+	if err != nil {
+		s.logger.Error().Err(err).Msg("No available ports for rollback staging")
+		respondErr(http.StatusInsufficientStorage, StageRollbackValidating, "PortAllocationError", "No available ports for rollback")
 		return
 	}
+	defer func() {
+		// Clean up staging port if rollback fails
+		if stagingPort != 0 {
+			s.registry.ReleasePort(stagingPort)
+		}
+	}()
 
-	if err := os.Rename(previousDir, currentDir); err != nil {
-		s.logger.Error().Err(err).Msg("Failed to move previous to current")
-		os.Rename(tempDir, currentDir) // Try to restore
-		respondErr(http.StatusInternalServerError, StageRollbackSwapping, "SwapError", "Failed to perform rollback (step 2)")
-		return
-	}
+	s.logger.Info().
+		Str("id", formationID).
+		Int("current_port", existingFormation.Port).
+		Int("staging_port", stagingPort).
+		Msg("Allocated staging port for blue-green rollback")
 
-	if err := os.Rename(tempDir, previousDir); err != nil {
-		s.logger.Error().Err(err).Msg("Failed to move temp to previous")
-		// Don't fail - the important swap is done
-	}
-
-	// Swap version history
-	tempVersion := history.Current
-	tempVersionNum := history.CurrentVersion
-
-	history.Current = history.Previous
-	history.CurrentVersion = history.PreviousVersion
-
-	history.Previous = tempVersion
-	history.PreviousVersion = tempVersionNum
-
-	if history.Current != nil {
-		history.Current.BackupPath = "current"
-	}
-	if history.Previous != nil {
-		history.Previous.BackupPath = "previous"
-	}
-
-	if err := history.Save(formationBaseDir); err != nil {
-		s.logger.Error().Err(err).Msg("Failed to save version history")
-	}
-
-	// Parse formation.yaml from rolled-back version
-	formationYAMLPath := filepath.Join(currentDir, "formation.yaml")
+	// Parse formation.yaml from PREVIOUS version (we're rolling back to it)
+	formationYAMLPath := filepath.Join(previousDir, "formation.yaml")
 	formationConfig, err := formation.ParseFormationYAML(formationYAMLPath)
 	if err != nil {
-		s.logger.Error().Err(err).Msg("Failed to parse formation.yaml")
-		respondErr(http.StatusInternalServerError, StageRollbackSwapping, "ParseError", fmt.Sprintf("Failed to parse formation.yaml: %v", err))
+		s.logger.Error().Err(err).Msg("Failed to parse formation.yaml from previous version")
+		respondErr(http.StatusInternalServerError, StageRollbackValidating, "ParseError", fmt.Sprintf("Failed to parse formation.yaml: %v", err))
 		return
 	}
 
-	// Get environment variables
-	port := existingFormation.Port
+	// Get environment variables for staging port
 	bindHost := s.config.Formations.BindHost
 	if goruntime.GOOS == "darwin" || goruntime.GOOS == "windows" {
 		bindHost = "0.0.0.0"
 	}
 	serverURL := fmt.Sprintf("http://localhost:%d", s.config.Server.Port)
-	envVars := formationConfig.GetEnvironmentVars(port, serverURL, bindHost)
+	envVars := formationConfig.GetEnvironmentVars(stagingPort, serverURL, bindHost)
 
-	// Build spawn config
+	// Build spawn config for previous version on staging port
+	stagingProcessID := formationID + "-rollback"
 	spawnConfig := process.SpawnConfig{
-		ID:                     formationID,
+		ID:                     stagingProcessID,
 		Name:                   formationConfig.Name,
 		Command:                formationConfig.GetDefaultCommand(),
 		Args:                   formationConfig.GetDefaultArgs(),
-		Port:                   port,
-		WorkDir:                currentDir,
+		Port:                   stagingPort,
+		WorkDir:                previousDir, // Run from previous directory
 		Env:                    envVars,
-		AutoRestart:            s.config.Formations.AutoRestart,
+		AutoRestart:            false, // Don't auto-restart staging
 		RuntimeType:            "native",
 		SkipInitialHealthCheck: true,
 	}
@@ -212,12 +177,6 @@ func (s *Server) HandleRollback(w http.ResponseWriter, r *http.Request) {
 			Stage:   StageResolvingRuntime,
 			Message: "Resolving runtime version...",
 		})
-
-		muxiDir, err := getMuxiDir()
-		if err != nil {
-			respondErr(http.StatusInternalServerError, StageResolvingRuntime, "DirectoryError", err.Error())
-			return
-		}
 
 		runtimesDir := filepath.Join(muxiDir, "runtimes")
 		if err := os.MkdirAll(runtimesDir, 0755); err != nil {
@@ -295,35 +254,28 @@ func (s *Server) HandleRollback(w http.ResponseWriter, r *http.Request) {
 		spawnConfig.Args = []string{
 			"-m", "muxi.utils.run_formation",
 			"/formation/formation.yaml",
-			"--port", fmt.Sprintf("%d", port),
+			"--port", fmt.Sprintf("%d", stagingPort),
 			"--host", bindHost,
 		}
 	}
 
-	// Stage: Spawning
+	// Stage: Spawn previous version on staging port
 	progress.Emit(ProgressEvent{
-		Stage:   StageSpawning,
-		Message: "Starting formation...",
+		Stage:   StageRollbackSpawnPrevious,
+		Message: fmt.Sprintf("Starting previous version on staging port %d...", stagingPort),
 	})
 
-	proc, err := s.processManager.Start(spawnConfig)
+	stagingProc, err := s.processManager.Start(spawnConfig)
 	if err != nil {
-		s.logger.Error().Err(err).Str("id", formationID).Msg("Failed to restart formation")
-		respondErr(http.StatusInternalServerError, StageSpawning, "SpawnError", fmt.Sprintf("Failed to restart formation: %v", err))
+		s.logger.Error().Err(err).Str("id", formationID).Msg("Failed to start previous version")
+		respondErr(http.StatusInternalServerError, StageRollbackSpawnPrevious, "SpawnError", fmt.Sprintf("Failed to start previous version: %v", err))
 		return
 	}
 
-	// Update registry
-	s.registry.Update(formationID, func(f *registry.Formation) {
-		f.ProcessID = proc.PID
-		f.Status = "starting"
-		f.Version = formationConfig.Version
-	})
-
-	// Stage: Health check
+	// Stage: Health check staging
 	progress.Emit(ProgressEvent{
 		Stage:   StageHealthCheck,
-		Message: "Waiting for formation health check...",
+		Message: "Waiting for previous version health check...",
 	})
 
 	time.Sleep(2 * time.Second)
@@ -333,7 +285,7 @@ func (s *Server) HandleRollback(w http.ResponseWriter, r *http.Request) {
 	healthChecker := process.NewHealthChecker(healthTimeout, healthInterval)
 	healthChecker.Endpoint = "/v1/health"
 
-	healthErr := healthChecker.WaitForHealthyWithPID(port, formationID, proc.PID, proc.LogFile, func(attempt, maxAttempts int) {
+	healthErr := healthChecker.WaitForHealthyWithPID(stagingPort, stagingProcessID, stagingProc.PID, stagingProc.LogFile, func(attempt, maxAttempts int) {
 		progress.Emit(ProgressEvent{
 			Stage:       StageHealthCheck,
 			Message:     fmt.Sprintf("Health check attempt %d/%d...", attempt, maxAttempts),
@@ -343,27 +295,137 @@ func (s *Server) HandleRollback(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if healthErr != nil {
-		s.logger.Error().Err(healthErr).Str("id", formationID).Msg("Formation failed health check after rollback")
-		respondErr(http.StatusInternalServerError, StageHealthCheck, "HealthCheckFailed", healthErr.Error())
+		s.logger.Error().Err(healthErr).Str("id", formationID).Msg("Previous version failed health check")
+		// Kill staging process
+		s.processManager.ForceKill(stagingProcessID)
+		respondErr(http.StatusInternalServerError, StageHealthCheck, "HealthCheckFailed", 
+			fmt.Sprintf("Previous version failed health check: %v. Current version still running.", healthErr))
 		return
 	}
 
-	// Update registry to running
+	s.logger.Info().
+		Str("id", formationID).
+		Int("staging_port", stagingPort).
+		Msg("Previous version is healthy - proceeding with switchover")
+
+	// Stage: Stop current version
+	progress.Emit(ProgressEvent{
+		Stage:   StageRollbackStopping,
+		Message: "Stopping current version...",
+	})
+
+	if err := s.processManager.Stop(formationID); err != nil {
+		s.logger.Warn().Err(err).Msg("Failed to stop current formation gracefully, force killing")
+		if err := s.processManager.ForceKill(formationID); err != nil {
+			s.logger.Error().Err(err).Msg("Failed to force kill current formation (continuing anyway)")
+		}
+	}
+
+	// Stage: Swap directories
+	progress.Emit(ProgressEvent{
+		Stage:   StageRollbackSwapping,
+		Message: "Swapping versions...",
+	})
+
+	// Three-way swap: current -> temp, previous -> current, temp -> previous
+	tempDir := filepath.Join(formationBaseDir, "temp")
+	if err := os.Rename(currentDir, tempDir); err != nil {
+		s.logger.Error().Err(err).Msg("Failed to move current to temp")
+		// Try to keep staging running but this is bad state
+		respondErr(http.StatusInternalServerError, StageRollbackSwapping, "SwapError", "Failed to swap directories")
+		return
+	}
+
+	if err := os.Rename(previousDir, currentDir); err != nil {
+		s.logger.Error().Err(err).Msg("Failed to move previous to current")
+		os.Rename(tempDir, currentDir) // Try to restore
+		respondErr(http.StatusInternalServerError, StageRollbackSwapping, "SwapError", "Failed to swap directories")
+		return
+	}
+
+	if err := os.Rename(tempDir, previousDir); err != nil {
+		s.logger.Error().Err(err).Msg("Failed to move temp to previous")
+		// Don't fail - the important swap is done
+	}
+
+	// Kill staging process (it was running from previousDir which is now currentDir)
+	s.processManager.ForceKill(stagingProcessID)
+
+	// Now start the formation properly from current dir on the original port
+	finalEnvVars := formationConfig.GetEnvironmentVars(existingFormation.Port, serverURL, bindHost)
+	finalSpawnConfig := process.SpawnConfig{
+		ID:                     formationID,
+		Name:                   formationConfig.Name,
+		Command:                formationConfig.GetDefaultCommand(),
+		Args:                   formationConfig.GetDefaultArgs(),
+		Port:                   existingFormation.Port,
+		WorkDir:                currentDir, // Now points to the previous version
+		Env:                    finalEnvVars,
+		AutoRestart:            s.config.Formations.AutoRestart,
+		RuntimeType:            spawnConfig.RuntimeType,
+		SIFPath:                spawnConfig.SIFPath,
+		SkipInitialHealthCheck: true,
+	}
+
+	if formationConfig.MuxiRuntime != "" {
+		finalSpawnConfig.Command = "python"
+		finalSpawnConfig.Args = []string{
+			"-m", "muxi.utils.run_formation",
+			"/formation/formation.yaml",
+			"--port", fmt.Sprintf("%d", existingFormation.Port),
+			"--host", bindHost,
+		}
+	}
+
+	finalProc, err := s.processManager.Start(finalSpawnConfig)
+	if err != nil {
+		s.logger.Error().Err(err).Str("id", formationID).Msg("Failed to start formation on original port")
+		respondErr(http.StatusInternalServerError, StageRollbackSwapping, "SpawnError", fmt.Sprintf("Failed to restart formation: %v", err))
+		return
+	}
+
+	// Update version history
+	tempVersion := history.Current
+	tempVersionNum := history.CurrentVersion
+
+	history.Current = history.Previous
+	history.CurrentVersion = history.PreviousVersion
+
+	history.Previous = tempVersion
+	history.PreviousVersion = tempVersionNum
+
+	if history.Current != nil {
+		history.Current.BackupPath = "current"
+	}
+	if history.Previous != nil {
+		history.Previous.BackupPath = "previous"
+	}
+
+	if err := history.Save(formationBaseDir); err != nil {
+		s.logger.Error().Err(err).Msg("Failed to save version history")
+	}
+
+	// Update registry
 	s.registry.Update(formationID, func(f *registry.Formation) {
+		f.ProcessID = finalProc.PID
 		f.Status = "running"
 		f.Healthy = true
+		f.Version = formationConfig.Version
 	})
+
+	// Clear staging port from defer cleanup
+	stagingPort = 0
 
 	s.logger.Info().
 		Str("id", formationID).
 		Int("version", history.CurrentVersion).
-		Int("pid", proc.PID).
-		Msg("Formation rolled back successfully")
+		Int("pid", finalProc.PID).
+		Msg("Formation rolled back successfully (blue-green)")
 
 	if wantsSSE && sseInitialized {
 		progress.Complete(CompleteEvent{
 			FormationID:     formationID,
-			Port:            port,
+			Port:            existingFormation.Port,
 			Status:          "running",
 			URL:             fmt.Sprintf("http://localhost:%d/api/%s", s.config.Server.Port, formationID),
 			PreviousVersion: fmt.Sprintf("%d", history.PreviousVersion),
@@ -375,7 +437,7 @@ func (s *Server) HandleRollback(w http.ResponseWriter, r *http.Request) {
 			"status":           "running",
 			"version":          history.CurrentVersion,
 			"previous_version": history.PreviousVersion,
-			"pid":              proc.PID,
+			"pid":              finalProc.PID,
 			"message":          "Rolled back to previous version",
 		}
 		RespondSuccess(w, response)
