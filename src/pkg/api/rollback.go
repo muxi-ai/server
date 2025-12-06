@@ -79,11 +79,13 @@ func (s *Server) HandleRollback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get formation base directory
-	muxiDir := s.config.Formations.FormationsDir
-	if muxiDir == "" {
-		muxiDir = "formations"
+	muxiDir, err := getMuxiDir()
+	if err != nil {
+		s.logger.Error().Err(err).Msg("Failed to get MUXI directory")
+		respondErr(http.StatusInternalServerError, StageRollbackValidating, "DirectoryError", "Failed to get MUXI directory")
+		return
 	}
-	formationBaseDir := filepath.Join(muxiDir, formationID)
+	formationBaseDir := filepath.Join(muxiDir, "formations", formationID)
 
 	// Load version history
 	history, err := formation.LoadVersionHistory(formationBaseDir)
