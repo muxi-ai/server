@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
+	"github.com/muxi-ai/server/pkg/registry"
 	"github.com/rs/zerolog/log"
 )
 
@@ -46,6 +47,13 @@ func (s *Server) HandleStop(w http.ResponseWriter, r *http.Request) {
 		RespondError(w, http.StatusInternalServerError, "Failed to stop formation")
 		return
 	}
+
+	// Update registry status
+	s.registry.Update(formationID, func(f *registry.Formation) {
+		f.Status = "stopped"
+		f.Healthy = false
+		f.ProcessID = 0
+	})
 
 	log.Info().
 		Str("formation_id", formationID).
