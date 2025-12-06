@@ -220,6 +220,8 @@ func Spawn(config SpawnConfig) (*Process, error) {
 		MaxRestarts:            10, // Default
 		HealthCheckURL:         healthCheckURL,
 		SkipInitialHealthCheck: config.SkipInitialHealthCheck,
+		RuntimeType:            config.RuntimeType,
+		SIFPath:                config.SIFPath,
 		cmd:                    cmd,
 	}
 

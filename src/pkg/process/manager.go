@@ -178,6 +178,8 @@ func (m *Manager) Restart(id string) (*Process, error) {
 		WorkDir:     oldProc.WorkDir,
 		Port:        extractPortFromURL(oldProc.HealthCheckURL),
 		AutoRestart: oldProc.AutoRestart,
+		RuntimeType: oldProc.RuntimeType,
+		SIFPath:     oldProc.SIFPath,
 	}
 
 	// Stop monitor and process
@@ -273,7 +275,7 @@ func (m *Manager) handleCrash(proc *Process) {
 		Int("restart_count", restartCount).
 		Msg("Auto-restarting process...")
 
-	// Get original config
+	// Get original config (including runtime info for SIF-based formations)
 	config := SpawnConfig{
 		ID:          proc.ID,
 		Name:        proc.Name,
@@ -284,6 +286,8 @@ func (m *Manager) handleCrash(proc *Process) {
 		LogsDir:     filepath.Join(m.baseDir, "logs"),
 		PIDsDir:     filepath.Join(m.baseDir, "pids"),
 		AutoRestart: proc.AutoRestart,
+		RuntimeType: proc.RuntimeType,
+		SIFPath:     proc.SIFPath,
 		Logger:      m.logger,
 	}
 

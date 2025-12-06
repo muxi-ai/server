@@ -39,6 +39,10 @@ type Process struct {
 	HealthCheckURL         string // URL for health checks (e.g., "http://localhost:8001/health")
 	SkipInitialHealthCheck bool   // Skip initial health check (deploy does its own)
 
+	// Runtime configuration (for auto-restart)
+	RuntimeType string // "native" or "singularity"
+	SIFPath     string // Path to SIF file (if RuntimeType is "singularity")
+
 	// Internal
 	cmd *exec.Cmd // Running command (nil if stopped)
 }
