@@ -5,10 +5,12 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	goruntime "runtime"
 
 	"github.com/gorilla/mux"
 	"github.com/muxi-ai/server/pkg/formation"
 	"github.com/muxi-ai/server/pkg/process"
+	"github.com/muxi-ai/server/pkg/runtime"
 )
 
 // HandleRollback handles POST /rpc/formations/{id}/rollback
@@ -123,11 +125,15 @@ func (s *Server) HandleRollback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get environment variables
+	bindHost := s.config.Formations.BindHost
+	if goruntime.GOOS == "darwin" || goruntime.GOOS == "windows" {
+		bindHost = "0.0.0.0"
+	}
 	serverURL := fmt.Sprintf("http://localhost:%d", s.config.Server.Port)
-	envVars := formationConfig.GetEnvironmentVars(existingFormation.Port, serverURL, s.config.Formations.BindHost)
+	envVars := formationConfig.GetEnvironmentVars(existingFormation.Port, serverURL, bindHost)
 
-	// Restart formation with previous version
-	proc, err := s.processManager.Start(process.SpawnConfig{
+	// Build spawn config
+	spawnConfig := process.SpawnConfig{
 		ID:          formationID,
 		Name:        formationConfig.Name,
 		Command:     formationConfig.GetDefaultCommand(),
@@ -136,7 +142,78 @@ func (s *Server) HandleRollback(w http.ResponseWriter, r *http.Request) {
 		WorkDir:     currentDir,
 		Env:         envVars,
 		AutoRestart: s.config.Formations.AutoRestart,
-	})
+		RuntimeType: "native",
+	}
+
+	// Handle runtime resolution if specified
+	if formationConfig.MuxiRuntime != "" {
+		muxiDir, err := getMuxiDir()
+		if err != nil {
+			RespondError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		runtimesDir := filepath.Join(muxiDir, "runtimes")
+		if err := os.MkdirAll(runtimesDir, 0755); err != nil {
+			RespondError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		runtimeRegistryPath := filepath.Join(runtimesDir, "registry.json")
+		runtimeRegistry := runtime.NewRegistry(runtimeRegistryPath)
+		if err := runtimeRegistry.Load(); err != nil {
+			s.logger.Warn().Err(err).Msg("Failed to load runtimes registry")
+		}
+
+		availableVersions := runtimeRegistry.List()
+		resolver := runtime.NewResolver(availableVersions, runtimesDir)
+
+		resolvedVersion, err := resolver.Resolve(formationConfig.MuxiRuntime)
+		if err != nil {
+			RespondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to resolve runtime: %v", err))
+			return
+		}
+
+		// Create downloader for auto-download
+		downloader := runtime.NewDownloader(
+			s.config.Runtime.SIFBaseURL,
+			s.config.Runtime.RuntimeRunnerImage,
+			runtimesDir,
+			s.logger,
+		)
+
+		var sifPath string
+		if s.config.Runtime.AutoDownload {
+			sifPath, err = downloader.EnsureSIF(resolvedVersion)
+			if err != nil {
+				RespondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to download runtime: %v", err))
+				return
+			}
+			if err := downloader.EnsureRuntimeRunner(); err != nil {
+				RespondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to pull runtime-runner: %v", err))
+				return
+			}
+		} else {
+			sifPath = resolver.GetSIFPath(resolvedVersion)
+			if _, err := os.Stat(sifPath); os.IsNotExist(err) {
+				RespondError(w, http.StatusNotFound, fmt.Sprintf("Runtime %s not found", resolvedVersion))
+				return
+			}
+		}
+
+		spawnConfig.RuntimeType = "singularity"
+		spawnConfig.SIFPath = sifPath
+		spawnConfig.Command = "python"
+		spawnConfig.Args = []string{
+			"-m", "muxi.utils.run_formation",
+			"/formation/formation.yaml",
+			"--port", fmt.Sprintf("%d", existingFormation.Port),
+			"--host", bindHost,
+		}
+	}
+
+	// Restart formation with previous version
+	proc, err := s.processManager.Start(spawnConfig)
 	if err != nil {
 		s.logger.Error().Err(err).Str("id", formationID).Msg("Failed to restart formation")
 		RespondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to restart formation: %v", err))
