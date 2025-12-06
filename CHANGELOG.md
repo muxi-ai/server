@@ -7,6 +7,82 @@ This project uses **[ScalVer (Scalable Calendar Versioning)](https://scalver.org
 
 ---
 
+## [Unreleased]
+
+### Blue-Green Deployment & Reliability Improvements
+
+Major improvements to formation lifecycle management, Docker reliability, and SSE streaming.
+
+#### Added
+
+**Blue-Green Rollback:**
+- Rollback uses blue-green deployment pattern for zero-downtime rollbacks
+- Staging process started on temporary port before stopping current
+- Health check on staging before swapping to original port
+- Automatic cleanup on rollback failure (current keeps running)
+
+**SSE Streaming Expansion:**
+- SSE streaming for rollback endpoint (`Accept: text/event-stream`)
+- SSE streaming for restart endpoint
+- SSE log streaming with `follow=true` parameter (like `tail -f`)
+- Health check progress events with attempt/max_attempts
+
+**New Endpoints:**
+- `POST /rpc/formations/{id}/start` - Start a stopped formation
+- `POST /rpc/formations/{id}/cancel-update` - Cancel in-progress updates
+
+**Formation Lifecycle:**
+- Live health check on `GET /rpc/formations` and `GET /rpc/formations/{id}`
+- Formation semantic version returned in GET responses
+- Secrets validation (checks for `secrets.enc` and `.key` when secrets referenced)
+- Fail fast on formation crash with error output in response
+
+**Runtime Improvements:**
+- `EnsureSIF()` and `EnsureRuntimeRunner()` now return whether they downloaded/pulled
+- Progress events only emitted when actually downloading (skip cached runtime events)
+- Accurate "cached" vs "downloaded" messages for runtime components
+
+#### Fixed
+
+**Docker Container Management (macOS/Windows):**
+- Clean up Docker containers before spawning new ones (fixes "port already allocated")
+- Named containers (`muxi-{formation_id}`) for reliable cleanup
+- Fallback cleanup by port for orphaned containers
+
+**Auto-Restart Reliability:**
+- Preserve `RuntimeType` and `SIFPath` on auto-restart (fixes native Python fallback)
+- Wait for port to be released before restarting on original port
+- Preserve restart count across server restarts
+
+**Directory Structure:**
+- Deploy creates `formations/{id}/current/` with `version.json` for rollback support
+- Restore uses `current/` subdirectory correctly
+- Rollback uses correct path to formations directory
+
+**Update Endpoint:**
+- Reject update if bundle is identical to current version (409 Conflict)
+- Update registry with new version, processID, status after success
+
+**Health Checks:**
+- Default timeout increased to 300s
+- Use `/v1/health` as default endpoint
+- Crash detection via PID check AND log markers
+- Check both `0.0.0.0` and `127.0.0.1` for port availability
+
+**Logging:**
+- Truncate log files on new deploy, append on update/restart
+- Extract errors from latest run using `====` separator
+- Reduce crash log output to last 15 lines
+
+**Other Fixes:**
+- Skip stopped formations on server restart
+- Update registry status to "stopped" when stopping formation
+- Clean up leftover formation directory on deploy failure
+- Disable WriteTimeout for SSE streaming
+- Check for `secrets.enc` and `.key` files (not plain secrets file)
+
+---
+
 ## [0.20251205.1] - 2025-12-05
 
 ### SSE Streaming Progress for Update (PUT)
