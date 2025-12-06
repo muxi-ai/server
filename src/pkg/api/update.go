@@ -136,6 +136,17 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check if bundle is identical to current version (no change)
+	newBundleHash := formation.ComputeBundleHash(bundleData)
+	if history.Current != nil && history.Current.BundleHash == newBundleHash {
+		s.logger.Warn().
+			Str("id", formationID).
+			Str("hash", newBundleHash).
+			Msg("Bundle is identical to current version")
+		respondErr(http.StatusConflict, StageValidating, "NoChange", "Bundle is identical to current version - nothing to update")
+		return
+	}
+
 	// Allocate NEW port for staging version (blue-green deployment)
 	stagingPort, err := s.registry.AllocatePort(formationID + "-staging")
 	if err != nil {
@@ -509,7 +520,6 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update version history
-	bundleHash := formation.ComputeBundleHash(bundleData)
 	newVersion := history.CurrentVersion + 1
 
 	history.Previous = history.Current
@@ -517,7 +527,7 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 	history.Current = &formation.Version{
 		Version:    newVersion,
 		DeployedAt: time.Now(),
-		BundleHash: bundleHash,
+		BundleHash: newBundleHash,
 		BackupPath: "current",
 	}
 	if history.Previous != nil {
