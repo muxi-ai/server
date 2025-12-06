@@ -23,6 +23,14 @@ func (s *Server) RestoreFormations() {
 	s.logger.Info().Int("count", len(formations)).Msg("Restoring formations from registry")
 
 	for _, f := range formations {
+		// Skip formations that were explicitly stopped
+		if f.Status == "stopped" {
+			s.logger.Info().
+				Str("id", f.ID).
+				Msg("Skipping stopped formation")
+			continue
+		}
+
 		if err := s.restoreFormation(f.ID, f.Port); err != nil {
 			s.logger.Error().
 				Err(err).
