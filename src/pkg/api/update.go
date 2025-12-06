@@ -323,29 +323,45 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 
 		var sifPath string
 		if s.config.Runtime.AutoDownload {
-			progress.Emit(ProgressEvent{
-				Stage:   StageDownloadingSIF,
-				Message: "Checking/downloading SIF runtime...",
-			})
-
-			sifPath, _, err = downloader.EnsureSIF(resolvedVersion)
+			var sifDownloaded bool
+			sifPath, sifDownloaded, err = downloader.EnsureSIF(resolvedVersion)
 			if err != nil {
 				os.RemoveAll(stagingDir)
 				respondErr(http.StatusInternalServerError, StageDownloadingSIF, "DownloadError", fmt.Sprintf("Failed to download runtime: %v", err))
 				return
 			}
 
-			if goruntime.GOOS != "linux" {
+			if sifDownloaded {
 				progress.Emit(ProgressEvent{
-					Stage:   StagePullingRunner,
-					Message: "Checking/pulling runtime-runner Docker image...",
+					Stage:   StageDownloadingSIF,
+					Message: "Downloaded runtime image",
+				})
+			} else {
+				progress.Emit(ProgressEvent{
+					Stage:   StageDownloadingSIF,
+					Message: "Using cached runtime image",
 				})
 			}
 
-			if _, err := downloader.EnsureRuntimeRunner(); err != nil {
+			runnerPulled, err := downloader.EnsureRuntimeRunner()
+			if err != nil {
 				os.RemoveAll(stagingDir)
 				respondErr(http.StatusInternalServerError, StagePullingRunner, "PullError", fmt.Sprintf("Failed to pull runtime-runner: %v", err))
 				return
+			}
+
+			if goruntime.GOOS != "linux" {
+				if runnerPulled {
+					progress.Emit(ProgressEvent{
+						Stage:   StagePullingRunner,
+						Message: "Pulled runtime runner",
+					})
+				} else {
+					progress.Emit(ProgressEvent{
+						Stage:   StagePullingRunner,
+						Message: "Using cached runtime runner",
+					})
+				}
 			}
 		} else {
 			sifPath = resolver.GetSIFPath(resolvedVersion)

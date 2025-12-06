@@ -380,13 +380,8 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 		// Ensure SIF exists (download if missing and auto_download enabled)
 		var sifPath string
 		if s.config.Runtime.AutoDownload {
-			// Emit downloading SIF progress
-			progress.Emit(ProgressEvent{
-				Stage:   StageDownloadingSIF,
-				Message: "Checking/downloading SIF runtime...",
-			})
-
-			sifPath, _, err = downloader.EnsureSIF(resolvedVersion)
+			var sifDownloaded bool
+			sifPath, sifDownloaded, err = downloader.EnsureSIF(resolvedVersion)
 			if err != nil {
 				s.logger.Error().
 					Err(err).
@@ -398,21 +393,42 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			// Emit pulling runner progress (macOS/Windows)
-			if goruntime.GOOS != "linux" {
+			// Emit progress based on whether we downloaded or used cache
+			if sifDownloaded {
 				progress.Emit(ProgressEvent{
-					Stage:   StagePullingRunner,
-					Message: "Checking/pulling runtime-runner Docker image...",
+					Stage:   StageDownloadingSIF,
+					Message: "Downloaded runtime image",
+				})
+			} else {
+				progress.Emit(ProgressEvent{
+					Stage:   StageDownloadingSIF,
+					Message: "Using cached runtime image",
 				})
 			}
 
 			// Also ensure runtime-runner is available (macOS/Windows)
-			if _, err := downloader.EnsureRuntimeRunner(); err != nil {
+			runnerPulled, err := downloader.EnsureRuntimeRunner()
+			if err != nil {
 				s.logger.Error().Err(err).Msg("Failed to ensure runtime-runner")
 				s.registry.ReleasePort(port)
 				os.RemoveAll(permanentDir)
 				respondErr(http.StatusInternalServerError, StagePullingRunner, "PullError", fmt.Sprintf("Failed to pull runtime-runner: %v", err))
 				return
+			}
+
+			// Emit progress based on whether we pulled or used cache (macOS/Windows only)
+			if goruntime.GOOS != "linux" {
+				if runnerPulled {
+					progress.Emit(ProgressEvent{
+						Stage:   StagePullingRunner,
+						Message: "Pulled runtime runner",
+					})
+				} else {
+					progress.Emit(ProgressEvent{
+						Stage:   StagePullingRunner,
+						Message: "Using cached runtime runner",
+					})
+				}
 			}
 		} else {
 			// Auto-download disabled, just get path and check existence
