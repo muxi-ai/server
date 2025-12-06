@@ -393,16 +393,11 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			// Emit progress based on whether we downloaded or used cache
+			// Emit progress only if we actually downloaded
 			if sifDownloaded {
 				progress.Emit(ProgressEvent{
 					Stage:   StageDownloadingSIF,
 					Message: "Downloaded runtime image",
-				})
-			} else {
-				progress.Emit(ProgressEvent{
-					Stage:   StageDownloadingSIF,
-					Message: "Using cached runtime image",
 				})
 			}
 
@@ -416,19 +411,12 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			// Emit progress based on whether we pulled or used cache (macOS/Windows only)
-			if goruntime.GOOS != "linux" {
-				if runnerPulled {
-					progress.Emit(ProgressEvent{
-						Stage:   StagePullingRunner,
-						Message: "Pulled runtime runner",
-					})
-				} else {
-					progress.Emit(ProgressEvent{
-						Stage:   StagePullingRunner,
-						Message: "Using cached runtime runner",
-					})
-				}
+			// Emit progress only if we actually pulled (macOS/Windows only)
+			if goruntime.GOOS != "linux" && runnerPulled {
+				progress.Emit(ProgressEvent{
+					Stage:   StagePullingRunner,
+					Message: "Pulled runtime runner",
+				})
 			}
 		} else {
 			// Auto-download disabled, just get path and check existence

@@ -199,11 +199,6 @@ func (s *Server) HandleRestart(w http.ResponseWriter, r *http.Request) {
 					Stage:   StageDownloadingSIF,
 					Message: "Downloaded runtime image",
 				})
-			} else {
-				progress.Emit(ProgressEvent{
-					Stage:   StageDownloadingSIF,
-					Message: "Using cached runtime image",
-				})
 			}
 
 			runnerPulled, err := downloader.EnsureRuntimeRunner()
@@ -212,18 +207,11 @@ func (s *Server) HandleRestart(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			if goruntime.GOOS != "linux" {
-				if runnerPulled {
-					progress.Emit(ProgressEvent{
-						Stage:   StagePullingRunner,
-						Message: "Pulled runtime runner",
-					})
-				} else {
-					progress.Emit(ProgressEvent{
-						Stage:   StagePullingRunner,
-						Message: "Using cached runtime runner",
-					})
-				}
+			if goruntime.GOOS != "linux" && runnerPulled {
+				progress.Emit(ProgressEvent{
+					Stage:   StagePullingRunner,
+					Message: "Pulled runtime runner",
+				})
 			}
 		} else {
 			// Auto-download disabled, just get path and check existence
