@@ -51,7 +51,7 @@ func (pp *PortPool) Allocate(formationID string) (int, error) {
 	for port := pp.start; port < pp.end; port++ {
 		if _, used := pp.allocated[port]; !used {
 			// Also check if port is actually free at OS level
-			if isPortAvailable(port) {
+			if IsPortAvailable(port) {
 				pp.allocated[port] = formationID
 				return port, nil
 			}
@@ -62,9 +62,9 @@ func (pp *PortPool) Allocate(formationID string) (int, error) {
 	return 0, fmt.Errorf("no available ports in range %d-%d", pp.start, pp.end)
 }
 
-// isPortAvailable checks if a port is available at the OS level
+// IsPortAvailable checks if a port is available at the OS level
 // Checks both 0.0.0.0 (Docker binding) and 127.0.0.1 (local binding)
-func isPortAvailable(port int) bool {
+func IsPortAvailable(port int) bool {
 	// Check 0.0.0.0 (what Docker uses)
 	addr := fmt.Sprintf("0.0.0.0:%d", port)
 	listener, err := net.Listen("tcp", addr)

@@ -321,6 +321,15 @@ func (s *Server) HandleRollback(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Wait for port to be released (Docker can take a moment)
+	s.logger.Info().Int("port", existingFormation.Port).Msg("Waiting for port to be released...")
+	for i := 0; i < 10; i++ {
+		if registry.IsPortAvailable(existingFormation.Port) {
+			break
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+
 	// Stage: Swap directories
 	progress.Emit(ProgressEvent{
 		Stage:   StageRollbackSwapping,
