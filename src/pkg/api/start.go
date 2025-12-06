@@ -1,0 +1,252 @@
+package api
+
+import (
+	"fmt"
+	"net/http"
+	"os"
+	"path/filepath"
+	goruntime "runtime"
+	"strings"
+	"time"
+
+	"github.com/gorilla/mux"
+	"github.com/muxi-ai/server/pkg/formation"
+	"github.com/muxi-ai/server/pkg/process"
+	"github.com/muxi-ai/server/pkg/registry"
+	"github.com/muxi-ai/server/pkg/runtime"
+	"github.com/rs/zerolog/log"
+)
+
+// HandleStart handles POST /formations/{id}/start
+// Starts a stopped formation
+// Supports SSE streaming with Accept: text/event-stream header
+func (s *Server) HandleStart(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	formationID := vars["id"]
+
+	// Check if client wants SSE streaming
+	acceptHeader := r.Header.Get("Accept")
+	wantsSSE := strings.Contains(acceptHeader, "text/event-stream")
+
+	var sse *SSEWriter
+	sseInitialized := false
+	progress := NewProgressEmitter(nil)
+
+	if wantsSSE {
+		var ok bool
+		sse, ok = NewSSEWriter(w)
+		if ok {
+			sse.Init()
+			sseInitialized = true
+			progress = NewProgressEmitter(sse)
+		}
+	}
+
+	respondErr := func(status int, stage DeployStage, errType, message string) {
+		if wantsSSE && sseInitialized {
+			progress.Error(ErrorEvent{
+				Error:   errType,
+				Message: message,
+				Stage:   stage,
+			})
+		} else {
+			RespondError(w, status, message)
+		}
+	}
+
+	log.Info().
+		Str("formation_id", formationID).
+		Bool("sse", wantsSSE).
+		Msg("Starting formation")
+
+	// Check if formation exists
+	formationReg, err := s.registry.Get(formationID)
+	if err != nil {
+		log.Warn().
+			Err(err).
+			Str("formation_id", formationID).
+			Msg("Formation not found")
+		respondErr(http.StatusNotFound, StageValidating, "NotFound", "Formation not found")
+		return
+	}
+
+	// Check if already running
+	if formationReg.Status == "running" || formationReg.Status == "starting" {
+		log.Warn().
+			Str("formation_id", formationID).
+			Str("status", formationReg.Status).
+			Msg("Formation is already running")
+		respondErr(http.StatusConflict, StageValidating, "AlreadyRunning", "Formation is already running")
+		return
+	}
+
+	port := formationReg.Port
+
+	// Get MUXI directory
+	muxiDir, err := getMuxiDir()
+	if err != nil {
+		respondErr(http.StatusInternalServerError, StageValidating, "ConfigError", err.Error())
+		return
+	}
+
+	// Check formation directory exists
+	formationDir := filepath.Join(muxiDir, "formations", formationID)
+	if _, err := os.Stat(formationDir); os.IsNotExist(err) {
+		respondErr(http.StatusInternalServerError, StageValidating, "NotFound", "Formation directory not found")
+		return
+	}
+
+	// Parse formation.yaml
+	progress.Emit(ProgressEvent{
+		Stage:   StageValidating,
+		Message: "Loading formation configuration...",
+	})
+
+	formationYAMLPath := filepath.Join(formationDir, "formation.yaml")
+	formationConfig, err := formation.ParseFormationYAML(formationYAMLPath)
+	if err != nil {
+		respondErr(http.StatusInternalServerError, StageValidating, "ParseError", err.Error())
+		return
+	}
+
+	// Compute environment variables
+	bindHost := s.config.Formations.BindHost
+	if goruntime.GOOS == "darwin" || goruntime.GOOS == "windows" {
+		bindHost = "0.0.0.0"
+	}
+	serverURL := fmt.Sprintf("http://localhost:%d", s.config.Server.Port)
+
+	// Build spawn config
+	spawnConfig := process.SpawnConfig{
+		ID:          formationID,
+		WorkDir:     formationDir,
+		Port:        port,
+		Env:         formationConfig.GetEnvironmentVars(port, serverURL, bindHost),
+		AutoRestart: s.config.Formations.AutoRestart,
+		RuntimeType: "native",
+	}
+
+	// Handle runtime resolution if specified
+	if formationConfig.MuxiRuntime != "" {
+		progress.Emit(ProgressEvent{
+			Stage:   StageResolvingRuntime,
+			Message: fmt.Sprintf("Resolving runtime version: %s", formationConfig.MuxiRuntime),
+		})
+
+		runtimesDir := filepath.Join(muxiDir, "runtimes")
+		if err := os.MkdirAll(runtimesDir, 0755); err != nil {
+			respondErr(http.StatusInternalServerError, StageResolvingRuntime, "RuntimeError", err.Error())
+			return
+		}
+
+		runtimeRegistryPath := filepath.Join(runtimesDir, "registry.json")
+		runtimeRegistry := runtime.NewRegistry(runtimeRegistryPath)
+		if err := runtimeRegistry.Load(); err != nil {
+			s.logger.Warn().Err(err).Msg("Failed to load runtimes registry")
+		}
+
+		availableVersions := runtimeRegistry.List()
+		resolver := runtime.NewResolver(availableVersions, runtimesDir)
+
+		resolvedVersion, err := resolver.Resolve(formationConfig.MuxiRuntime)
+		if err != nil {
+			respondErr(http.StatusInternalServerError, StageResolvingRuntime, "RuntimeError", err.Error())
+			return
+		}
+
+		progress.Emit(ProgressEvent{
+			Stage:   StageResolvingRuntime,
+			Message: fmt.Sprintf("Resolved runtime version: %s", resolvedVersion),
+			Version: resolvedVersion,
+		})
+
+		sifPath := resolver.GetSIFPath(resolvedVersion)
+		if _, err := os.Stat(sifPath); os.IsNotExist(err) {
+			respondErr(http.StatusInternalServerError, StageResolvingRuntime, "RuntimeError", "SIF file not found")
+			return
+		}
+
+		spawnConfig.RuntimeType = "singularity"
+		spawnConfig.SIFPath = sifPath
+		spawnConfig.Command = "python"
+		spawnConfig.Args = []string{
+			"-m", "muxi.utils.run_formation",
+			"/formation/formation.yaml",
+			"--port", fmt.Sprintf("%d", port),
+			"--host", bindHost,
+		}
+	}
+
+	// Stage: Spawn the process
+	progress.Emit(ProgressEvent{
+		Stage:   StageSpawning,
+		Message: "Starting formation...",
+	})
+
+	newProc, err := s.processManager.Start(spawnConfig)
+	if err != nil {
+		respondErr(http.StatusInternalServerError, StageSpawning, "SpawnError", err.Error())
+		return
+	}
+
+	// Update registry with new process info
+	s.registry.Update(formationID, func(f *registry.Formation) {
+		f.ProcessID = newProc.PID
+		f.Status = "starting"
+	})
+
+	// Stage: Health check
+	progress.Emit(ProgressEvent{
+		Stage:   StageHealthCheck,
+		Message: "Waiting for formation health check...",
+	})
+
+	time.Sleep(2 * time.Second)
+
+	healthTimeout := 300 * time.Second
+	healthInterval := 1 * time.Second
+	healthChecker := process.NewHealthChecker(healthTimeout, healthInterval)
+	healthChecker.Endpoint = "/v1/health"
+
+	healthErr := healthChecker.WaitForHealthyWithPID(port, formationID, newProc.PID, newProc.LogFile, func(attempt, maxAttempts int) {
+		progress.Emit(ProgressEvent{
+			Stage:       StageHealthCheck,
+			Message:     fmt.Sprintf("Health check attempt %d/%d...", attempt, maxAttempts),
+			Attempt:     &attempt,
+			MaxAttempts: &maxAttempts,
+		})
+	})
+
+	if healthErr != nil {
+		log.Error().Err(healthErr).Str("id", formationID).Msg("Formation failed health check after start")
+		respondErr(http.StatusInternalServerError, StageHealthCheck, "HealthCheckFailed", healthErr.Error())
+		return
+	}
+
+	// Update status
+	newProc.SetStatus(process.StatusRunning)
+	s.registry.UpdateHealthCheck(formationID, true)
+	s.registry.Update(formationID, func(f *registry.Formation) {
+		f.Status = "running"
+	})
+
+	log.Info().
+		Str("formation_id", formationID).
+		Int("port", port).
+		Msg("Formation started successfully")
+
+	if wantsSSE && sseInitialized {
+		progress.Complete(CompleteEvent{
+			FormationID: formationID,
+			Port:        port,
+			Status:      "running",
+		})
+	} else {
+		RespondSuccess(w, map[string]interface{}{
+			"id":      formationID,
+			"status":  "running",
+			"message": "Formation started",
+			"port":    port,
+		})
+	}
+}

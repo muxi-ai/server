@@ -96,6 +96,7 @@ func (s *Server) setupRoutes() {
 	rpc.HandleFunc("/formations/{id}", s.HandleDelete).Methods(http.MethodDelete)
 	
 	// Formation actions
+	rpc.HandleFunc("/formations/{id}/start", s.HandleStart).Methods(http.MethodPost)
 	rpc.HandleFunc("/formations/{id}/stop", s.HandleStop).Methods(http.MethodPost)
 	rpc.HandleFunc("/formations/{id}/restart", s.HandleRestart).Methods(http.MethodPost)
 	rpc.HandleFunc("/formations/{id}/rollback", s.HandleRollback).Methods(http.MethodPost)
