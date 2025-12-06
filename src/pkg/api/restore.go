@@ -53,17 +53,18 @@ func (s *Server) restoreFormation(formationID string, port int) error {
 		return err
 	}
 
-	// Check formation directory exists
-	formationDir := filepath.Join(muxiDir, "formations", formationID)
-	if _, err := os.Stat(formationDir); os.IsNotExist(err) {
-		return err
+	// Check formation directory exists (new structure: formations/{id}/current/)
+	formationBaseDir := filepath.Join(muxiDir, "formations", formationID)
+	currentDir := filepath.Join(formationBaseDir, "current")
+	if _, err := os.Stat(currentDir); os.IsNotExist(err) {
+		return fmt.Errorf("formation current directory not found: %s", currentDir)
 	}
 
-	// Parse formation.yaml
-	formationYAMLPath := filepath.Join(formationDir, "formation.yaml")
+	// Parse formation.yaml from current directory
+	formationYAMLPath := filepath.Join(currentDir, "formation.yaml")
 	formationConfig, err := formation.ParseFormationYAML(formationYAMLPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to read formation.yaml: %w", err)
 	}
 
 	// Compute environment variables
@@ -76,7 +77,7 @@ func (s *Server) restoreFormation(formationID string, port int) error {
 	// Build spawn config
 	spawnConfig := process.SpawnConfig{
 		ID:          formationID,
-		WorkDir:     formationDir,
+		WorkDir:     currentDir,
 		Port:        port,
 		Env:         formationConfig.GetEnvironmentVars(port, serverURL, bindHost),
 		AutoRestart: s.config.Formations.AutoRestart,
