@@ -386,7 +386,7 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 				Message: "Checking/downloading SIF runtime...",
 			})
 
-			sifPath, err = downloader.EnsureSIF(resolvedVersion)
+			sifPath, _, err = downloader.EnsureSIF(resolvedVersion)
 			if err != nil {
 				s.logger.Error().
 					Err(err).
@@ -407,7 +407,7 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// Also ensure runtime-runner is available (macOS/Windows)
-			if err := downloader.EnsureRuntimeRunner(); err != nil {
+			if _, err := downloader.EnsureRuntimeRunner(); err != nil {
 				s.logger.Error().Err(err).Msg("Failed to ensure runtime-runner")
 				s.registry.ReleasePort(port)
 				os.RemoveAll(permanentDir)

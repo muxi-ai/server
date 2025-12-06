@@ -184,12 +184,12 @@ func (s *Server) HandleRollback(w http.ResponseWriter, r *http.Request) {
 
 		var sifPath string
 		if s.config.Runtime.AutoDownload {
-			sifPath, err = downloader.EnsureSIF(resolvedVersion)
+			sifPath, _, err = downloader.EnsureSIF(resolvedVersion)
 			if err != nil {
 				RespondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to download runtime: %v", err))
 				return
 			}
-			if err := downloader.EnsureRuntimeRunner(); err != nil {
+			if _, err := downloader.EnsureRuntimeRunner(); err != nil {
 				RespondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to pull runtime-runner: %v", err))
 				return
 			}

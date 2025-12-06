@@ -32,8 +32,8 @@ func NewDownloader(sifBaseURL, runtimeRunnerImage, runtimesDir string, logger *z
 }
 
 // EnsureSIF checks if the SIF file exists, downloads if missing
-// Returns the path to the SIF file
-func (d *Downloader) EnsureSIF(version string) (string, error) {
+// Returns the path to the SIF file and whether it was downloaded (vs already existed)
+func (d *Downloader) EnsureSIF(version string) (string, bool, error) {
 	arch := getPlatform()
 	filename := fmt.Sprintf("muxi-runtime-%s-%s.sif", version, arch)
 	sifPath := filepath.Join(d.runtimesDir, filename)
@@ -43,12 +43,12 @@ func (d *Downloader) EnsureSIF(version string) (string, error) {
 		d.logger.Debug().
 			Str("path", sifPath).
 			Msg("SIF file already exists")
-		return sifPath, nil
+		return sifPath, false, nil
 	}
 
 	// Ensure runtimes directory exists
 	if err := os.MkdirAll(d.runtimesDir, 0755); err != nil {
-		return "", fmt.Errorf("failed to create runtimes directory: %w", err)
+		return "", false, fmt.Errorf("failed to create runtimes directory: %w", err)
 	}
 
 	// Build download URL
@@ -63,7 +63,7 @@ func (d *Downloader) EnsureSIF(version string) (string, error) {
 			url = fmt.Sprintf("%s/%s", strings.TrimSuffix(d.sifBaseURL, "/"), filename)
 		}
 	} else {
-		return "", fmt.Errorf("invalid SIF base URL: %s", d.sifBaseURL)
+		return "", false, fmt.Errorf("invalid SIF base URL: %s", d.sifBaseURL)
 	}
 
 	d.logger.Info().
@@ -73,14 +73,14 @@ func (d *Downloader) EnsureSIF(version string) (string, error) {
 
 	// Download the file
 	if err := d.downloadFile(url, sifPath); err != nil {
-		return "", fmt.Errorf("failed to download SIF: %w", err)
+		return "", false, fmt.Errorf("failed to download SIF: %w", err)
 	}
 
 	d.logger.Info().
 		Str("path", sifPath).
 		Msg("SIF file downloaded successfully")
 
-	return sifPath, nil
+	return sifPath, true, nil
 }
 
 // downloadFile downloads a file from URL to destination
@@ -139,10 +139,11 @@ func (d *Downloader) downloadFile(url, destination string) error {
 }
 
 // EnsureRuntimeRunner checks if the Docker image exists, pulls if missing
-func (d *Downloader) EnsureRuntimeRunner() error {
+// Returns whether it was pulled (vs already existed)
+func (d *Downloader) EnsureRuntimeRunner() (bool, error) {
 	// Only needed on macOS and Windows
 	if goruntime.GOOS == "linux" {
-		return nil
+		return false, nil
 	}
 
 	// Check if image exists locally
@@ -151,7 +152,7 @@ func (d *Downloader) EnsureRuntimeRunner() error {
 		d.logger.Debug().
 			Str("image", d.runtimeRunnerImage).
 			Msg("Runtime runner image already exists")
-		return nil
+		return false, nil
 	}
 
 	d.logger.Info().
@@ -164,26 +165,26 @@ func (d *Downloader) EnsureRuntimeRunner() error {
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to pull runtime runner image: %w", err)
+		return false, fmt.Errorf("failed to pull runtime runner image: %w", err)
 	}
 
 	d.logger.Info().
 		Str("image", d.runtimeRunnerImage).
 		Msg("Runtime runner image pulled successfully")
 
-	return nil
+	return true, nil
 }
 
 // EnsureRuntime ensures both SIF and runtime-runner are available
 func (d *Downloader) EnsureRuntime(version string) (string, error) {
 	// Download SIF if needed
-	sifPath, err := d.EnsureSIF(version)
+	sifPath, _, err := d.EnsureSIF(version)
 	if err != nil {
 		return "", err
 	}
 
 	// Pull runtime-runner if needed (macOS/Windows only)
-	if err := d.EnsureRuntimeRunner(); err != nil {
+	if _, err := d.EnsureRuntimeRunner(); err != nil {
 		return "", err
 	}
 

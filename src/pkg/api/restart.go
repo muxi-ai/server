@@ -192,7 +192,7 @@ func (s *Server) HandleRestart(w http.ResponseWriter, r *http.Request) {
 				Message: "Checking/downloading SIF runtime...",
 			})
 
-			sifPath, err = downloader.EnsureSIF(resolvedVersion)
+			sifPath, _, err = downloader.EnsureSIF(resolvedVersion)
 			if err != nil {
 				respondErr(http.StatusInternalServerError, StageDownloadingSIF, "DownloadError", fmt.Sprintf("Failed to download runtime: %v", err))
 				return
@@ -206,7 +206,7 @@ func (s *Server) HandleRestart(w http.ResponseWriter, r *http.Request) {
 				})
 			}
 
-			if err := downloader.EnsureRuntimeRunner(); err != nil {
+			if _, err := downloader.EnsureRuntimeRunner(); err != nil {
 				respondErr(http.StatusInternalServerError, StagePullingRunner, "PullError", fmt.Sprintf("Failed to pull runtime-runner: %v", err))
 				return
 			}

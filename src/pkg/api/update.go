@@ -13,6 +13,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/muxi-ai/server/pkg/formation"
 	"github.com/muxi-ai/server/pkg/process"
+	"github.com/muxi-ai/server/pkg/registry"
 	"github.com/muxi-ai/server/pkg/runtime"
 )
 
@@ -327,7 +328,7 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 				Message: "Checking/downloading SIF runtime...",
 			})
 
-			sifPath, err = downloader.EnsureSIF(resolvedVersion)
+			sifPath, _, err = downloader.EnsureSIF(resolvedVersion)
 			if err != nil {
 				os.RemoveAll(stagingDir)
 				respondErr(http.StatusInternalServerError, StageDownloadingSIF, "DownloadError", fmt.Sprintf("Failed to download runtime: %v", err))
@@ -341,7 +342,7 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 				})
 			}
 
-			if err := downloader.EnsureRuntimeRunner(); err != nil {
+			if _, err := downloader.EnsureRuntimeRunner(); err != nil {
 				os.RemoveAll(stagingDir)
 				respondErr(http.StatusInternalServerError, StagePullingRunner, "PullError", fmt.Sprintf("Failed to pull runtime-runner: %v", err))
 				return
@@ -523,6 +524,13 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 	if err := history.Save(formationBaseDir); err != nil {
 		s.logger.Error().Err(err).Msg("Failed to save version history")
 	}
+
+	// Update registry with new version and process info
+	s.registry.Update(formationID, func(f *registry.Formation) {
+		f.Version = formationConfig.Version // Semantic version from formation.yaml
+		f.ProcessID = proc.PID
+		f.Status = "running"
+	})
 
 	// Rename staging process to primary process
 	// (Update process manager's internal tracking)
