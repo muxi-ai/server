@@ -160,10 +160,48 @@ func (s *Server) HandleStart(w http.ResponseWriter, r *http.Request) {
 			Version: resolvedVersion,
 		})
 
-		sifPath := resolver.GetSIFPath(resolvedVersion)
-		if _, err := os.Stat(sifPath); os.IsNotExist(err) {
-			respondErr(http.StatusInternalServerError, StageResolvingRuntime, "RuntimeError", "SIF file not found")
-			return
+		// Create downloader for auto-download
+		downloader := runtime.NewDownloader(
+			s.config.Runtime.SIFBaseURL,
+			s.config.Runtime.RuntimeRunnerImage,
+			runtimesDir,
+			s.logger,
+		)
+
+		// Ensure SIF exists (download if missing and auto_download enabled)
+		var sifPath string
+		if s.config.Runtime.AutoDownload {
+			progress.Emit(ProgressEvent{
+				Stage:   StageDownloadingSIF,
+				Message: "Checking/downloading SIF runtime...",
+			})
+
+			sifPath, err = downloader.EnsureSIF(resolvedVersion)
+			if err != nil {
+				respondErr(http.StatusInternalServerError, StageDownloadingSIF, "DownloadError", fmt.Sprintf("Failed to download runtime: %v", err))
+				return
+			}
+
+			// Ensure runtime-runner is available (macOS/Windows)
+			if goruntime.GOOS != "linux" {
+				progress.Emit(ProgressEvent{
+					Stage:   StagePullingRunner,
+					Message: "Checking/pulling runtime-runner Docker image...",
+				})
+			}
+
+			if err := downloader.EnsureRuntimeRunner(); err != nil {
+				respondErr(http.StatusInternalServerError, StagePullingRunner, "PullError", fmt.Sprintf("Failed to pull runtime-runner: %v", err))
+				return
+			}
+		} else {
+			// Auto-download disabled, just get path and check existence
+			sifPath = resolver.GetSIFPath(resolvedVersion)
+			if _, err := os.Stat(sifPath); os.IsNotExist(err) {
+				respondErr(http.StatusNotFound, StageDownloadingSIF, "RuntimeNotFound",
+					fmt.Sprintf("Runtime %s not found at %s. Enable auto_download or manually install.", resolvedVersion, sifPath))
+				return
+			}
 		}
 
 		spawnConfig.RuntimeType = "singularity"
