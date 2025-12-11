@@ -1,8 +1,8 @@
 # Runtime Integration TODO - Phase 2 (YAML-based Formations)
 
-**Status:** Ready to implement  
-**Dependencies:** Runtime SIF files available  
-**Timeline:** 1-2 weeks  
+**Status:** Ready to implement
+**Dependencies:** Runtime SIF files available
+**Timeline:** 1-2 weeks
 **Priority:** HIGH
 
 ---
@@ -32,7 +32,7 @@ cmd := exec.Command("singularity", "exec",
     "--bind", formationDir + ":/formation",
     sifPath,
     "python", "-m", "muxi.utils.run_formation",
-    "/formation/formation.yaml",
+    "/formation/formation.afs",
     "--port", port,
     "--host", "127.0.0.1",
 )
@@ -157,31 +157,31 @@ type ProcessManager struct {
 func (pm *ProcessManager) spawnProcess(proc *Process) error {
     // 1. Read formation.yaml to get runtime version
     formationConfig := readFormationYAML(proc.FormationDir)
-    
+
     // 2. Resolve runtime version
     version, err := pm.runtimeResolver.Resolve(formationConfig.Runtime)
     if err != nil {
         return fmt.Errorf("failed to resolve runtime: %w", err)
     }
-    
+
     // 3. Get SIF path
     sifPath := pm.runtimeResolver.GetSIFPath(version)
     if !fileExists(sifPath) {
         return fmt.Errorf("runtime not found: %s (version: %s)", sifPath, version)
     }
-    
+
     // 4. Build Singularity command
     formationPath := filepath.Join(proc.FormationDir, "current", "formation.yaml")
-    
+
     cmd := exec.Command("singularity", "exec",
         "--bind", filepath.Dir(formationPath) + ":/formation",
         sifPath,
         "python", "-m", "muxi.utils.run_formation",
-        "/formation/formation.yaml",
+        "/formation/formation.afs",
         "--port", fmt.Sprintf("%d", proc.Port),
         "--host", "127.0.0.1",
     )
-    
+
     // 5. Rest of spawning logic (logs, PID, etc.)
     // ... existing code ...
 }
@@ -214,9 +214,9 @@ func (pm *ProcessManager) WaitForReady(proc *Process) error {
     url := fmt.Sprintf("http://127.0.0.1:%d/", proc.Port)
     timeout := 30 * time.Second
     interval := 1 * time.Second
-    
+
     deadline := time.Now().Add(timeout)
-    
+
     for time.Now().Before(deadline) {
         resp, err := http.Get(url)
         if err == nil && resp.StatusCode == 200 {
@@ -232,7 +232,7 @@ func (pm *ProcessManager) WaitForReady(proc *Process) error {
         }
         time.Sleep(interval)
     }
-    
+
     return fmt.Errorf("formation failed to become ready within %s", timeout)
 }
 ```
@@ -255,11 +255,11 @@ Add runtime configuration:
 ```go
 type Config struct {
     // ... existing fields ...
-    
+
     Runtime struct {
         Type        string `yaml:"type"`         // "singularity" (default), "docker", "native"
         RuntimesDir string `yaml:"runtimes_dir"` // ~/.muxi/server/runtimes
-        
+
         // Future: registry for downloading runtimes
         Registry struct {
             URL       string `yaml:"url"`
@@ -274,7 +274,7 @@ type Config struct {
 runtime:
   type: "singularity"
   runtimes_dir: "~/.muxi/server/runtimes"
-  
+
   # Future: download runtimes from registry
   # registry:
   #   url: "https://registry.muxi.org"
@@ -298,7 +298,7 @@ Track exact runtime version used:
 ```go
 type Formation struct {
     // ... existing fields ...
-    
+
     // Runtime information
     RuntimeVersion string `json:"runtime_version"` // Exact version (e.g., "0.2025.0")
     RuntimePinned  string `json:"runtime_pinned"`  // Constraint from formation.yaml
@@ -412,7 +412,7 @@ Support both Phase 1 (app.py) and Phase 2 (YAML) formations:
 func (pm *ProcessManager) detectFormationType(formationDir string) string {
     appPyPath := filepath.Join(formationDir, "current", "app.py")
     formationYamlPath := filepath.Join(formationDir, "current", "formation.yaml")
-    
+
     if fileExists(formationYamlPath) {
         return "phase2"  // YAML-based
     } else if fileExists(appPyPath) {
@@ -424,7 +424,7 @@ func (pm *ProcessManager) detectFormationType(formationDir string) string {
 // Spawn based on type
 func (pm *ProcessManager) spawnProcess(proc *Process) error {
     formationType := pm.detectFormationType(proc.FormationDir)
-    
+
     switch formationType {
     case "phase1":
         return pm.spawnPhase1(proc)
@@ -454,7 +454,7 @@ func (pm *ProcessManager) spawnProcess(proc *Process) error {
    ```bash
    # Linux
    sudo apt-get install singularity-ce
-   
+
    # macOS (via Docker)
    # Uses Docker-wrapped Singularity
    ```
@@ -462,7 +462,7 @@ func (pm *ProcessManager) spawnProcess(proc *Process) error {
 2. **Runtime SIF files**
    ```bash
    mkdir -p ~/.muxi/server/runtimes
-   
+
    # Copy from runtime build
    cp muxi-runtime-0.2025.0-linux-amd64.sif \
       ~/.muxi/server/runtimes/
@@ -609,6 +609,6 @@ tail -f ~/.muxi/server/logs/formation-test-formation.log
 
 ---
 
-**Last Updated:** 2025-11-25  
-**Status:** Ready to implement  
+**Last Updated:** 2025-11-25
+**Status:** Ready to implement
 **Next Action:** Review with team and begin implementation

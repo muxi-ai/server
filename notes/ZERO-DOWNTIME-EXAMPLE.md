@@ -28,7 +28,7 @@ if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=port)
 ```
 
-**File:** `my-formation/formation.yaml`
+**File:** `my-formation/formation.afs`
 ```yaml
 name: "My Formation"
 version: "1.0.0"
@@ -39,7 +39,7 @@ args: ["app.py"]
 **Package and deploy:**
 ```bash
 cd my-formation
-tar czf v1.tar.gz app.py formation.yaml
+tar czf v1.tar.gz app.py formation.afs
 curl -X POST http://localhost:7890/rpc/formations/deploy \
   -H "Content-Type: application/gzip" \
   --data-binary @v1.tar.gz
@@ -493,10 +493,10 @@ The next deployment will clean up automatically.
 
 ## Summary
 
-✅ **Zero-downtime deployments work!**  
-✅ **Old version serves traffic during update**  
-✅ **Failed updates don't cause downtime**  
-✅ **Easy to configure and use**  
-✅ **Production-ready**  
+✅ **Zero-downtime deployments work!**
+✅ **Old version serves traffic during update**
+✅ **Failed updates don't cause downtime**
+✅ **Easy to configure and use**
+✅ **Production-ready**
 
 Your formations can now be updated without any service interruption! 🚀

@@ -1,7 +1,7 @@
 # CLI-Server Protocol
 
-**Version:** 1.0  
-**Status:** Specification  
+**Version:** 1.0
+**Status:** Specification
 **Last Updated:** 2025-10-17
 
 ---
@@ -111,10 +111,10 @@ import io
 def create_formation_bundle(files: dict) -> bytes:
     """
     Create a gzipped tarball from files.
-    
+
     Args:
         files: Dict of filename -> content
-        
+
     Returns:
         Gzipped tarball bytes
     """
@@ -125,7 +125,7 @@ def create_formation_bundle(files: dict) -> bytes:
             info = tarfile.TarInfo(name=filename)
             info.size = len(content)
             tar.addfile(info, io.BytesIO(content))
-    
+
     return tar_buffer.getvalue()
 
 # Usage
@@ -607,7 +607,7 @@ muxi config add-profile production \
 ```bash
 $ muxi formation deploy ./my-formation/
 
-1. Read formation.yaml from ./my-formation/formation.yaml
+1. Read formation.yaml from ./my-formation/formation.afs
 2. Validate formation.yaml (has required 'id' field)
 3. Create gzipped tarball of directory
 4. Load credentials from ~/.muxi/profiles.yaml (default profile)

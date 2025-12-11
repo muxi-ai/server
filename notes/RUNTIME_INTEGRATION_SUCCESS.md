@@ -1,7 +1,7 @@
 # Runtime Integration - Proof of Concept SUCCESS! ✅
 
-**Date:** 2025-11-25  
-**Status:** Integration Validated  
+**Date:** 2025-11-25
+**Status:** Integration Validated
 **Runtime Version:** 0.2025.0
 
 ---
@@ -50,7 +50,7 @@ docker run --rm \
   -e HOST=0.0.0.0 \
   -p 8001:8001 \
   muxi-runtime:0.2025.0 \
-  /formation/formation.yaml \
+  /formation/formation.afs \
   --port 8001 \
   --host 0.0.0.0
 ```
@@ -61,7 +61,7 @@ singularity exec \
   --bind ~/.muxi/server/formations/test-runtime-integration/current:/formation \
   ~/.muxi/server/runtimes/muxi-runtime-0.2025.0-linux-amd64.sif \
   python -m muxi.utils.run_formation \
-  /formation/formation.yaml \
+  /formation/formation.afs \
   --port 8001 \
   --host 127.0.0.1
 ```
@@ -230,23 +230,23 @@ func (r *Resolver) GetSIFPath(version string) string {
 func (pm *ProcessManager) spawnProcess(proc *Process) error {
     // 1. Read formation.yaml to get runtime version
     formationConfig := readFormationYAML(proc.FormationDir)
-    
+
     // 2. Resolve runtime version
     version, err := pm.runtimeResolver.Resolve(formationConfig.Runtime)
-    
+
     // 3. Get SIF path
     sifPath := pm.runtimeResolver.GetSIFPath(version)
-    
+
     // 4. Build Singularity command
     cmd := exec.Command("singularity", "exec",
         "--bind", formationDir + ":/formation",
         sifPath,
         "python", "-m", "muxi.utils.run_formation",
-        "/formation/formation.yaml",
+        "/formation/formation.afs",
         "--port", fmt.Sprintf("%d", port),
         "--host", "127.0.0.1",
     )
-    
+
     // 5. Start process
     return cmd.Start()
 }
@@ -258,7 +258,7 @@ func (pm *ProcessManager) spawnProcess(proc *Process) error {
 
 func (pm *ProcessManager) WaitForReady(proc *Process) error {
     url := fmt.Sprintf("http://127.0.0.1:%d/", proc.Port)
-    
+
     for i := 0; i < 30; i++ {  // 30 second timeout
         resp, err := http.Get(url)
         if err == nil && resp.StatusCode == 200 {
@@ -266,7 +266,7 @@ func (pm *ProcessManager) WaitForReady(proc *Process) error {
         }
         time.Sleep(1 * time.Second)
     }
-    
+
     return fmt.Errorf("formation failed to become ready")
 }
 ```
@@ -398,7 +398,7 @@ host := "127.0.0.1"  // Security!
 
 ---
 
-**Status:** Proof of Concept Complete ✅  
-**Next Action:** Begin server Go implementation  
-**Timeline:** 1-2 weeks for full integration  
+**Status:** Proof of Concept Complete ✅
+**Next Action:** Begin server Go implementation
+**Timeline:** 1-2 weeks for full integration
 **Confidence:** HIGH - Architecture validated and working

@@ -19,10 +19,10 @@ The server supports three file extensions for formation configuration (in priori
 - `.yaml` - Standard YAML
 - `.yml` - YAML shorthand
 
-**✨ NEW: Formation Bundle Upload**  
+**✨ NEW: Formation Bundle Upload**
 MUXI Server now supports uploading complete formation bundles (gzipped tarballs) with automatic metadata injection. See [Bundle Upload](#bundle-upload-new) section below or the [BUNDLE-UPLOAD-COMPLETE.md](../BUNDLE-UPLOAD-COMPLETE.md) guide for details.
 
-**🎉 NEW: Runtime Integration Complete!**  
+**🎉 NEW: Runtime Integration Complete!**
 MUXI Server now fully integrates with the MUXI Runtime, deploying formations as Docker containers (macOS/Windows) or Singularity SIF containers (Linux). See [Runtime Support](#runtime-support-new) section below.
 
 ---
@@ -93,7 +93,7 @@ curl -X POST http://localhost:7890/rpc/formations/deploy \
 
 **Container Architecture:**
 ```
-Server spawns: docker run -v /formation:ro -p 8003:8003 muxi-runtime:0.2025.0 /formation/formation.yaml
+Server spawns: docker run -v /formation:ro -p 8003:8003 muxi-runtime:0.2025.0 /formation/formation.afs
               └─> Container starts FastAPI server on 0.0.0.0:8003
                   └─> Server proxies: /api/{formation_id}/* → http://localhost:8003/*
 ```
@@ -438,7 +438,7 @@ formations:
       timeout: 30                # Timeout in seconds
       interval: 1                # Poll interval in seconds
       max_retries: 30            # Max health check attempts
-    
+
     force_kill_timeout: 5        # Seconds before force-killing old version
     staging_health_delay: 2      # Delay before first health check
 ```
@@ -593,10 +593,10 @@ curl http://localhost:7890/chat-api/chat -d '{"message": "Hello"}'
 
 ### Benefits of Proxy
 
-✅ Single entry point for all formations  
-✅ Load balancing (future)  
-✅ SSL termination (future)  
-✅ Request logging and metrics  
+✅ Single entry point for all formations
+✅ Load balancing (future)
+✅ SSL termination (future)
+✅ Request logging and metrics
 ✅ Formation isolation
 
 ---
@@ -731,10 +731,10 @@ def health():
     try:
         # Check database connection
         db.execute("SELECT 1")
-        
+
         # Check external services
         response = requests.get("https://api.example.com/health", timeout=2)
-        
+
         if response.status_code == 200:
             return {"status": "healthy"}
         else:

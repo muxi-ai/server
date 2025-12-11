@@ -44,12 +44,12 @@ if command -v singularity &> /dev/null; then
     echo ""
     echo "🚀 Starting formation with Singularity..."
     echo ""
-    
+
     singularity exec \
         --bind "$FORMATION_DIR:/formation" \
         "$SIF_PATH" \
         python -m muxi.utils.run_formation \
-        /formation/formation.yaml \
+        /formation/formation.afs \
         --port $PORT \
         --host $HOST
 else
@@ -58,20 +58,20 @@ else
     echo ""
     echo "🚀 Starting formation with Docker-wrapped Singularity..."
     echo ""
-    
+
     # On macOS, we'll use Docker directly since Singularity requires Linux kernel
     # For real server deployment, this would use native Singularity on Linux
     echo "   Note: On Linux production, this would use native Singularity"
     echo "   For macOS testing, falling back to Docker..."
     echo ""
-    
+
     docker run --rm \
         -v "$FORMATION_DIR:/formation:ro" \
         -e PORT=$PORT \
         -e HOST=$DOCKER_HOST \
         -p $PORT:$PORT \
         muxi-runtime:0.2025.0 \
-        /formation/formation.yaml \
+        /formation/formation.afs \
         --port $PORT \
         --host $DOCKER_HOST
 fi

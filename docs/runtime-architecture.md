@@ -513,7 +513,7 @@ brew install --cask docker
 
 **Output:**
 ```
-WARNING: The requested image's platform (linux/amd64) does not match 
+WARNING: The requested image's platform (linux/amd64) does not match
 the detected host platform (linux/arm64/v8)
 ```
 
@@ -690,7 +690,7 @@ docker run --rm --privileged \
   ghcr.io/muxi-ai/runtime-runner:latest \
   exec --bind /formation:/formation --bind /tmp \
   /sif/runtime.sif \
-  python -m muxi.utils.run_formation /formation/formation.yaml --port 8001 --host 0.0.0.0
+  python -m muxi.utils.run_formation /formation/formation.afs --port 8001 --host 0.0.0.0
 ```
 
 ---
