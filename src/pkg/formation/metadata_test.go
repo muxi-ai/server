@@ -123,8 +123,8 @@ nested:
 			return
 		}
 
-		if !contains(err.Error(), "failed to read formation.yaml") {
-			t.Errorf("InjectMetadata() error = %q, want error containing 'failed to read formation.yaml'", err.Error())
+		if !contains(err.Error(), "failed to find formation config") {
+			t.Errorf("InjectMetadata() error = %q, want error containing 'failed to find formation config'", err.Error())
 		}
 	})
 
@@ -143,8 +143,8 @@ nested:
 			return
 		}
 
-		if !contains(err.Error(), "failed to parse formation.yaml") {
-			t.Errorf("InjectMetadata() error = %q, want error containing 'failed to parse formation.yaml'", err.Error())
+		if !contains(err.Error(), "failed to parse formation config") {
+			t.Errorf("InjectMetadata() error = %q, want error containing 'failed to parse formation config'", err.Error())
 		}
 	})
 
@@ -346,7 +346,7 @@ func TestInjectMetadata_NoFormationYAML(t *testing.T) {
 	err := InjectMetadata(tmpDir, "test-server-123")
 	
 	if err == nil {
-		t.Error("InjectMetadata should error when formation.yaml doesn't exist")
+		t.Error("InjectMetadata should error when formation config doesn't exist")
 	}
 }
 
@@ -427,7 +427,7 @@ func TestInjectMetadata_FileReadError(t *testing.T) {
 
 	err := InjectMetadata(tmpDir, "test-server")
 	if err == nil {
-		t.Error("InjectMetadata should error when formation.yaml is a directory")
+		t.Error("InjectMetadata should error when formation config is a directory")
 	}
 }
 

@@ -60,11 +60,14 @@ func (s *Server) restoreFormation(formationID string, port int) error {
 		return fmt.Errorf("formation current directory not found: %s", currentDir)
 	}
 
-	// Parse formation.yaml from current directory
-	formationYAMLPath := filepath.Join(currentDir, "formation.yaml")
-	formationConfig, err := formation.ParseFormationYAML(formationYAMLPath)
+	// Find and parse formation config from current directory (formation.afs/yaml/yml)
+	formationConfigPath, err := formation.FindFormationFile(currentDir)
 	if err != nil {
-		return fmt.Errorf("failed to read formation.yaml: %w", err)
+		return fmt.Errorf("failed to find formation config: %w", err)
+	}
+	formationConfig, err := formation.ParseFormation(formationConfigPath)
+	if err != nil {
+		return fmt.Errorf("failed to read formation config: %w", err)
 	}
 
 	// Compute environment variables

@@ -3,11 +3,28 @@ package formation
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"gopkg.in/yaml.v3"
 )
 
-// Formation represents a parsed formation.yaml file
+// FormationFileNames lists the supported formation config file names in priority order
+// .afs (Agent Formation Schema) is preferred, then .yaml, then .yml
+var FormationFileNames = []string{"formation.afs", "formation.yaml", "formation.yml"}
+
+// FindFormationFile finds the formation config file in a directory
+// Checks for formation.afs, formation.yaml, formation.yml in priority order
+func FindFormationFile(dir string) (string, error) {
+	for _, name := range FormationFileNames {
+		path := filepath.Join(dir, name)
+		if _, err := os.Stat(path); err == nil {
+			return path, nil
+		}
+	}
+	return "", fmt.Errorf("no formation config file found (tried: %v)", FormationFileNames)
+}
+
+// Formation represents a parsed formation config file (formation.afs/yaml/yml)
 type Formation struct {
 	Schema      string `yaml:"schema"`
 	ID          string `yaml:"id"`
@@ -21,24 +38,24 @@ type Formation struct {
 	// Note: "runtime" field is reserved for MUXI runtime's own configuration
 }
 
-// ParseFormationYAML parses a formation.yaml file
-func ParseFormationYAML(path string) (*Formation, error) {
+// ParseFormation parses a formation config file (formation.afs/yaml/yml)
+func ParseFormation(path string) (*Formation, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read formation.yaml: %w", err)
+		return nil, fmt.Errorf("failed to read formation config: %w", err)
 	}
 
 	var f Formation
 	if err := yaml.Unmarshal(data, &f); err != nil {
-		return nil, fmt.Errorf("failed to parse formation.yaml: %w", err)
+		return nil, fmt.Errorf("failed to parse formation config: %w", err)
 	}
 
 	// Validate required fields
 	if f.ID == "" {
-		return nil, fmt.Errorf("formation.yaml must have an 'id' field")
+		return nil, fmt.Errorf("formation config must have an 'id' field")
 	}
 	if f.Description == "" {
-		return nil, fmt.Errorf("formation.yaml must have a 'description' field")
+		return nil, fmt.Errorf("formation config must have a 'description' field")
 	}
 
 	// Set defaults
@@ -81,17 +98,20 @@ func (f *Formation) ValidateID() error {
 	return nil
 }
 
-// ValidateSecrets checks if secrets are referenced in formation.yaml and validates them
+// ValidateSecrets checks if secrets are referenced in formation config and validates them
 // Returns an error if secrets are referenced but secrets.enc and .key files don't exist
 func ValidateSecrets(formationDir string) error {
-	formationPath := formationDir + "/formation.yaml"
+	formationPath, err := FindFormationFile(formationDir)
+	if err != nil {
+		return fmt.Errorf("failed to find formation config: %w", err)
+	}
 	secretsEncPath := formationDir + "/secrets.enc"
 	keyPath := formationDir + "/.key"
 
-	// Read formation.yaml content
+	// Read formation config content
 	data, err := os.ReadFile(formationPath)
 	if err != nil {
-		return fmt.Errorf("failed to read formation.yaml: %w", err)
+		return fmt.Errorf("failed to read formation config: %w", err)
 	}
 
 	// Find all secrets references: ${{ secrets.XXX }}

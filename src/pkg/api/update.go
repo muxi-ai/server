@@ -214,16 +214,22 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 	// Emit validating progress
 	progress.Emit(ProgressEvent{
 		Stage:   StageValidating,
-		Message: "Validating formation.yaml...",
+		Message: "Validating formation config...",
 	})
 
-	// Parse staging formation.yaml
-	formationYAMLPath := filepath.Join(stagingDir, "formation.yaml")
-	formationConfig, err := formation.ParseFormationYAML(formationYAMLPath)
+	// Find and parse staging formation config (formation.afs/yaml/yml)
+	formationConfigPath, err := formation.FindFormationFile(stagingDir)
 	if err != nil {
-		s.logger.Error().Err(err).Msg("Failed to parse formation.yaml")
+		s.logger.Error().Err(err).Msg("Failed to find formation config")
 		os.RemoveAll(stagingDir)
-		respondErr(http.StatusBadRequest, StageValidating, "ParseError", fmt.Sprintf("Failed to parse formation.yaml: %v", err))
+		respondErr(http.StatusBadRequest, StageValidating, "ParseError", fmt.Sprintf("Failed to find formation config: %v", err))
+		return
+	}
+	formationConfig, err := formation.ParseFormation(formationConfigPath)
+	if err != nil {
+		s.logger.Error().Err(err).Msg("Failed to parse formation config")
+		os.RemoveAll(stagingDir)
+		respondErr(http.StatusBadRequest, StageValidating, "ParseError", fmt.Sprintf("Failed to parse formation config: %v", err))
 		return
 	}
 
@@ -281,7 +287,7 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 		RuntimeType:            "native",
 	}
 
-	// Handle runtime resolution if specified in formation.yaml
+	// Handle runtime resolution if specified in formation config
 	if formationConfig.MuxiRuntime != "" {
 		progress.Emit(ProgressEvent{
 			Stage:   StageResolvingRuntime,
@@ -541,7 +547,7 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 
 	// Update registry with new version and process info
 	s.registry.Update(formationID, func(f *registry.Formation) {
-		f.Version = formationConfig.Version // Semantic version from formation.yaml
+		f.Version = formationConfig.Version // Semantic version from formation config
 		f.ProcessID = proc.PID
 		f.Status = "running"
 	})

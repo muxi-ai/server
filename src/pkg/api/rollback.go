@@ -139,12 +139,17 @@ func (s *Server) HandleRollback(w http.ResponseWriter, r *http.Request) {
 		Int("staging_port", stagingPort).
 		Msg("Allocated staging port for blue-green rollback")
 
-	// Parse formation.yaml from PREVIOUS version (we're rolling back to it)
-	formationYAMLPath := filepath.Join(previousDir, "formation.yaml")
-	formationConfig, err := formation.ParseFormationYAML(formationYAMLPath)
+	// Find and parse formation config from PREVIOUS version (we're rolling back to it)
+	formationConfigPath, err := formation.FindFormationFile(previousDir)
 	if err != nil {
-		s.logger.Error().Err(err).Msg("Failed to parse formation.yaml from previous version")
-		respondErr(http.StatusInternalServerError, StageRollbackValidating, "ParseError", fmt.Sprintf("Failed to parse formation.yaml: %v", err))
+		s.logger.Error().Err(err).Msg("Failed to find formation config from previous version")
+		respondErr(http.StatusInternalServerError, StageRollbackValidating, "ParseError", fmt.Sprintf("Failed to find formation config: %v", err))
+		return
+	}
+	formationConfig, err := formation.ParseFormation(formationConfigPath)
+	if err != nil {
+		s.logger.Error().Err(err).Msg("Failed to parse formation config from previous version")
+		respondErr(http.StatusInternalServerError, StageRollbackValidating, "ParseError", fmt.Sprintf("Failed to parse formation config: %v", err))
 		return
 	}
 

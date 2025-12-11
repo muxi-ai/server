@@ -5,30 +5,32 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
 
 	"gopkg.in/yaml.v3"
 )
 
-// InjectMetadata adds server metadata to formation.yaml
+// InjectMetadata adds server metadata to formation config file
 // Adds:
 //
 //	_server_id: "server-abc-123"
 //	_deployment_mode: "server"
 func InjectMetadata(formationDir string, serverID string) error {
-	formationPath := filepath.Join(formationDir, "formation.yaml")
+	formationPath, err := FindFormationFile(formationDir)
+	if err != nil {
+		return fmt.Errorf("failed to find formation config: %w", err)
+	}
 
 	// Read existing file
 	data, err := os.ReadFile(formationPath)
 	if err != nil {
-		return fmt.Errorf("failed to read formation.yaml: %w", err)
+		return fmt.Errorf("failed to read formation config: %w", err)
 	}
 
 	// Parse as generic map to preserve structure
 	var formationMap map[string]interface{}
 	if err := yaml.Unmarshal(data, &formationMap); err != nil {
-		return fmt.Errorf("failed to parse formation.yaml: %w", err)
+		return fmt.Errorf("failed to parse formation config: %w", err)
 	}
 
 	// Inject metadata
@@ -38,11 +40,11 @@ func InjectMetadata(formationDir string, serverID string) error {
 	// Write back
 	newData, err := yaml.Marshal(formationMap)
 	if err != nil {
-		return fmt.Errorf("failed to marshal formation.yaml: %w", err)
+		return fmt.Errorf("failed to marshal formation config: %w", err)
 	}
 
 	if err := os.WriteFile(formationPath, newData, 0644); err != nil {
-		return fmt.Errorf("failed to write formation.yaml: %w", err)
+		return fmt.Errorf("failed to write formation config: %w", err)
 	}
 
 	return nil

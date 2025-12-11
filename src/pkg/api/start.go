@@ -96,14 +96,18 @@ func (s *Server) HandleStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse formation.yaml
+	// Find and parse formation config (formation.afs/yaml/yml)
 	progress.Emit(ProgressEvent{
 		Stage:   StageValidating,
 		Message: "Loading formation configuration...",
 	})
 
-	formationYAMLPath := filepath.Join(formationDir, "formation.yaml")
-	formationConfig, err := formation.ParseFormationYAML(formationYAMLPath)
+	formationConfigPath, err := formation.FindFormationFile(formationDir)
+	if err != nil {
+		respondErr(http.StatusInternalServerError, StageValidating, "ParseError", fmt.Sprintf("Failed to find formation config: %v", err))
+		return
+	}
+	formationConfig, err := formation.ParseFormation(formationConfigPath)
 	if err != nil {
 		respondErr(http.StatusInternalServerError, StageValidating, "ParseError", err.Error())
 		return

@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestParseFormationYAML(t *testing.T) {
+func TestParseFormation(t *testing.T) {
 	tests := []struct {
 		name        string
 		content     string
@@ -78,13 +78,13 @@ description: A minimal test formation`,
 			name:        "invalid YAML syntax",
 			content:     `id: test\ninvalid yaml: [`,
 			wantErr:     true,
-			errContains: "failed to parse formation.yaml",
+			errContains: "failed to parse formation config",
 		},
 		{
 			name:        "non-existent file",
 			content:     "",
 			wantErr:     true,
-			errContains: "failed to read formation.yaml",
+			errContains: "failed to read formation config",
 		},
 	}
 
@@ -104,26 +104,26 @@ description: A minimal test formation`,
 				}
 			}
 
-			formation, err := ParseFormationYAML(path)
+			formation, err := ParseFormation(path)
 
 			if tt.wantErr {
 				if err == nil {
-					t.Errorf("ParseFormationYAML() error = nil, want error containing %q", tt.errContains)
+					t.Errorf("ParseFormation() error = nil, want error containing %q", tt.errContains)
 					return
 				}
 				if tt.errContains != "" && !contains(err.Error(), tt.errContains) {
-					t.Errorf("ParseFormationYAML() error = %q, want error containing %q", err.Error(), tt.errContains)
+					t.Errorf("ParseFormation() error = %q, want error containing %q", err.Error(), tt.errContains)
 				}
 				return
 			}
 
 			if err != nil {
-				t.Errorf("ParseFormationYAML() unexpected error: %v", err)
+				t.Errorf("ParseFormation() unexpected error: %v", err)
 				return
 			}
 
 			if formation == nil {
-				t.Error("ParseFormationYAML() returned nil formation")
+				t.Error("ParseFormation() returned nil formation")
 				return
 			}
 

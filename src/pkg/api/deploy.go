@@ -166,15 +166,20 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 	// Emit validating progress
 	progress.Emit(ProgressEvent{
 		Stage:   StageValidating,
-		Message: "Validating formation.yaml...",
+		Message: "Validating formation config...",
 	})
 
-	// Parse formation.yaml
-	formationYAMLPath := filepath.Join(formationDir, "formation.yaml")
-	formationConfig, err := formation.ParseFormationYAML(formationYAMLPath)
+	// Find and parse formation config (formation.afs/yaml/yml)
+	formationConfigPath, err := formation.FindFormationFile(formationDir)
 	if err != nil {
-		s.logger.Error().Err(err).Msg("Failed to parse formation.yaml")
-		respondErr(http.StatusBadRequest, StageValidating, "ParseError", fmt.Sprintf("Failed to parse formation.yaml: %v", err))
+		s.logger.Error().Err(err).Msg("Failed to find formation config")
+		respondErr(http.StatusBadRequest, StageValidating, "ParseError", fmt.Sprintf("Failed to find formation config: %v", err))
+		return
+	}
+	formationConfig, err := formation.ParseFormation(formationConfigPath)
+	if err != nil {
+		s.logger.Error().Err(err).Msg("Failed to parse formation config")
+		respondErr(http.StatusBadRequest, StageValidating, "ParseError", fmt.Sprintf("Failed to parse formation config: %v", err))
 		return
 	}
 
@@ -220,14 +225,14 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Inject server metadata into formation.yaml for telemetry
+	// Inject server metadata into formation config for telemetry
 	if err := formation.InjectMetadata(formationDir, s.config.ServerID); err != nil {
 		s.logger.Warn().Err(err).Msg("Failed to inject metadata (continuing anyway)")
 		// Don't fail deployment if metadata injection fails
 	} else {
 		s.logger.Debug().
 			Str("server_id", s.config.ServerID).
-			Msg("Injected server metadata into formation.yaml")
+			Msg("Injected server metadata into formation config")
 	}
 
 	// Allocate port
@@ -323,7 +328,7 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 		TruncateLogs:           true,     // Fresh logs for new deploy
 	}
 
-	// Handle runtime resolution if specified in formation.yaml
+	// Handle runtime resolution if specified in formation config
 	if formationConfig.MuxiRuntime != "" {
 		// Emit resolving runtime progress
 		progress.Emit(ProgressEvent{
