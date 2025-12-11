@@ -18,9 +18,11 @@ $ muxi formation deploy my-formation.tar.gz
 
 Behind the scenes, MUXI Server:
 1. Extracts your formation files
-2. Loads the appropriate runtime (based on `formation.yaml`)
+2. Loads the appropriate runtime (based on formation config)
 3. Spawns an isolated container for your formation
 4. Starts health monitoring
+
+> **Note:** Formation config files support three extensions (in priority order): `.afs` (Agent Formation Schema - preferred), `.yaml`, and `.yml`.
 
 ---
 

@@ -172,6 +172,8 @@ curl http://localhost:7890/health
 
 ## Step 5: Deploy Your First Formation
 
+> **Note:** Formation config files support three extensions (in priority order): `.afs` (Agent Formation Schema - preferred), `.yaml`, and `.yml`.
+
 ### Option A: Using the Test Formation
 
 Create a simple test formation:
