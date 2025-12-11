@@ -18,7 +18,7 @@ type FormationListResponse struct {
 
 // VersionInfo represents version information for API responses
 type VersionInfo struct {
-	Semantic string `json:"semantic,omitempty"` // Semantic version from formation.yaml (e.g., "1.0.0")
+	Semantic string `json:"semantic,omitempty"` // Semantic version from formation.afs (e.g., "1.0.0")
 	Current  string `json:"current,omitempty"`  // Current bundle hash
 	Previous string `json:"previous,omitempty"` // Previous bundle hash (for rollback)
 }

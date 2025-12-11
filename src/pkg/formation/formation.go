@@ -214,7 +214,7 @@ func (f *Formation) GetEnvironmentVars(port int, serverURL string, bindHost stri
 	env["MUXI_SERVER_URL"] = serverURL
 	env["MUXI_ENV"] = "production"
 
-	// Metadata for formation.yaml injection
+	// Metadata for formation config injection
 	env["_bind_host"] = bindHost
 	env["_port"] = fmt.Sprintf("%d", port)
 

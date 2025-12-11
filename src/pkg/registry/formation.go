@@ -11,7 +11,7 @@ type Formation struct {
 	// Core identification
 	ID      string `json:"id"`                // Formation ID (unique)
 	Name    string `json:"name"`              // Display name
-	Version string `json:"version,omitempty"` // Semantic version from formation.yaml
+	Version string `json:"version,omitempty"` // Semantic version from formation.afs
 
 	// Process details
 	ProcessID int    `json:"process_id"` // PID of running process

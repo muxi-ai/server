@@ -27,7 +27,7 @@ type DeployResponse struct {
 }
 
 // HandleDeploy handles POST /rpc/formations
-// Deploys a formation from a gzipped tarball bundle containing formation.yaml
+// Deploys a formation from a gzipped tarball bundle containing formation.afs (or .yaml/.yml)
 func (s *Server) HandleDeploy(w http.ResponseWriter, r *http.Request) {
 	contentType := r.Header.Get("Content-Type")
 
