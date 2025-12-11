@@ -13,6 +13,12 @@ Formations are the core units managed by MUXI Server. Each formation:
 - Can be restarted automatically on crash
 - Uses MUXI Runtime (0.2025.0) for execution
 
+**Formation Config File:**
+The server supports three file extensions for formation configuration (in priority order):
+- `.afs` - Agent Formation Schema (preferred)
+- `.yaml` - Standard YAML
+- `.yml` - YAML shorthand
+
 **✨ NEW: Formation Bundle Upload**  
 MUXI Server now supports uploading complete formation bundles (gzipped tarballs) with automatic metadata injection. See [Bundle Upload](#bundle-upload-new) section below or the [BUNDLE-UPLOAD-COMPLETE.md](../BUNDLE-UPLOAD-COMPLETE.md) guide for details.
 
