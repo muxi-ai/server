@@ -604,7 +604,7 @@ Currently: One container per formation
 
 **Future:** Support formations with multiple services:
 ```yaml
-# formation.yaml
+# formation.afs (or .yaml)
 runtime: "0.1.0"
 services:
   app:

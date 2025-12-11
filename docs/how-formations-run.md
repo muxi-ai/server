@@ -390,7 +390,7 @@ muxi formation deploy workflow.tar.gz
 Specify the runtime version in `formation.yaml`:
 
 ```yaml
-# formation.yaml
+# formation.afs (or .yaml)
 id: my-formation
 runtime: "0.1.0"  # Specific version
 # or
@@ -406,7 +406,7 @@ MUXI Server automatically finds and uses the correct runtime.
 Future versions will support resource limits:
 
 ```yaml
-# formation.yaml
+# formation.afs (or .yaml)
 resources:
   cpu: "2"        # 2 CPU cores
   memory: "4GB"   # 4GB RAM
