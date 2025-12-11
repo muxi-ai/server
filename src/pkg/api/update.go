@@ -383,7 +383,7 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 		spawnConfig.Command = "python"
 		spawnConfig.Args = []string{
 			"-m", "muxi.utils.run_formation",
-			"/formation/formation.yaml",
+			"/formation",
 			"--port", fmt.Sprintf("%d", stagingPort),
 			"--host", bindHost,
 		}

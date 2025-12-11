@@ -258,7 +258,7 @@ func (s *Server) HandleRollback(w http.ResponseWriter, r *http.Request) {
 		spawnConfig.Command = "python"
 		spawnConfig.Args = []string{
 			"-m", "muxi.utils.run_formation",
-			"/formation/formation.yaml",
+			"/formation",
 			"--port", fmt.Sprintf("%d", stagingPort),
 			"--host", bindHost,
 		}
@@ -385,7 +385,7 @@ func (s *Server) HandleRollback(w http.ResponseWriter, r *http.Request) {
 		finalSpawnConfig.Command = "python"
 		finalSpawnConfig.Args = []string{
 			"-m", "muxi.utils.run_formation",
-			"/formation/formation.yaml",
+			"/formation",
 			"--port", fmt.Sprintf("%d", existingFormation.Port),
 			"--host", bindHost,
 		}
