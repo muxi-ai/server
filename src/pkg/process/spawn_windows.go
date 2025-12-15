@@ -182,6 +182,12 @@ func Stop(proc *Process, logger *zerolog.Logger) error {
 			Msg("Process exited")
 	}
 
+	// For singularity runtime (Docker-wrapped), clean up container
+	// This handles cases where the docker run process is killed but container remains
+	if proc.RuntimeType == "singularity" && proc.Port > 0 {
+		CleanupDockerContainer(proc.ID, proc.Port, logger)
+	}
+
 	proc.SetStatus(StatusStopped)
 	proc.PID = 0
 	proc.cmd = nil
@@ -229,6 +235,12 @@ func ForceKill(proc *Process, logger *zerolog.Logger) error {
 	if err := proc.cmd.Wait(); err != nil {
 		// Exit error is expected with forced termination
 		logger.Debug().Err(err).Str("id", proc.ID).Msg("Process killed")
+	}
+
+	// For singularity runtime (Docker-wrapped), clean up container
+	// This handles cases where the docker run process is killed but container remains
+	if proc.RuntimeType == "singularity" && proc.Port > 0 {
+		CleanupDockerContainer(proc.ID, proc.Port, logger)
 	}
 
 	proc.SetStatus(StatusStopped)

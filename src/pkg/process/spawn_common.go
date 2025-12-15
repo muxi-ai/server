@@ -222,6 +222,7 @@ func Spawn(config SpawnConfig) (*Process, error) {
 		MaxRestarts:            10, // Default
 		HealthCheckURL:         healthCheckURL,
 		SkipInitialHealthCheck: config.SkipInitialHealthCheck,
+		Port:                   config.Port,
 		RuntimeType:            config.RuntimeType,
 		SIFPath:                config.SIFPath,
 		cmd:                    cmd,
@@ -364,40 +365,80 @@ func buildDockerSingularityCommand(config SpawnConfig, logger *zerolog.Logger) *
 
 // CleanupDockerContainer stops and removes any existing Docker container for a formation.
 // This handles orphaned containers from crashes, restarts, or server restarts.
-// It first tries to stop by container name (muxi-{id}), then as fallback kills anything on the port.
-func CleanupDockerContainer(formationID string, port int, logger *zerolog.Logger) {
+// It first tries to remove by container name (muxi-{id}), then as fallback kills anything on the port.
+// Returns true if a container was found and cleaned up.
+func CleanupDockerContainer(formationID string, port int, logger *zerolog.Logger) bool {
 	containerName := fmt.Sprintf("muxi-%s", formationID)
+	cleaned := false
 
-	// Try to stop and remove by name first
-	if out, err := exec.Command("docker", "stop", containerName).CombinedOutput(); err == nil {
-		logger.Debug().
+	// Check if container exists (running or stopped) using docker ps -a
+	checkCmd := exec.Command("docker", "ps", "-aq", "--filter", fmt.Sprintf("name=^%s$", containerName))
+	if out, err := checkCmd.Output(); err == nil && len(strings.TrimSpace(string(out))) > 0 {
+		containerID := strings.TrimSpace(string(out))
+		logger.Info().
 			Str("container", containerName).
-			Msg("Stopped existing Docker container")
-	} else {
-		// Container might not exist, that's fine
-		logger.Debug().
-			Str("container", containerName).
-			Str("output", strings.TrimSpace(string(out))).
-			Msg("No existing container to stop (or already stopped)")
+			Str("container_id", containerID).
+			Msg("Found existing container, removing...")
+
+		// Use rm -f which stops (SIGKILL) and removes in one operation
+		// This is faster and more reliable than stop + rm
+		rmCmd := exec.Command("docker", "rm", "-f", containerName)
+		if rmOut, rmErr := rmCmd.CombinedOutput(); rmErr != nil {
+			logger.Warn().
+				Err(rmErr).
+				Str("container", containerName).
+				Str("output", strings.TrimSpace(string(rmOut))).
+				Msg("Failed to remove container, will retry")
+
+			// Retry with container ID instead of name
+			if retryOut, retryErr := exec.Command("docker", "rm", "-f", containerID).CombinedOutput(); retryErr != nil {
+				logger.Error().
+					Err(retryErr).
+					Str("container_id", containerID).
+					Str("output", strings.TrimSpace(string(retryOut))).
+					Msg("Failed to remove container by ID")
+			} else {
+				logger.Info().Str("container_id", containerID).Msg("Container removed by ID")
+				cleaned = true
+			}
+		} else {
+			logger.Info().Str("container", containerName).Msg("Container removed")
+			cleaned = true
+		}
+
+		// Give Docker a moment to fully release the name
+		time.Sleep(500 * time.Millisecond)
 	}
 
-	// Remove the container (in case --rm didn't clean it up)
-	exec.Command("docker", "rm", "-f", containerName).Run()
-
-	// Fallback: kill any container using this port (handles edge cases)
-	out, err := exec.Command("docker", "ps", "-q", "--filter", fmt.Sprintf("publish=%d", port)).Output()
+	// Fallback: kill any container using this port (handles edge cases like renamed containers)
+	portFilter := fmt.Sprintf("publish=%d", port)
+	out, err := exec.Command("docker", "ps", "-q", "--filter", portFilter).Output()
 	if err == nil && len(strings.TrimSpace(string(out))) > 0 {
 		containerIDs := strings.TrimSpace(string(out))
 		logger.Warn().
 			Str("containers", containerIDs).
 			Int("port", port).
 			Msg("Found orphaned containers on port, removing")
-		
+
 		for _, id := range strings.Split(containerIDs, "\n") {
 			id = strings.TrimSpace(id)
 			if id != "" {
-				exec.Command("docker", "rm", "-f", id).Run()
+				if rmOut, rmErr := exec.Command("docker", "rm", "-f", id).CombinedOutput(); rmErr != nil {
+					logger.Error().
+						Err(rmErr).
+						Str("container_id", id).
+						Str("output", strings.TrimSpace(string(rmOut))).
+						Msg("Failed to remove orphaned container")
+				} else {
+					logger.Info().Str("container_id", id).Msg("Orphaned container removed")
+					cleaned = true
+				}
 			}
 		}
+
+		// Give Docker a moment to fully release the port
+		time.Sleep(500 * time.Millisecond)
 	}
+
+	return cleaned
 }

@@ -38,6 +38,7 @@ type Process struct {
 	RestartDelay           time.Duration
 	HealthCheckURL         string // URL for health checks (e.g., "http://localhost:8001/health")
 	SkipInitialHealthCheck bool   // Skip initial health check (deploy does its own)
+	Port                   int    // Port number (for Docker cleanup)
 
 	// Runtime configuration (for auto-restart)
 	RuntimeType string // "native" or "singularity"

@@ -108,6 +108,9 @@ func cmdStart() error {
 	log.Logger = logger
 	zerolog.SetGlobalLevel(logLevel)
 
+	// Print banner
+	fmt.Fprint(os.Stderr, bannerColored)
+
 	logger.Info().Msgf("MUXI Server (v%s): Starting...", Version)
 
 	// Load configuration
