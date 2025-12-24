@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/muxi-ai/server/pkg/process"
@@ -32,7 +31,9 @@ func NewHandler(reg *registry.Registry, pm ProcessGetter) *Handler {
 		registry:       reg,
 		processManager: pm,
 		client: &http.Client{
-			Timeout: 30 * time.Second,
+			// No timeout - SSE streams can be long-lived
+			// Individual requests that need timeouts should set them per-request
+			Timeout: 0,
 			// Don't follow redirects - pass them through
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
 				return http.ErrUseLastResponse
@@ -164,15 +165,56 @@ func (h *Handler) ProxyRequest(w http.ResponseWriter, r *http.Request) {
 	// Copy status code
 	w.WriteHeader(resp.StatusCode)
 
-	// Copy response body
-	_, err = io.Copy(w, resp.Body)
-	if err != nil {
-		log.Error().
-			Err(err).
-			Str("formation_id", formationID).
-			Msg("Failed to copy response body")
-		// Can't write error response here - headers already sent
-		return
+	// Check if this is a streaming response (SSE)
+	contentType := resp.Header.Get("Content-Type")
+	isSSE := strings.HasPrefix(contentType, "text/event-stream")
+
+	if isSSE {
+		// For SSE, we need to flush after each chunk
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			log.Error().
+				Str("formation_id", formationID).
+				Msg("ResponseWriter does not support flushing for SSE")
+			return
+		}
+
+		// Stream the response with flushing
+		buf := make([]byte, 4096)
+		for {
+			n, readErr := resp.Body.Read(buf)
+			if n > 0 {
+				_, writeErr := w.Write(buf[:n])
+				if writeErr != nil {
+					log.Error().
+						Err(writeErr).
+						Str("formation_id", formationID).
+						Msg("Failed to write SSE data")
+					return
+				}
+				flusher.Flush()
+			}
+			if readErr != nil {
+				if readErr != io.EOF {
+					log.Error().
+						Err(readErr).
+						Str("formation_id", formationID).
+						Msg("Error reading SSE response")
+				}
+				break
+			}
+		}
+	} else {
+		// For non-streaming responses, use regular copy
+		_, err = io.Copy(w, resp.Body)
+		if err != nil {
+			log.Error().
+				Err(err).
+				Str("formation_id", formationID).
+				Msg("Failed to copy response body")
+			// Can't write error response here - headers already sent
+			return
+		}
 	}
 
 	log.Debug().
@@ -180,6 +222,7 @@ func (h *Handler) ProxyRequest(w http.ResponseWriter, r *http.Request) {
 		Int("status", resp.StatusCode).
 		Str("method", r.Method).
 		Str("path", r.URL.Path).
+		Bool("sse", isSSE).
 		Msg("Proxy request completed")
 }
 
