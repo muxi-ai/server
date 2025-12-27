@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/muxi-ai/server/pkg/registry"
@@ -32,8 +31,9 @@ func TestNewHandler(t *testing.T) {
 		t.Error("Handler HTTP client not initialized")
 	}
 
-	if handler.client.Timeout == 0 {
-		t.Error("Handler HTTP client timeout not set")
+	// Timeout is 0 to support long-lived SSE streams
+	if handler.client.Timeout != 0 {
+		t.Errorf("Handler HTTP client timeout should be 0 for SSE support, got %v", handler.client.Timeout)
 	}
 }
 
@@ -525,8 +525,9 @@ func TestNewHandler_Timeout(t *testing.T) {
 	reg, _ := registry.NewRegistry(8000, 8100)
 	handler := NewHandler(reg, nil)
 
-	if handler.client.Timeout != 30*time.Second {
-		t.Errorf("Client timeout = %v, want 30s", handler.client.Timeout)
+	// Timeout should be 0 to support long-lived SSE streams
+	if handler.client.Timeout != 0 {
+		t.Errorf("Client timeout = %v, want 0 for SSE support", handler.client.Timeout)
 	}
 }
 

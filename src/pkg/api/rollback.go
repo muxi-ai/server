@@ -80,14 +80,8 @@ func (s *Server) HandleRollback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get formation base directory
-	muxiDir, err := getMuxiDir()
-	if err != nil {
-		s.logger.Error().Err(err).Msg("Failed to get MUXI directory")
-		respondErr(http.StatusInternalServerError, StageRollbackValidating, "DirectoryError", "Failed to get MUXI directory")
-		return
-	}
-	formationBaseDir := filepath.Join(muxiDir, "formations", formationID)
+	// Get formation base directory from config
+	formationBaseDir := filepath.Join(s.config.Formations.FormationsDir, formationID)
 
 	// Load version history
 	history, err := formation.LoadVersionHistory(formationBaseDir)
@@ -183,7 +177,9 @@ func (s *Server) HandleRollback(w http.ResponseWriter, r *http.Request) {
 			Message: "Resolving runtime version...",
 		})
 
-		runtimesDir := filepath.Join(muxiDir, "runtimes")
+		// Get base dir from FormationsDir (e.g., ~/.muxi/server/formations -> ~/.muxi/server)
+		baseDir := filepath.Dir(s.config.Formations.FormationsDir)
+		runtimesDir := filepath.Join(baseDir, "runtimes")
 		if err := os.MkdirAll(runtimesDir, 0755); err != nil {
 			respondErr(http.StatusInternalServerError, StageResolvingRuntime, "DirectoryError", err.Error())
 			return
