@@ -461,3 +461,112 @@ func formatID(id int) string {
 	}
 	return "formation-" + string(rune('0'+id/10)) + string(rune('0'+id%10))
 }
+
+func TestRegistry_SetDeploying(t *testing.T) {
+	reg, _ := NewRegistry(8000, 8100)
+
+	reg.Register(&Formation{ID: "test", Port: 8080})
+
+	// Set deploying
+	err := reg.SetDeploying("test", true)
+	if err != nil {
+		t.Errorf("SetDeploying(true) error = %v", err)
+	}
+
+	// Try to set deploying again - should fail
+	err = reg.SetDeploying("test", true)
+	if err == nil {
+		t.Error("SetDeploying(true) should fail when already deploying")
+	}
+
+	// Clear deploying
+	err = reg.SetDeploying("test", false)
+	if err != nil {
+		t.Errorf("SetDeploying(false) error = %v", err)
+	}
+
+	// Non-existent formation
+	err = reg.SetDeploying("nonexistent", true)
+	if err == nil {
+		t.Error("SetDeploying on nonexistent should fail")
+	}
+}
+
+func TestRegistry_StagingPort(t *testing.T) {
+	reg, _ := NewRegistry(8000, 8100)
+
+	reg.Register(&Formation{ID: "test", Port: 8080})
+
+	// Initially no staging port
+	if port := reg.GetStagingPort("test"); port != 0 {
+		t.Errorf("GetStagingPort = %d, want 0", port)
+	}
+
+	// Set staging port
+	err := reg.SetStagingPort("test", 8081)
+	if err != nil {
+		t.Errorf("SetStagingPort error = %v", err)
+	}
+
+	if port := reg.GetStagingPort("test"); port != 8081 {
+		t.Errorf("GetStagingPort = %d, want 8081", port)
+	}
+
+	// Switch to staging port
+	oldPort, err := reg.SwitchToStagingPort("test")
+	if err != nil {
+		t.Errorf("SwitchToStagingPort error = %v", err)
+	}
+	if oldPort != 8080 {
+		t.Errorf("Old port = %d, want 8080", oldPort)
+	}
+
+	f, _ := reg.Get("test")
+	if f.Port != 8081 {
+		t.Errorf("Port after switch = %d, want 8081", f.Port)
+	}
+	if f.StagingPort != 0 {
+		t.Errorf("StagingPort after switch = %d, want 0", f.StagingPort)
+	}
+}
+
+func TestRegistry_ClearStagingPort(t *testing.T) {
+	reg, _ := NewRegistry(8000, 8100)
+
+	reg.Register(&Formation{ID: "test", Port: 8080, StagingPort: 8081})
+
+	err := reg.ClearStagingPort("test")
+	if err != nil {
+		t.Errorf("ClearStagingPort error = %v", err)
+	}
+
+	if port := reg.GetStagingPort("test"); port != 0 {
+		t.Errorf("StagingPort after clear = %d, want 0", port)
+	}
+}
+
+func TestRegistry_SwitchToStagingPort_Errors(t *testing.T) {
+	reg, _ := NewRegistry(8000, 8100)
+
+	// Non-existent formation
+	_, err := reg.SwitchToStagingPort("nonexistent")
+	if err == nil {
+		t.Error("SwitchToStagingPort on nonexistent should fail")
+	}
+
+	// Formation without staging port
+	reg.Register(&Formation{ID: "test", Port: 8080})
+	_, err = reg.SwitchToStagingPort("test")
+	if err == nil {
+		t.Error("SwitchToStagingPort without staging port should fail")
+	}
+}
+
+func TestRegistry_GetStagingPort_Nonexistent(t *testing.T) {
+	reg, _ := NewRegistry(8000, 8100)
+
+	// Non-existent formation returns 0
+	if port := reg.GetStagingPort("nonexistent"); port != 0 {
+		t.Errorf("GetStagingPort(nonexistent) = %d, want 0", port)
+	}
+}
