@@ -361,7 +361,7 @@ func TestHandleLogs(t *testing.T) {
 		tmpDir := t.TempDir()
 		server.config.Formations.LogsDir = tmpDir
 
-		logPath := filepath.Join(tmpDir, "test-logs.log")
+		logPath := filepath.Join(tmpDir, "test-logs-out.log")
 		logContent := "line 1\nline 2\nline 3\nline 4\nline 5\n"
 		if err := os.WriteFile(logPath, []byte(logContent), 0644); err != nil {
 			t.Fatalf("Failed to create test log file: %v", err)
@@ -395,14 +395,20 @@ func TestHandleLogs(t *testing.T) {
 			t.Fatal("Data is not a map")
 		}
 
-		logs, ok := data["logs"].([]interface{})
+		// logs is a map with stdout/stderr arrays
+		logsMap, ok := data["logs"].(map[string]interface{})
 		if !ok {
-			t.Fatal("logs field is not an array")
+			t.Fatal("logs field is not a map")
+		}
+
+		stdout, ok := logsMap["stdout"].([]interface{})
+		if !ok {
+			t.Fatal("stdout field is not an array")
 		}
 
 		// Should return last 3 lines
-		if len(logs) > 3 {
-			t.Errorf("Got %d log lines, want <= 3", len(logs))
+		if len(stdout) > 3 {
+			t.Errorf("Got %d log lines, want <= 3", len(stdout))
 		}
 	})
 }

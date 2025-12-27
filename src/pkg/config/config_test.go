@@ -468,21 +468,19 @@ func TestEnsureDirectories_AllCreated(t *testing.T) {
 		t.Errorf("Base dir not created: %v", err)
 	}
 
-	// Verify logs dir
-	logsDir := filepath.Join(tmpBase, cfg.Formations.LogsDir)
-	if _, err := os.Stat(logsDir); err != nil {
+	// After EnsureDirectories, config paths are normalized to absolute paths
+	// Verify logs dir (now absolute in config)
+	if _, err := os.Stat(cfg.Formations.LogsDir); err != nil {
 		t.Errorf("Logs dir not created: %v", err)
 	}
 
-	// Verify PIDs dir
-	pidsDir := filepath.Join(tmpBase, cfg.Formations.PIDsDir)
-	if _, err := os.Stat(pidsDir); err != nil {
+	// Verify PIDs dir (now absolute in config)
+	if _, err := os.Stat(cfg.Formations.PIDsDir); err != nil {
 		t.Errorf("PIDs dir not created: %v", err)
 	}
 
-	// Verify formations dir
-	formationsDir := filepath.Join(tmpBase, cfg.Formations.FormationsDir)
-	if _, err := os.Stat(formationsDir); err != nil {
+	// Verify formations dir (now absolute in config)
+	if _, err := os.Stat(cfg.Formations.FormationsDir); err != nil {
 		t.Errorf("Formations dir not created: %v", err)
 	}
 }

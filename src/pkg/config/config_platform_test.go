@@ -356,11 +356,12 @@ func TestWindowsConfigCreation(t *testing.T) {
 		}
 		
 		// Verify directories exist
+		// After EnsureDirectories, config paths are normalized to absolute paths
 		dirs := []string{
 			tempDir,
-			filepath.Join(tempDir, cfg.Formations.LogsDir),
-			filepath.Join(tempDir, cfg.Formations.PIDsDir),
-			filepath.Join(tempDir, cfg.Formations.FormationsDir),
+			cfg.Formations.LogsDir,
+			cfg.Formations.PIDsDir,
+			cfg.Formations.FormationsDir,
 		}
 		
 		for _, dir := range dirs {

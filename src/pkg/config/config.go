@@ -377,13 +377,21 @@ func GetRegistryPath() (string, error) {
 	return filepath.Join(dataDir, "registry.json"), nil
 }
 
-// EnsureDirectories creates all necessary directories
+// EnsureDirectories creates all necessary directories and normalizes config paths to absolute.
+// After this call, config.Formations.LogsDir, PIDsDir, and FormationsDir will be absolute paths.
 func EnsureDirectories(baseDir string, config *Config) error {
+	// Normalize relative paths to absolute FIRST (before creating directories)
+	// This ensures all code using config paths gets absolute paths
+	config.Formations.LogsDir = filepath.Join(baseDir, config.Formations.LogsDir)
+	config.Formations.PIDsDir = filepath.Join(baseDir, config.Formations.PIDsDir)
+	config.Formations.FormationsDir = filepath.Join(baseDir, config.Formations.FormationsDir)
+
+	// Now create all directories using the normalized absolute paths
 	dirs := []string{
 		baseDir,
-		filepath.Join(baseDir, config.Formations.LogsDir),
-		filepath.Join(baseDir, config.Formations.PIDsDir),
-		filepath.Join(baseDir, config.Formations.FormationsDir),
+		config.Formations.LogsDir,
+		config.Formations.PIDsDir,
+		config.Formations.FormationsDir,
 	}
 
 	for _, dir := range dirs {

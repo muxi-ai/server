@@ -159,8 +159,15 @@ func TestVersionHistorySave(t *testing.T) {
 		}
 	})
 
-	t.Run("save to nonexistent directory", func(t *testing.T) {
-		formationDir := "/nonexistent/directory"
+	t.Run("save fails when directory creation is blocked", func(t *testing.T) {
+		// Create a file that blocks directory creation
+		tmpDir := t.TempDir()
+		blocker := filepath.Join(tmpDir, "blocker")
+		if err := os.WriteFile(blocker, []byte("block"), 0644); err != nil {
+			t.Fatalf("Failed to create blocker file: %v", err)
+		}
+		// Use a path that requires blocker to be a directory
+		formationDir := filepath.Join(blocker, "subdir")
 
 		history := &VersionHistory{
 			CurrentVersion: 1,
@@ -168,7 +175,7 @@ func TestVersionHistorySave(t *testing.T) {
 
 		err := history.Save(formationDir)
 		if err == nil {
-			t.Error("Save() should fail for nonexistent directory")
+			t.Error("Save() should fail when directory creation is blocked")
 		}
 	})
 

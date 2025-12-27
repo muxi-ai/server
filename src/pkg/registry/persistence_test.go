@@ -3,7 +3,6 @@ package registry
 import (
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -135,17 +134,19 @@ func TestPersistence_AutoSaveLoop(t *testing.T) {
 }
 
 func TestPersistence_Save_Error(t *testing.T) {
-	// Try to save to an invalid path
-	// Use platform-appropriate absolute invalid path
-	var invalidPath string
-	if runtime.GOOS == "windows" {
-		// Windows: Use a path on a drive that doesn't exist
-		invalidPath = "Z:\\nonexistent\\directory\\registry.json"
-	} else {
-		// Unix: Use root-level nonexistent directory
-		invalidPath = "/nonexistent/directory/registry.json"
+	// Create a file that blocks directory creation
+	// MkdirAll will fail when a file exists where a directory is needed
+	tmpDir := t.TempDir()
+	blocker := filepath.Join(tmpDir, "blocker")
+
+	// Create a file at the blocker path
+	if err := os.WriteFile(blocker, []byte("block"), 0644); err != nil {
+		t.Fatalf("Failed to create blocker file: %v", err)
 	}
-	
+
+	// Try to save to a path that requires blocker to be a directory
+	invalidPath := filepath.Join(blocker, "subdir", "registry.json")
+
 	logger := zerolog.Nop()
 
 	reg, err := NewRegistry(8000, 8100)
