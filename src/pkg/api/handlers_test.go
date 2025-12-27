@@ -510,3 +510,79 @@ func TestHandleList_MultipleFormations(t *testing.T) {
 		}
 	}
 }
+
+func TestHandleCancelUpdate_FormationNotFound(t *testing.T) {
+	server := createTestServer(t)
+
+	req := httptest.NewRequest("POST", "/rpc/formations/nonexistent/cancel-update", nil)
+	req = mux.SetURLVars(req, map[string]string{"id": "nonexistent"})
+	w := httptest.NewRecorder()
+
+	server.HandleCancelUpdate(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("Status = %d, want %d", w.Code, http.StatusNotFound)
+	}
+}
+
+func TestHandleCancelUpdate_NoUpdateInProgress(t *testing.T) {
+	server := createTestServer(t)
+
+	// Register formation without staging port
+	server.registry.Register(&registry.Formation{
+		ID:     "no-update",
+		Port:   8080,
+		Status: "running",
+	})
+
+	req := httptest.NewRequest("POST", "/rpc/formations/no-update/cancel-update", nil)
+	req = mux.SetURLVars(req, map[string]string{"id": "no-update"})
+	w := httptest.NewRecorder()
+
+	server.HandleCancelUpdate(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Status = %d, want %d", w.Code, http.StatusBadRequest)
+	}
+}
+
+func TestHandleCancelUpdate_Success(t *testing.T) {
+	server := createTestServer(t)
+
+	// Register formation with staging port
+	server.registry.Register(&registry.Formation{
+		ID:          "updating",
+		Port:        8080,
+		Status:      "running",
+		StagingPort: 8081,
+	})
+
+	req := httptest.NewRequest("POST", "/rpc/formations/updating/cancel-update", nil)
+	req = mux.SetURLVars(req, map[string]string{"id": "updating"})
+	w := httptest.NewRecorder()
+
+	server.HandleCancelUpdate(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Status = %d, want %d", w.Code, http.StatusOK)
+	}
+
+	// Verify staging port was cleared
+	if server.registry.GetStagingPort("updating") != 0 {
+		t.Error("Staging port should be cleared after cancel")
+	}
+}
+
+func TestHandleStart_FormationNotFound(t *testing.T) {
+	server := createTestServer(t)
+
+	req := httptest.NewRequest("POST", "/rpc/formations/nonexistent/start", nil)
+	req = mux.SetURLVars(req, map[string]string{"id": "nonexistent"})
+	w := httptest.NewRecorder()
+
+	server.HandleStart(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("Status = %d, want %d", w.Code, http.StatusNotFound)
+	}
+}

@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
@@ -853,5 +854,92 @@ func TestGetScheme_Default(t *testing.T) {
 	
 	if scheme != "http" {
 		t.Errorf("getScheme() = %q, want http", scheme)
+	}
+}
+
+func TestGetScheme_HTTPS(t *testing.T) {
+	req := httptest.NewRequest("GET", "https://localhost/test", nil)
+	req.TLS = &tls.ConnectionState{} // Mark as TLS connection
+	
+	scheme := getScheme(req)
+	
+	if scheme != "https" {
+		t.Errorf("getScheme() = %q, want https", scheme)
+	}
+}
+
+func TestGetScheme_XForwardedProto(t *testing.T) {
+	req := httptest.NewRequest("GET", "http://localhost/test", nil)
+	req.Header.Set("X-Forwarded-Proto", "https")
+	
+	scheme := getScheme(req)
+	
+	if scheme != "https" {
+		t.Errorf("getScheme() = %q, want https from X-Forwarded-Proto", scheme)
+	}
+}
+
+func TestProxyRequest_SSEStreaming(t *testing.T) {
+	// Create backend server that returns SSE
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "keep-alive")
+		w.WriteHeader(http.StatusOK)
+		
+		// Write SSE events
+		fmt.Fprint(w, "data: event1\n\n")
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+		fmt.Fprint(w, "data: event2\n\n")
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+	}))
+	defer backend.Close()
+
+	// Extract port from backend URL
+	port := strings.TrimPrefix(backend.URL, "http://127.0.0.1:")
+	portNum, _ := fmt.Sscanf(port, "%d", new(int))
+	_ = portNum
+
+	reg, _ := registry.NewRegistry(8000, 9000)
+	handler := NewHandler(reg, nil)
+
+	// Parse backend port
+	backendPort := 0
+	fmt.Sscanf(strings.TrimPrefix(backend.URL, "http://127.0.0.1:"), "%d", &backendPort)
+
+	reg.Register(&registry.Formation{
+		ID:      "sse-test",
+		Port:    backendPort,
+		Status:  "running",
+		Healthy: true,
+	})
+
+	req := httptest.NewRequest("GET", "/v1/sse-test/events", nil)
+	w := httptest.NewRecorder()
+
+	req = mux.SetURLVars(req, map[string]string{
+		"formation_id": "sse-test",
+		"path":         "/events",
+	})
+
+	handler.ProxyRequest(w, req)
+
+	resp := w.Result()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Status = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	contentType := resp.Header.Get("Content-Type")
+	if !strings.Contains(contentType, "text/event-stream") {
+		t.Errorf("Content-Type = %q, want text/event-stream", contentType)
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(body), "event1") {
+		t.Error("Response should contain SSE events")
 	}
 }

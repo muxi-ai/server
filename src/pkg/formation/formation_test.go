@@ -261,3 +261,171 @@ func containsHelper(s, substr string) bool {
 	}
 	return false
 }
+
+func TestIndexOf(t *testing.T) {
+	tests := []struct {
+		s      string
+		substr string
+		want   int
+	}{
+		{"hello world", "world", 6},
+		{"hello world", "hello", 0},
+		{"hello world", "foo", -1},
+		{"", "foo", -1},
+		{"foo", "", 0},
+		{"aaa", "aa", 0},
+	}
+
+	for _, tt := range tests {
+		got := indexOf(tt.s, tt.substr)
+		if got != tt.want {
+			t.Errorf("indexOf(%q, %q) = %d, want %d", tt.s, tt.substr, got, tt.want)
+		}
+	}
+}
+
+func TestTrimSpace(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"  hello  ", "hello"},
+		{"\t\nworld\r\n", "world"},
+		{"no-spaces", "no-spaces"},
+		{"", ""},
+		{"   ", ""},
+		{"\t\n\r", ""},
+	}
+
+	for _, tt := range tests {
+		got := trimSpace(tt.input)
+		if got != tt.want {
+			t.Errorf("trimSpace(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestFindSecretsReferences(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		want    []string
+	}{
+		{
+			name:    "no secrets",
+			content: "just some text",
+			want:    nil,
+		},
+		{
+			name:    "single secret",
+			content: "api_key: ${{ secrets.API_KEY }}",
+			want:    []string{"API_KEY"},
+		},
+		{
+			name:    "multiple secrets",
+			content: "api_key: ${{ secrets.API_KEY }}\ndb_pass: ${{ secrets.DB_PASSWORD }}",
+			want:    []string{"API_KEY", "DB_PASSWORD"},
+		},
+		{
+			name:    "duplicate secrets",
+			content: "${{ secrets.KEY }} and ${{ secrets.KEY }}",
+			want:    []string{"KEY"},
+		},
+		{
+			name:    "secret with spaces",
+			content: "${{ secrets. SPACED }}",
+			want:    []string{"SPACED"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := findSecretsReferences(tt.content)
+			if len(got) != len(tt.want) {
+				t.Errorf("findSecretsReferences() = %v, want %v", got, tt.want)
+				return
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Errorf("findSecretsReferences()[%d] = %q, want %q", i, got[i], tt.want[i])
+				}
+			}
+		})
+	}
+}
+
+func TestValidateSecrets(t *testing.T) {
+	t.Run("no secrets referenced", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		formationContent := `schema: muxi.org/formation/v1
+id: test
+name: Test
+version: 1.0.0`
+		os.WriteFile(filepath.Join(tmpDir, "formation.yaml"), []byte(formationContent), 0644)
+
+		err := ValidateSecrets(tmpDir)
+		if err != nil {
+			t.Errorf("ValidateSecrets() error = %v, want nil", err)
+		}
+	})
+
+	t.Run("secrets referenced but missing files", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		formationContent := `schema: muxi.org/formation/v1
+id: test
+name: Test
+version: 1.0.0
+env:
+  API_KEY: ${{ secrets.API_KEY }}`
+		os.WriteFile(filepath.Join(tmpDir, "formation.yaml"), []byte(formationContent), 0644)
+
+		err := ValidateSecrets(tmpDir)
+		if err == nil {
+			t.Error("ValidateSecrets() should error when secrets.enc is missing")
+		}
+	})
+
+	t.Run("secrets.enc exists but key missing", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		formationContent := `schema: muxi.org/formation/v1
+id: test
+name: Test
+version: 1.0.0
+env:
+  API_KEY: ${{ secrets.API_KEY }}`
+		os.WriteFile(filepath.Join(tmpDir, "formation.yaml"), []byte(formationContent), 0644)
+		os.WriteFile(filepath.Join(tmpDir, "secrets.enc"), []byte("encrypted"), 0644)
+
+		err := ValidateSecrets(tmpDir)
+		if err == nil {
+			t.Error("ValidateSecrets() should error when .key is missing")
+		}
+	})
+
+	t.Run("all secrets files present", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		formationContent := `schema: muxi.org/formation/v1
+id: test
+name: Test
+version: 1.0.0
+env:
+  API_KEY: ${{ secrets.API_KEY }}`
+		os.WriteFile(filepath.Join(tmpDir, "formation.yaml"), []byte(formationContent), 0644)
+		os.WriteFile(filepath.Join(tmpDir, "secrets.enc"), []byte("encrypted"), 0644)
+		os.WriteFile(filepath.Join(tmpDir, ".key"), []byte("key"), 0644)
+
+		err := ValidateSecrets(tmpDir)
+		if err != nil {
+			t.Errorf("ValidateSecrets() error = %v, want nil", err)
+		}
+	})
+
+	t.Run("no formation file", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		err := ValidateSecrets(tmpDir)
+		if err == nil {
+			t.Error("ValidateSecrets() should error when formation file is missing")
+		}
+	})
+}
