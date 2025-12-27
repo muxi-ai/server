@@ -7,7 +7,57 @@ import (
 	"github.com/muxi-ai/server/pkg/process"
 )
 
-func TestFormation_FromProcess(t *testing.T) {
+func TestFromProcess(t *testing.T) {
+	proc := &process.Process{
+		ID:             "test-formation",
+		Name:           "Test Formation",
+		PID:            12345,
+		Status:         process.StatusRunning,
+		StartedAt:      time.Now(),
+		RestartCount:   3,
+		Command:        "python",
+		Args:           []string{"app.py"},
+		HealthCheckURL: "http://localhost:8080/health",
+	}
+
+	formation := FromProcess(proc, 8080)
+
+	if formation.ID != "test-formation" {
+		t.Errorf("ID = %q, want %q", formation.ID, "test-formation")
+	}
+	if formation.Name != "Test Formation" {
+		t.Errorf("Name = %q, want %q", formation.Name, "Test Formation")
+	}
+	if formation.ProcessID != 12345 {
+		t.Errorf("ProcessID = %d, want 12345", formation.ProcessID)
+	}
+	if formation.Port != 8080 {
+		t.Errorf("Port = %d, want 8080", formation.Port)
+	}
+	if formation.Status != "running" {
+		t.Errorf("Status = %q, want %q", formation.Status, "running")
+	}
+	if formation.Command != "python" {
+		t.Errorf("Command = %q, want %q", formation.Command, "python")
+	}
+	if len(formation.Args) != 1 || formation.Args[0] != "app.py" {
+		t.Errorf("Args = %v, want [app.py]", formation.Args)
+	}
+	if formation.RestartCount != 3 {
+		t.Errorf("RestartCount = %d, want 3", formation.RestartCount)
+	}
+	if formation.HealthURL != "http://localhost:8080/health" {
+		t.Errorf("HealthURL = %q, want http://localhost:8080/health", formation.HealthURL)
+	}
+	if !formation.Healthy {
+		t.Error("Healthy should be true for running process")
+	}
+	if formation.DeployedAt.IsZero() {
+		t.Error("DeployedAt should be set")
+	}
+}
+
+func TestFormation_UpdateFromProcess_Basic(t *testing.T) {
 	proc := &process.Process{
 		ID:           "test-formation",
 		Name:         "Test Formation",
