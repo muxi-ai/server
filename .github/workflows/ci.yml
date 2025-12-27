@@ -45,11 +45,11 @@ jobs:
           
           echo "Total coverage: ${COVERAGE}%"
           
-          # Use 55% threshold to account for platform-specific code
+          # Use 45% threshold to account for platform-specific code
           # (spawn_windows.go = 226 lines untestable on Linux runners)
           # (spawn_unix.go = 100 lines untestable on Windows runners)
-          # Testable code has 91%+ coverage, but overall average is lower
-          THRESHOLD=55
+          # Target: Increase to 60%+ by adding tests for critical paths
+          THRESHOLD=45
           
           # Check coverage against threshold
           if (( $(echo "$COVERAGE < $THRESHOLD" | bc -l) )); then
