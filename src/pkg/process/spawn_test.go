@@ -387,3 +387,127 @@ func containsStr(s, substr string) bool {
 	}
 	return false
 }
+
+func TestBuildNativeSingularityCommand(t *testing.T) {
+	logger := zerolog.Nop()
+
+	config := SpawnConfig{
+		ID:      "test-formation",
+		WorkDir: "/path/to/formation",
+		SIFPath: "/path/to/runtime.sif",
+		Command: "python",
+		Args:    []string{"-m", "myapp"},
+		Port:    8080,
+		Env: map[string]string{
+			"MUXI_PORT": "8080",
+			"MUXI_HOST": "127.0.0.1",
+		},
+	}
+
+	cmd := buildNativeSingularityCommand(config, &logger)
+
+	if cmd == nil {
+		t.Fatal("buildNativeSingularityCommand returned nil")
+	}
+
+	// Check the command is singularity
+	if cmd.Path == "" {
+		t.Error("Command path should not be empty")
+	}
+
+	// Check args contain expected values
+	args := cmd.Args
+	foundExec := false
+	foundBind := false
+	foundSIF := false
+	foundPython := false
+
+	for i, arg := range args {
+		if arg == "exec" {
+			foundExec = true
+		}
+		if arg == "--bind" && i+1 < len(args) && containsStr(args[i+1], "/formation") {
+			foundBind = true
+		}
+		if arg == "/path/to/runtime.sif" {
+			foundSIF = true
+		}
+		if arg == "python" {
+			foundPython = true
+		}
+	}
+
+	if !foundExec {
+		t.Error("Args should contain 'exec'")
+	}
+	if !foundBind {
+		t.Error("Args should contain bind mount for /formation")
+	}
+	if !foundSIF {
+		t.Error("Args should contain SIF path")
+	}
+	if !foundPython {
+		t.Error("Args should contain command 'python'")
+	}
+}
+
+func TestBuildDockerSingularityCommand(t *testing.T) {
+	logger := zerolog.Nop()
+
+	config := SpawnConfig{
+		ID:      "test-formation",
+		WorkDir: "/path/to/formation",
+		SIFPath: "/path/to/runtime.sif",
+		Port:    8080,
+		Env: map[string]string{
+			"MUXI_PORT": "8080",
+		},
+	}
+
+	cmd := buildDockerSingularityCommand(config, &logger)
+
+	if cmd == nil {
+		t.Fatal("buildDockerSingularityCommand returned nil")
+	}
+
+	args := cmd.Args
+	foundRun := false
+	foundPrivileged := false
+	foundName := false
+	foundPort := false
+	foundImage := false
+
+	for i, arg := range args {
+		if arg == "run" {
+			foundRun = true
+		}
+		if arg == "--privileged" {
+			foundPrivileged = true
+		}
+		if arg == "--name" && i+1 < len(args) && args[i+1] == "muxi-test-formation" {
+			foundName = true
+		}
+		if arg == "-p" && i+1 < len(args) && args[i+1] == "8080:8080" {
+			foundPort = true
+		}
+		if containsStr(arg, "runtime-runner") {
+			foundImage = true
+		}
+	}
+
+	if !foundRun {
+		t.Error("Args should contain 'run'")
+	}
+	if !foundPrivileged {
+		t.Error("Args should contain '--privileged'")
+	}
+	if !foundName {
+		t.Error("Args should contain '--name muxi-test-formation'")
+	}
+	if !foundPort {
+		t.Error("Args should contain port mapping '-p 8080:8080'")
+	}
+	if !foundImage {
+		t.Error("Args should contain runtime-runner image")
+	}
+}
