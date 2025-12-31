@@ -203,7 +203,7 @@ jobs:
       
       - name: Update Homebrew Formula
         env:
-          TAP_REPO_TOKEN: ${{ secrets.TAP_REPO_TOKEN }}
+          TAP_REPO_TOKEN: ${{ secrets.MUXI_TAP_REPO_TOKEN }}
         run: |
           echo "🍺 Updating Homebrew formula..."
           
