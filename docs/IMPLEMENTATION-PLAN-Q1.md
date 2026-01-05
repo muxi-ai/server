@@ -1,20 +1,23 @@
 # Implementation Plan: Server Enhancements & Telemetry
 
 **Target:** Q1 2025  
-**Status:** Planning  
-**Last Updated:** 2025-01-01
+**Status:** In Progress  
+**Last Updated:** 2025-01-05
 
 ---
 
 ## Overview
 
 This document covers two main initiatives:
-1. **Server Init Enhancements** - Improve first-run experience with CLI profile setup and service installation
+1. **Server Init Enhancements** - Improve first-run experience with CLI profile setup and service installation ✅ **DONE**
 2. **Server Telemetry** - Collect meaningful operational metrics to understand usage patterns
 
 ---
 
-## Part 1: Server Init Enhancements
+## Part 1: Server Init Enhancements ✅ DONE
+
+> **Implemented:** CLI profile auto-configuration and service/daemon setup added to `muxi-server init`.
+> See `src/cmd/server/commands.go` for implementation.
 
 ### 1.1 CLI Profile Auto-Configuration
 
@@ -228,17 +231,24 @@ muxi-server service logs       # View service logs (journalctl/log file)
   "ts": "2025-01-15T10:00:00Z",
   "country": "US",
   "payload": {
-    "version": "1.0.0",
-    "platform": "darwin",
-    "runtime_type": "docker",
+    "server": {
+      "version": "1.0.0",
+      "runtime": "singularity",
+      "uptime_hours": 168,
+      "starts": 1
+    },
     
-    "uptime_hours": 168,
-    "server_starts": 1,
+    "system": {
+      "os": "darwin",
+      "arch": "arm64",
+      "cpu_cores": 10,
+      "ram_gb": 32
+    },
     
     "formations": {
       "active": 5,
-      "total_deployed": 12,
-      "total_deleted": 2
+      "deployed": 12,
+      "deleted": 2
     },
     
     "deployments": {
@@ -248,13 +258,20 @@ muxi-server service logs       # View service logs (journalctl/log file)
       "rollbacks": 1
     },
     
-    "process_health": {
+    "health": {
       "auto_restarts": 3,
       "crashes": 2,
       "health_check_failures": 5
     },
     
-    "api_usage": {
+    "requests": {
+      "total": 15000,
+      "errors_4xx": 120,
+      "errors_5xx": 8,
+      "avg_latency_ms": 45
+    },
+    
+    "usage": {
       "deploy": 15,
       "list": 120,
       "get": 45,
@@ -263,13 +280,6 @@ muxi-server service logs       # View service logs (journalctl/log file)
       "logs": 30,
       "restart": 4,
       "rollback": 1
-    },
-    
-    "proxy": {
-      "requests": 15000,
-      "errors_4xx": 120,
-      "errors_5xx": 8,
-      "avg_latency_ms": 45
     },
     
     "resources": {
@@ -282,20 +292,30 @@ muxi-server service logs       # View service logs (journalctl/log file)
 
 ### 2.3 Metrics Explained
 
-#### Server Lifecycle
+#### Server Info
 | Metric | Description | Why It Matters |
 |--------|-------------|----------------|
-| `uptime_hours` | Hours since server started | Stability indicator |
-| `server_starts` | Times server was started this period | Crash detection (high = unstable) |
+| `server.version` | Server version | Version distribution |
+| `server.runtime` | Formation runtime (`docker`/`singularity`) | Runtime adoption |
+| `server.uptime_hours` | Hours since server started | Stability indicator |
+| `server.starts` | Times server was started this period | Crash detection (high = unstable) |
 
-#### Formation Metrics
+#### System Info
+| Metric | Description | Why It Matters |
+|--------|-------------|----------------|
+| `system.os` | Operating system | Platform distribution |
+| `system.arch` | CPU architecture (`x86_64`/`arm64`) | Hardware trends |
+| `system.cpu_cores` | Number of CPU cores | Capacity planning |
+| `system.ram_gb` | Total RAM in GB | Performance correlation |
+
+#### Formations
 | Metric | Description | Why It Matters |
 |--------|-------------|----------------|
 | `formations.active` | Currently running formations | Scale understanding |
-| `formations.total_deployed` | All-time deployments | Adoption metric |
-| `formations.total_deleted` | Formations removed | Churn indicator |
+| `formations.deployed` | Total deployments this period | Adoption metric |
+| `formations.deleted` | Formations removed | Churn indicator |
 
-#### Deployment Health
+#### Deployments
 | Metric | Description | Why It Matters |
 |--------|-------------|----------------|
 | `deployments.successful` | Successful deploys | Success rate baseline |
@@ -303,26 +323,26 @@ muxi-server service logs       # View service logs (journalctl/log file)
 | `deployments.updates` | Blue-green updates | Feature adoption |
 | `deployments.rollbacks` | Rollbacks performed | Update quality signal |
 
-#### Process Health (Most Insightful!)
+#### Health (Most Insightful!)
 | Metric | Description | Why It Matters |
 |--------|-------------|----------------|
-| `process_health.auto_restarts` | Formations auto-restarted after crash | **Key stability metric** |
-| `process_health.crashes` | Formation process crashes | Formation code quality |
-| `process_health.health_check_failures` | Health checks that failed | Network/app issues |
+| `health.auto_restarts` | Formations auto-restarted after crash | **Key stability metric** |
+| `health.crashes` | Formation process crashes | Formation code quality |
+| `health.health_check_failures` | Health checks that failed | Network/app issues |
 
-#### API Usage
+#### Requests (Proxy Traffic)
 | Metric | Description | Why It Matters |
 |--------|-------------|----------------|
-| `api_usage.*` | Calls per endpoint | Feature usage patterns |
+| `requests.total` | Total proxied requests | Traffic volume |
+| `requests.errors_4xx` | Client errors | Integration issues |
+| `requests.errors_5xx` | Server errors | Formation stability |
+| `requests.avg_latency_ms` | Response time | Performance baseline |
+
+#### Usage (API Calls)
+| Metric | Description | Why It Matters |
+|--------|-------------|----------------|
+| `usage.*` | Calls per endpoint | Feature usage patterns |
 | Most used endpoints | Shows workflow patterns | UX improvement targets |
-
-#### Proxy Performance
-| Metric | Description | Why It Matters |
-|--------|-------------|----------------|
-| `proxy.requests` | Total proxied requests | Traffic volume |
-| `proxy.errors_4xx` | Client errors | Integration issues |
-| `proxy.errors_5xx` | Server errors | Formation stability |
-| `proxy.avg_latency_ms` | Response time | Performance baseline |
 
 ### 2.4 Implementation
 
@@ -331,39 +351,49 @@ muxi-server service logs       # View service logs (journalctl/log file)
 ```go
 // pkg/telemetry/collector.go
 
-type MetricsCollector struct {
+type Collector struct {
     mu sync.RWMutex
     
+    // Server info (set once)
+    version     string
+    runtime     string  // "docker" or "singularity"
+    startTime   time.Time
+    
+    // System info (set once)
+    os          string
+    arch        string
+    cpuCores    int
+    ramGB       int
+    
     // Counters (reset after flush)
-    serverStarts         int64
+    serverStarts          int64
     deploymentsSuccessful int64
-    deploymentsFailed    int64
-    deploymentsUpdates   int64
-    deploymentsRollbacks int64
-    autoRestarts         int64
-    crashes              int64
-    healthCheckFailures  int64
-    apiCalls             map[string]int64
-    proxyRequests        int64
-    proxyErrors4xx       int64
-    proxyErrors5xx       int64
-    proxyLatencySum      int64
-    proxyLatencyCount    int64
+    deploymentsFailed     int64
+    deploymentsUpdates    int64
+    deploymentsRollbacks  int64
+    autoRestarts          int64
+    crashes               int64
+    healthCheckFailures   int64
+    apiCalls              map[string]int64
+    requestsTotal         int64
+    requestsErrors4xx     int64
+    requestsErrors5xx     int64
+    requestsLatencySum    int64
+    requestsLatencyCount  int64
     
     // Gauges (current state)
-    startTime            time.Time
     activeFormations     int64
-    totalDeployed        int64
-    totalDeleted         int64
+    formationsDeployed   int64
+    formationsDeleted    int64
     portsAllocated       int64
 }
 
 // Increment methods (called throughout codebase)
-func (c *MetricsCollector) IncrementDeploy(success bool) { ... }
-func (c *MetricsCollector) IncrementAutoRestart() { ... }
-func (c *MetricsCollector) IncrementCrash() { ... }
-func (c *MetricsCollector) RecordProxyRequest(status int, latency time.Duration) { ... }
-func (c *MetricsCollector) RecordAPICall(endpoint string) { ... }
+func (c *Collector) IncrementDeploy(success bool) { ... }
+func (c *Collector) IncrementAutoRestart() { ... }
+func (c *Collector) IncrementCrash() { ... }
+func (c *Collector) RecordRequest(status int, latency time.Duration) { ... }
+func (c *Collector) RecordAPICall(endpoint string) { ... }
 ```
 
 #### Integration Points
@@ -373,17 +403,17 @@ func (c *MetricsCollector) RecordAPICall(endpoint string) { ... }
 func (s *Server) HandleDeploy(...) {
     ...
     if err != nil {
-        s.metrics.IncrementDeploy(false)
+        s.telemetry.IncrementDeploy(false)
         return
     }
-    s.metrics.IncrementDeploy(true)
+    s.telemetry.IncrementDeploy(true)
 }
 
 // In monitor.go
 func (m *Monitor) handleCrash(proc *Process) {
-    m.metrics.IncrementCrash()
+    m.telemetry.IncrementCrash()
     if m.shouldRestart(proc) {
-        m.metrics.IncrementAutoRestart()
+        m.telemetry.IncrementAutoRestart()
         m.restart(proc)
     }
 }
@@ -392,7 +422,7 @@ func (m *Monitor) handleCrash(proc *Process) {
 func (h *Handler) ServeHTTP(w, r) {
     start := time.Now()
     ...
-    h.metrics.RecordProxyRequest(status, time.Since(start))
+    h.telemetry.RecordRequest(status, time.Since(start))
 }
 ```
 
@@ -402,7 +432,7 @@ func (h *Handler) ServeHTTP(w, r) {
 // pkg/telemetry/sender.go
 
 type Sender struct {
-    collector  *MetricsCollector
+    collector  *Collector
     machineID  string
     country    string
     enabled    bool
@@ -446,6 +476,8 @@ func (s *Sender) flush() {
 
 ### 2.5 Opt-Out
 
+Telemetry uses a **global opt-out** shared across all MUXI modules (CLI, Server, Runtime).
+
 ```go
 func isTelemetryEnabled() bool {
     // Environment variable takes precedence
@@ -453,34 +485,48 @@ func isTelemetryEnabled() bool {
         return false
     }
     
-    // Check config file
-    config, _ := LoadConfig()
-    if config.Telemetry != nil && !*config.Telemetry {
-        return false
+    // Check global config file
+    config, _ := loadGlobalConfig()  // ~/.muxi/config.yaml
+    if enabled, ok := config["telemetry"].(bool); ok {
+        return enabled
     }
     
     return true // Enabled by default
 }
 ```
 
-**Config file:**
+**Global config file:**
 ```yaml
-# ~/.muxi/server/config.yaml
-telemetry: false  # Set to disable telemetry
+# ~/.muxi/config.yaml (shared by CLI, Server, Runtime)
+telemetry: false  # Disables telemetry for all MUXI modules
 ```
 
 ### 2.6 Local Storage
 
-Always collect metrics locally for debugging, even if telemetry is disabled:
+Simple accumulate-until-sent approach:
 
 ```
-~/.muxi/server/telemetry/
-├── current.json     # Current period metrics
-├── history/
-│   ├── 2025-01-01.json
-│   ├── 2025-01-02.json
-│   └── ...
-└── last_sent.json   # Last successfully sent payload
+~/.muxi/server/telemetry.json   # Current accumulated metrics
+```
+
+**Logic:**
+- On **successful send** → clear the file, start fresh
+- On **failed send** → keep accumulating until next successful send
+- No history needed - if it was sent, it's gone
+
+```go
+func (s *Sender) flush() {
+    payload := s.collector.Snapshot()
+    
+    if err := s.send(payload); err != nil {
+        // Send failed - keep accumulating, don't reset
+        log.Debug().Err(err).Msg("Telemetry send failed, will retry next interval")
+        return
+    }
+    
+    // Success - reset counters
+    s.collector.Reset()
+}
 ```
 
 ---
@@ -512,32 +558,29 @@ func (h *Handler) ServeHTTP(w, r *http.Request) {
 
 ## Implementation Phases
 
-### Phase 1: Server Init (Day 1)
-- [ ] CLI detection and profile update logic
-- [ ] Profile YAML read/write with merge
-- [ ] Service template generation
-- [ ] Platform-specific install commands
-- [ ] `muxi-server service` subcommands
-- [ ] Tests
+### Phase 1: Server Init ✅ DONE
+- [x] CLI detection and profile update logic
+- [x] Profile YAML read/write with merge
+- [x] Service template generation (systemd, launchd)
+- [x] Platform-specific install commands
 
-### Phase 2: Telemetry Core (Day 2)
-- [ ] MetricsCollector implementation
-- [ ] Integration points (deploy, restart, crash, proxy)
-- [ ] Machine ID generation (see MACHINE-ID.md)
-- [ ] Country lookup and caching
-- [ ] Local storage
+### Phase 2: Telemetry Core ✅ DONE
+- [x] Collector implementation with system info
+- [x] Integration points (deploy, update, delete, rollback, restart, crash, requests)
+- [x] Machine ID generation (platform-specific)
+- [x] Country lookup and caching (ipapi.co)
+- [x] Tests (11 tests in telemetry_test.go)
 
-### Phase 3: Telemetry Sender (Day 2-3)
-- [ ] Hourly flush logic
-- [ ] HTTP sender with timeout
-- [ ] Opt-out checks
-- [ ] Graceful shutdown flush
-- [ ] Tests
+### Phase 3: Telemetry Sender ✅ DONE
+- [x] Hourly flush logic
+- [x] HTTP sender with timeout and retry
+- [x] Opt-out checks (env var + config file)
+- [x] Graceful shutdown flush
 
-### Phase 4: Proxy Headers (Day 3)
-- [ ] Header injection in proxy
-- [ ] SDK tracking in metrics
-- [ ] Tests
+### Phase 4: Proxy Headers ✅ DONE
+- [x] Pass through all `X-Muxi-*` headers from clients (e.g., `X-Muxi-SDK`)
+- [x] Inject `X-Muxi-Server` header with server version
+- [x] Server-owned headers cannot be spoofed by clients
 
 ---
 
@@ -554,10 +597,12 @@ func (h *Handler) ServeHTTP(w, r *http.Request) {
 
 ## Open Questions
 
-1. **Service install permissions** - Should we prompt for sudo, or just print instructions?
-2. **Telemetry default** - Should telemetry be opt-in or opt-out?
-3. **Historical data** - How long to keep local telemetry history?
-4. **Rate limiting** - Should we rate-limit telemetry if server is very busy?
+All resolved:
+
+1. ~~**Service install permissions**~~ **RESOLVED:** Prompt for sudo on Linux, no sudo needed on macOS (user LaunchAgents)
+2. ~~**Telemetry default**~~ **RESOLVED:** Opt-in by default (enabled). Server uses config file (`~/.muxi/config.yaml`) and env var (`MUXI_TELEMETRY=0`) - no special logic needed.
+3. ~~**Historical data**~~ **RESOLVED:** No history - clear on successful send, accumulate on failure
+4. ~~**Rate limiting**~~ **RESOLVED:** No rate limiting. On send failure, retry once after 5 seconds. If still fails, wait until next hourly flush.
 
 ---
 

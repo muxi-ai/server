@@ -14,6 +14,7 @@ import (
 	"github.com/muxi-ai/server/pkg/process"
 	"github.com/muxi-ai/server/pkg/registry"
 	"github.com/muxi-ai/server/pkg/runtime"
+	"github.com/muxi-ai/server/pkg/telemetry"
 )
 
 // Rollback stages
@@ -431,6 +432,9 @@ func (s *Server) HandleRollback(w http.ResponseWriter, r *http.Request) {
 		Int("version", history.CurrentVersion).
 		Int("pid", finalProc.PID).
 		Msg("Formation rolled back successfully (blue-green)")
+
+	// Track telemetry
+	telemetry.IncrementRollback()
 
 	if wantsSSE && sseInitialized {
 		progress.Complete(CompleteEvent{

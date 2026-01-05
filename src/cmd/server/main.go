@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	goruntime "runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/muxi-ai/server/pkg/formation"
 	"github.com/muxi-ai/server/pkg/process"
 	"github.com/muxi-ai/server/pkg/registry"
+	"github.com/muxi-ai/server/pkg/telemetry"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
@@ -109,7 +111,8 @@ func cmdStart() error {
 	zerolog.SetGlobalLevel(logLevel)
 
 	// Print banner
-	fmt.Fprint(os.Stderr, bannerColored)
+	printBanner()
+	fmt.Println()
 
 	logger.Info().Msgf("MUXI Server (v%s): Starting...", Version)
 
@@ -144,6 +147,14 @@ func cmdStart() error {
 	logger.Info().Msgf("Installation: %s", config.GetInstallType())
 	logger.Info().Msgf("Configuration loaded (%s)", configPath)
 	logger.Info().Msgf("Server ID: %s", cfg.ServerID)
+
+	// Initialize telemetry
+	runtimeType := "singularity"
+	if goruntime.GOOS != "linux" {
+		runtimeType = "docker"
+	}
+	telemetry.Init(Version, runtimeType)
+	telemetry.IncrementServerStart()
 
 	// Get directories
 	dataDir, err := config.GetDataDir()
@@ -232,6 +243,9 @@ func cmdStart() error {
 		}
 	}()
 
+	// Start telemetry sender
+	telemetry.Start(ctx)
+
 	logger.Info().Msgf("MUXI Server listening on %s:%d", cfg.Server.Host, cfg.Server.Port)
 
 	// Wait for shutdown signal
@@ -239,6 +253,9 @@ func cmdStart() error {
 
 	// Graceful shutdown
 	logger.Info().Msg("Shutting down gracefully...")
+
+	// Stop telemetry (sends final flush)
+	telemetry.Stop()
 
 	// Stop API server
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)

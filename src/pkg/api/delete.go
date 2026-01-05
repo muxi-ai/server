@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/gorilla/mux"
+	"github.com/muxi-ai/server/pkg/telemetry"
 	"github.com/rs/zerolog/log"
 )
 
@@ -72,6 +73,10 @@ func (s *Server) HandleDelete(w http.ResponseWriter, r *http.Request) {
 		Str("formation_id", formationID).
 		Int("port", formation.Port).
 		Msg("Formation deleted successfully")
+
+	// Track telemetry
+	telemetry.IncrementDelete()
+	telemetry.SetActiveFormations(s.registry.Count())
 
 	RespondSuccess(w, map[string]interface{}{
 		"id":      formationID,

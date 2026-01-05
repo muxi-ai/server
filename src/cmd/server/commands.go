@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/muxi-ai/server/pkg/config"
 	"gopkg.in/yaml.v3"
@@ -39,39 +40,68 @@ func init() {
 
 // ANSI constants for clean output
 const (
-	bannerColored = "\x1b[38;2;201;139;69m" + `
-███╗   ███╗██╗   ██╗██╗  ██╗██╗
-████╗ ████║██║   ██║╚██╗██╔╝██║
-██╔████╔██║██║   ██║ ╚███╔╝ ██║
-██║╚██╔╝██║██║   ██║ ██╔██╗ ██║
-██║ ╚═╝ ██║╚██████╔╝██╔╝ ██╗██║
-╚═╝     ╚═╝ ╚═════╝ ╚═╝  ╚═╝╚═╝
-` + "\x1b[0m"
-	banner = `
-███╗   ███╗██╗   ██╗██╗  ██╗██╗
-████╗ ████║██║   ██║╚██╗██╔╝██║
-██╔████╔██║██║   ██║ ╚███╔╝ ██║
-██║╚██╔╝██║██║   ██║ ██╔██╗ ██║
-██║ ╚═╝ ██║╚██████╔╝██╔╝ ██╗██║
-╚═╝     ╚═╝ ╚═════╝ ╚═╝  ╚═╝╚═╝
-`
 	checkMark  = "✓"
 	crossMark  = "✗"
 	arrowRight = "→"
 	bullet     = "•"
 	boxH       = "─"
+	resetColor = "\x1b[0m"
 )
+
+// Banner lines with gradient colors
+var bannerLines = []struct {
+	color string
+	text  string
+}{
+	{"\x1b[38;2;217;170;84m", "███╗   ███╗██╗   ██╗██╗  ██╗██╗"},
+	{"\x1b[38;2;218;158;75m", "████╗ ████║██║   ██║╚██╗██╔╝██║"},
+	{"\x1b[38;2;219;150;71m", "██╔████╔██║██║   ██║ ╚███╔╝ ██║"},
+	{"\x1b[38;2;220;143;66m", "██║╚██╔╝██║██║   ██║ ██╔██╗ ██║"},
+	{"\x1b[38;2;216;137;62m", "██║ ╚═╝ ██║╚██████╔╝██╔╝ ██╗██║"},
+	{"\x1b[38;2;191;120;64m", "╚═╝     ╚═╝ ╚═════╝ ╚═╝  ╚═╝╚═╝"},
+}
+
+// getArchString returns the architecture string for display
+func getArchString() string {
+	switch runtime.GOARCH {
+	case "amd64":
+		return "x86_64"
+	case "arm64":
+		return "arm64"
+	case "386":
+		return "i386"
+	default:
+		return runtime.GOARCH
+	}
+}
+
+// printBanner prints the gradient-colored MUXI banner
+func printBanner() {
+	fmt.Println()
+	for _, line := range bannerLines {
+		fmt.Printf("%s%s%s\n", line.color, line.text, resetColor)
+	}
+}
+
+// printWelcome prints the welcome message with version and arch
+func printWelcome() {
+	printBanner()
+	fmt.Println()
+	fmt.Printf("Welcome to MUXI Server %s (ELv2 %s)\n", Version, getArchString())
+	fmt.Println()
+	fmt.Println(" * Documentation:  https://muxi.org/docs")
+	fmt.Println(" * Support:        https://muxi.org/support")
+	fmt.Println()
+}
 
 // cmdInit handles the 'init' command - improved UX version
 func cmdInit() error {
 	reader := bufio.NewReader(os.Stdin)
 
-	// Print banner
-	fmt.Print(banner)
-	fmt.Printf("MUXI Server %s\n", Version)
-	fmt.Print("\n")
+	// Print welcome message
+	printWelcome()
 	fmt.Println("This will initialize your MUXI Server with credentials and configuration.")
-	fmt.Print("\n")
+	fmt.Println()
 
 	// Get MUXI directory
 	muxiDir, err := config.GetMuxiDir()
@@ -330,6 +360,32 @@ func cmdInit() error {
 		fmt.Print("\n")
 	}
 
+	// Create CLI profile if CLI is installed
+	if isCLIInstalled() {
+		result, err := createOrUpdateCLIProfile(port, key, secret)
+		if err != nil {
+			fmt.Printf("%s Warning: Could not update CLI profile: %v\n", crossMark, err)
+		} else {
+			home, _ := os.UserHomeDir()
+			switch result {
+			case ProfileCreated:
+				fmt.Printf("%s CLI profile created: %s/.muxi/cli/profiles.yaml\n", checkMark, home)
+				fmt.Println("  You can now use 'muxi' commands with the 'localhost' profile.")
+				fmt.Print("\n")
+			case ProfileUpdated:
+				fmt.Printf("%s CLI profile updated: %s/.muxi/cli/profiles.yaml\n", checkMark, home)
+				fmt.Println("  The 'localhost' profile credentials have been updated.")
+				fmt.Print("\n")
+			case ProfileUnchanged:
+				fmt.Printf("%s CLI profile already configured (credentials match)\n", checkMark)
+				fmt.Print("\n")
+			}
+		}
+	}
+
+	// Offer service setup
+	promptServiceSetup(reader, port)
+
 	fmt.Println("Next steps:")
 	fmt.Printf("  1. Start the server:    muxi-server start\n")
 	fmt.Printf("  2. Check server status: curl http://localhost:%d/health\n", port)
@@ -394,7 +450,8 @@ func cmdConfigShow() error {
 
 // cmdHelp shows usage information
 func cmdHelp() {
-	fmt.Print(banner)
+	printBanner()
+	fmt.Println()
 	fmt.Printf("MUXI Server %s - Formation Orchestration Platform\n", Version)
 	fmt.Print("\n")
 	fmt.Println("USAGE")
@@ -511,4 +568,323 @@ func isPortAvailable(port int) bool {
 	}
 	listener.Close()
 	return true
+}
+
+// ============================================================================
+// CLI Profile Management
+// ============================================================================
+
+// isCLIInstalled checks if the muxi CLI is installed
+func isCLIInstalled() bool {
+	// Check PATH
+	if _, err := exec.LookPath("muxi"); err == nil {
+		return true
+	}
+	// Check common locations
+	home, _ := os.UserHomeDir()
+	locations := []string{
+		filepath.Join(home, ".local", "bin", "muxi"),
+		"/usr/local/bin/muxi",
+	}
+	for _, loc := range locations {
+		if _, err := os.Stat(loc); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
+// CLIProfile represents a single CLI profile
+type CLIProfile struct {
+	URL       string `yaml:"url"`
+	KeyID     string `yaml:"key_id"`
+	SecretKey string `yaml:"secret_key"`
+	AddedAt   string `yaml:"added_at"`
+}
+
+// CLIProfiles represents the profiles.yaml structure
+type CLIProfiles struct {
+	Version  string                `yaml:"version"`
+	Default  string                `yaml:"default"`
+	Profiles map[string]CLIProfile `yaml:"profiles"`
+}
+
+// ProfileUpdateResult indicates what happened during profile update
+type ProfileUpdateResult int
+
+const (
+	ProfileCreated ProfileUpdateResult = iota
+	ProfileUpdated
+	ProfileUnchanged
+)
+
+// createOrUpdateCLIProfile creates or updates the CLI profile for localhost
+// Returns the result indicating what action was taken
+func createOrUpdateCLIProfile(port int, keyID, secretKey string) (ProfileUpdateResult, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ProfileUnchanged, fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	profilesDir := filepath.Join(home, ".muxi", "cli")
+	profilesPath := filepath.Join(profilesDir, "profiles.yaml")
+
+	// Ensure directory exists
+	if err := os.MkdirAll(profilesDir, 0755); err != nil {
+		return ProfileUnchanged, fmt.Errorf("failed to create CLI profiles directory: %w", err)
+	}
+
+	// Load existing profiles or create new
+	var profiles CLIProfiles
+	fileExists := false
+	if data, err := os.ReadFile(profilesPath); err == nil {
+		fileExists = true
+		if err := yaml.Unmarshal(data, &profiles); err != nil {
+			// If parsing fails, start fresh
+			profiles = CLIProfiles{
+				Version:  "1.0",
+				Profiles: make(map[string]CLIProfile),
+			}
+		}
+	} else {
+		profiles = CLIProfiles{
+			Version:  "1.0",
+			Profiles: make(map[string]CLIProfile),
+		}
+	}
+
+	// Ensure profiles map is initialized
+	if profiles.Profiles == nil {
+		profiles.Profiles = make(map[string]CLIProfile)
+	}
+
+	newURL := fmt.Sprintf("http://localhost:%d", port)
+	result := ProfileCreated
+
+	// Check if localhost profile exists and if credentials match
+	if existing, exists := profiles.Profiles["localhost"]; exists {
+		if existing.URL == newURL && existing.KeyID == keyID && existing.SecretKey == secretKey {
+			// Credentials match, no update needed
+			return ProfileUnchanged, nil
+		}
+		result = ProfileUpdated
+	} else if fileExists {
+		// File exists but no localhost profile - we're adding to existing file
+		result = ProfileCreated
+	}
+
+	// Add/update localhost profile
+	profiles.Profiles["localhost"] = CLIProfile{
+		URL:       newURL,
+		KeyID:     keyID,
+		SecretKey: secretKey,
+		AddedAt:   time.Now().UTC().Format(time.RFC3339),
+	}
+
+	// Set default if not set
+	if profiles.Default == "" {
+		profiles.Default = "localhost"
+	}
+
+	// Write back
+	data, err := yaml.Marshal(&profiles)
+	if err != nil {
+		return ProfileUnchanged, fmt.Errorf("failed to marshal profiles: %w", err)
+	}
+
+	if err := os.WriteFile(profilesPath, data, 0600); err != nil {
+		return ProfileUnchanged, fmt.Errorf("failed to write profiles file: %w", err)
+	}
+
+	return result, nil
+}
+
+// ============================================================================
+// Service/Daemon Setup
+// ============================================================================
+
+// getMuxiServerPath returns the path to the muxi-server binary
+func getMuxiServerPath() string {
+	// Try to find the current executable
+	if exe, err := os.Executable(); err == nil {
+		return exe
+	}
+	// Fallback to common locations
+	home, _ := os.UserHomeDir()
+	paths := []string{
+		filepath.Join(home, ".local", "bin", "muxi-server"),
+		"/usr/local/bin/muxi-server",
+	}
+	for _, p := range paths {
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	return "muxi-server" // fallback to PATH
+}
+
+// setupSystemdService creates and enables a systemd service (Linux)
+func setupSystemdService() error {
+	user := os.Getenv("USER")
+	if user == "" {
+		user = os.Getenv("LOGNAME")
+	}
+	
+	serverPath := getMuxiServerPath()
+	
+	serviceContent := fmt.Sprintf(`[Unit]
+Description=MUXI Server
+After=network.target
+
+[Service]
+Type=simple
+User=%s
+ExecStart=%s start
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+`, user, serverPath)
+
+	servicePath := "/etc/systemd/system/muxi-server.service"
+	
+	// Write service file (requires sudo)
+	cmd := exec.Command("sudo", "tee", servicePath)
+	cmd.Stdin = strings.NewReader(serviceContent)
+	cmd.Stdout = nil // suppress tee output
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to create service file: %w", err)
+	}
+
+	// Reload systemd
+	if err := exec.Command("sudo", "systemctl", "daemon-reload").Run(); err != nil {
+		return fmt.Errorf("failed to reload systemd: %w", err)
+	}
+
+	// Enable service
+	if err := exec.Command("sudo", "systemctl", "enable", "muxi-server").Run(); err != nil {
+		return fmt.Errorf("failed to enable service: %w", err)
+	}
+
+	// Start service
+	if err := exec.Command("sudo", "systemctl", "start", "muxi-server").Run(); err != nil {
+		return fmt.Errorf("failed to start service: %w", err)
+	}
+
+	return nil
+}
+
+// setupLaunchdService creates and loads a launchd service (macOS)
+func setupLaunchdService() error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	serverPath := getMuxiServerPath()
+	
+	plistContent := fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>org.muxi.server</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>%s</string>
+        <string>start</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>%s/.muxi/server/logs/launchd.log</string>
+    <key>StandardErrorPath</key>
+    <string>%s/.muxi/server/logs/launchd.log</string>
+</dict>
+</plist>
+`, serverPath, home, home)
+
+	// Ensure LaunchAgents directory exists
+	launchAgentsDir := filepath.Join(home, "Library", "LaunchAgents")
+	if err := os.MkdirAll(launchAgentsDir, 0755); err != nil {
+		return fmt.Errorf("failed to create LaunchAgents directory: %w", err)
+	}
+
+	plistPath := filepath.Join(launchAgentsDir, "org.muxi.server.plist")
+	
+	// Unload existing service if present (ignore errors)
+	exec.Command("launchctl", "unload", plistPath).Run()
+
+	// Write plist file
+	if err := os.WriteFile(plistPath, []byte(plistContent), 0644); err != nil {
+		return fmt.Errorf("failed to write plist file: %w", err)
+	}
+
+	// Load service
+	if err := exec.Command("launchctl", "load", plistPath).Run(); err != nil {
+		return fmt.Errorf("failed to load service: %w", err)
+	}
+
+	return nil
+}
+
+// promptServiceSetup asks the user if they want to set up as a service
+func promptServiceSetup(reader *bufio.Reader, port int) {
+	// Only offer on Linux and macOS
+	if runtime.GOOS != "linux" && runtime.GOOS != "darwin" {
+		return
+	}
+
+	fmt.Println(strings.Repeat(boxH, 60))
+	fmt.Println("SYSTEM SERVICE SETUP")
+	fmt.Println(strings.Repeat(boxH, 60))
+	fmt.Println()
+	fmt.Println("Would you like to run MUXI Server as a system service?")
+	fmt.Println("This will start the server automatically on boot.")
+	fmt.Println()
+	fmt.Print("Set up as service? [y/N]: ")
+	
+	response, _ := reader.ReadString('\n')
+	response = strings.TrimSpace(strings.ToLower(response))
+	
+	if response != "y" && response != "yes" {
+		fmt.Println()
+		fmt.Printf("%s Skipped service setup. Start manually with: muxi-server start\n", bullet)
+		fmt.Println()
+		return
+	}
+
+	fmt.Println()
+
+	var err error
+	switch runtime.GOOS {
+	case "linux":
+		fmt.Printf("%s Creating systemd service...\n", bullet)
+		err = setupSystemdService()
+		if err == nil {
+			fmt.Printf("%s Created /etc/systemd/system/muxi-server.service\n", checkMark)
+			fmt.Printf("%s Enabled muxi-server.service\n", checkMark)
+			fmt.Printf("%s Started muxi-server.service\n", checkMark)
+		}
+	case "darwin":
+		fmt.Printf("%s Creating launchd service...\n", bullet)
+		err = setupLaunchdService()
+		if err == nil {
+			home, _ := os.UserHomeDir()
+			fmt.Printf("%s Created %s/Library/LaunchAgents/org.muxi.server.plist\n", checkMark, home)
+			fmt.Printf("%s Loaded org.muxi.server\n", checkMark)
+		}
+	}
+
+	if err != nil {
+		fmt.Printf("%s Failed to set up service: %v\n", crossMark, err)
+		fmt.Printf("  You can start the server manually: muxi-server start\n")
+	} else {
+		fmt.Println()
+		fmt.Printf("%s Server is running at http://localhost:%d\n", checkMark, port)
+	}
+	fmt.Println()
 }

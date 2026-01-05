@@ -15,6 +15,7 @@ import (
 	"github.com/muxi-ai/server/pkg/process"
 	"github.com/muxi-ai/server/pkg/registry"
 	"github.com/muxi-ai/server/pkg/runtime"
+	"github.com/muxi-ai/server/pkg/telemetry"
 )
 
 // HandleUpdate handles PUT /rpc/formations/{id}
@@ -566,6 +567,9 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 		Int("old_port", oldPort).
 		Int("pid", proc.PID).
 		Msg("✓ Zero-downtime deployment successful")
+
+	// Track telemetry
+	telemetry.IncrementUpdate(true)
 
 	if wantsSSE {
 		// Send complete event via SSE

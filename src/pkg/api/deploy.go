@@ -14,6 +14,7 @@ import (
 	"github.com/muxi-ai/server/pkg/process"
 	"github.com/muxi-ai/server/pkg/registry"
 	"github.com/muxi-ai/server/pkg/runtime"
+	"github.com/muxi-ai/server/pkg/telemetry"
 )
 
 // DeployResponse represents the response for a deployed formation
@@ -584,6 +585,10 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 		Int("pid", proc.PID).
 		Str("location", permanentDir).
 		Msg("Formation deployed and healthy")
+
+	// Track telemetry
+	telemetry.IncrementDeploy(true)
+	telemetry.SetActiveFormations(s.registry.Count())
 
 	// Build response
 	response := DeployResponse{

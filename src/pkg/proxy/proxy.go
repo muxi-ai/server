@@ -6,10 +6,12 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/muxi-ai/server/pkg/process"
 	"github.com/muxi-ai/server/pkg/registry"
+	"github.com/muxi-ai/server/pkg/telemetry"
 	"github.com/rs/zerolog/log"
 )
 
@@ -23,13 +25,15 @@ type Handler struct {
 	registry       *registry.Registry
 	processManager ProcessGetter
 	client         *http.Client
+	serverVersion  string
 }
 
 // NewHandler creates a new proxy handler
-func NewHandler(reg *registry.Registry, pm ProcessGetter) *Handler {
+func NewHandler(reg *registry.Registry, pm ProcessGetter, serverVersion string) *Handler {
 	return &Handler{
 		registry:       reg,
 		processManager: pm,
+		serverVersion:  serverVersion,
 		client: &http.Client{
 			// No timeout - SSE streams can be long-lived
 			// Individual requests that need timeouts should set them per-request
@@ -45,6 +49,8 @@ func NewHandler(reg *registry.Registry, pm ProcessGetter) *Handler {
 // ProxyRequest handles incoming proxy requests
 // Pattern: /v1/{formation_id}/{path}
 func (h *Handler) ProxyRequest(w http.ResponseWriter, r *http.Request) {
+	startTime := time.Now()
+
 	// Extract formation ID from URL
 	vars := mux.Vars(r)
 	formationID := vars["formation_id"]
@@ -126,10 +132,18 @@ func (h *Handler) ProxyRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Copy headers from original request (except Host)
+	// Server-owned headers - clients cannot override these
+	serverOwnedHeaders := map[string]bool{
+		"X-Muxi-Server": true,
+	}
+
+	// Copy headers from original request (except Host and server-owned)
 	for name, values := range r.Header {
 		if name == "Host" {
-			continue // Don't copy Host header
+			continue
+		}
+		if serverOwnedHeaders[name] {
+			continue // Don't let clients spoof server-owned headers
 		}
 		for _, value := range values {
 			proxyReq.Header.Add(name, value)
@@ -140,7 +154,9 @@ func (h *Handler) ProxyRequest(w http.ResponseWriter, r *http.Request) {
 	proxyReq.Header.Set("X-Forwarded-For", getClientIP(r))
 	proxyReq.Header.Set("X-Forwarded-Proto", getScheme(r))
 	proxyReq.Header.Set("X-Forwarded-Host", r.Host)
-	proxyReq.Header.Set("X-Formation-ID", formationID)
+
+	// Add server-owned headers
+	proxyReq.Header.Set("X-Muxi-Server", h.serverVersion)
 
 	// Make the request
 	resp, err := h.client.Do(proxyReq)
@@ -216,6 +232,9 @@ func (h *Handler) ProxyRequest(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+
+	// Track request in telemetry
+	telemetry.RecordRequest(resp.StatusCode, time.Since(startTime))
 
 	log.Debug().
 		Str("formation_id", formationID).

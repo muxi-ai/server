@@ -45,7 +45,7 @@ func NewServer(
 		processManager: processManager,
 		registry:       registry,
 		authMiddleware: authMiddleware,
-		proxyHandler:   proxy.NewHandler(registry, processManager),
+		proxyHandler:   proxy.NewHandler(registry, processManager, version),
 		logger:         logger,
 		version:        version,
 	}

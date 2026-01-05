@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/muxi-ai/server/pkg/telemetry"
 	"github.com/rs/zerolog"
 )
 
@@ -253,6 +254,9 @@ func (m *Manager) handleCrash(proc *Process) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	// Track crash in telemetry
+	telemetry.IncrementCrash()
+
 	m.logger.Warn().
 		Str("id", proc.ID).
 		Int("restart_count", proc.RestartCount).
@@ -335,6 +339,9 @@ func (m *Manager) handleCrash(proc *Process) {
 		Str("id", newProc.ID).
 		Int("pid", newProc.PID).
 		Msg("✓ Process restarted successfully")
+
+	// Track auto-restart in telemetry
+	telemetry.IncrementAutoRestart()
 }
 
 // Helper function to extract port from health check URL

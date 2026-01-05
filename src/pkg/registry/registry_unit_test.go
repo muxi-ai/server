@@ -38,7 +38,8 @@ func TestPortPool_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("single port pool", func(t *testing.T) {
-		pool, err := NewPortPool(8000, 8001)
+		// Use high port to avoid conflicts with api tests
+		pool, err := NewPortPool(19500, 19501)
 		if err != nil {
 			t.Fatalf("Failed to create single port pool: %v", err)
 		}
@@ -48,8 +49,8 @@ func TestPortPool_EdgeCases(t *testing.T) {
 			t.Fatalf("Failed to allocate from single port pool: %v", err)
 		}
 
-		if port != 8000 {
-			t.Errorf("Port = %d, want 8000", port)
+		if port != 19500 {
+			t.Errorf("Port = %d, want 19500", port)
 		}
 
 		// Second allocation should fail
@@ -325,7 +326,8 @@ func TestRegistry_OnChange(t *testing.T) {
 }
 
 func TestRegistry_AllocatePort(t *testing.T) {
-	reg, err := NewRegistry(8000, 8010)
+	// Use high port range to avoid conflicts with api tests
+	reg, err := NewRegistry(19100, 19110)
 	if err != nil {
 		t.Fatalf("Failed to create registry: %v", err)
 	}
@@ -336,7 +338,7 @@ func TestRegistry_AllocatePort(t *testing.T) {
 		t.Fatalf("AllocatePort() error = %v", err)
 	}
 
-	if port < 8000 || port >= 8010 {
+	if port < 19100 || port >= 19110 {
 		t.Errorf("Port %d out of range", port)
 	}
 
@@ -352,7 +354,8 @@ func TestRegistry_AllocatePort(t *testing.T) {
 }
 
 func TestRegistry_ReleasePort(t *testing.T) {
-	reg, err := NewRegistry(8000, 8010)
+	// Use high port range to avoid conflicts with api tests
+	reg, err := NewRegistry(19200, 19210)
 	if err != nil {
 		t.Fatalf("Failed to create registry: %v", err)
 	}
@@ -374,7 +377,8 @@ func TestRegistry_ReleasePort(t *testing.T) {
 }
 
 func TestRegistry_PortPoolStatus(t *testing.T) {
-	reg, err := NewRegistry(8000, 8010)
+	// Use high port range to avoid conflicts with api tests
+	reg, err := NewRegistry(19300, 19310)
 	if err != nil {
 		t.Fatalf("Failed to create registry: %v", err)
 	}

@@ -14,7 +14,8 @@ import (
 
 // TestPortPool tests port allocation and release
 func TestPortPool(t *testing.T) {
-	pool, err := registry.NewPortPool(8000, 8010)
+	// Use high port range to avoid conflicts with api tests that spawn real processes
+	pool, err := registry.NewPortPool(19000, 19010)
 	if err != nil {
 		t.Fatalf("Failed to create port pool: %v", err)
 	}
@@ -25,8 +26,8 @@ func TestPortPool(t *testing.T) {
 			t.Fatalf("Failed to allocate port: %v", err)
 		}
 
-		if port < 8000 || port >= 8010 {
-			t.Errorf("Port %d out of range 8000-8010", port)
+		if port < 19000 || port >= 19010 {
+			t.Errorf("Port %d out of range 19000-19010", port)
 		}
 
 		t.Logf("✓ Allocated port %d", port)
@@ -76,7 +77,8 @@ func TestPortPool(t *testing.T) {
 
 // TestRegistry tests basic registry operations
 func TestRegistry(t *testing.T) {
-	reg, err := registry.NewRegistry(8000, 8100)
+	// Use high port range to avoid conflicts with api tests
+	reg, err := registry.NewRegistry(19000, 19100)
 	if err != nil {
 		t.Fatalf("Failed to create registry: %v", err)
 	}
