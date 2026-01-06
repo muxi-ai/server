@@ -231,7 +231,7 @@ func (s *Server) HandleRestart(w http.ResponseWriter, r *http.Request) {
 		spawnConfig.SIFPath = sifPath
 		spawnConfig.Command = "python"
 		spawnConfig.Args = []string{
-			"-m", "muxi.utils.run_formation",
+			"-m", "muxi.runtime.utils.run_formation",
 			"/formation",
 			"--port", fmt.Sprintf("%d", port),
 			"--host", bindHost,

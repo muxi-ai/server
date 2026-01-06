@@ -346,7 +346,7 @@ func buildDockerSingularityCommand(config SpawnConfig, logger *zerolog.Logger) *
 	args = append(args, "/sif/runtime.sif")
 
 	// Command to run inside the SIF
-	args = append(args, "python", "-m", "muxi.utils.run_formation")
+	args = append(args, "python", "-m", "muxi.runtime.utils.run_formation")
 	args = append(args, "/formation")
 	args = append(args, "--port", strconv.Itoa(config.Port))
 	args = append(args, "--host", "0.0.0.0")

@@ -117,7 +117,7 @@ func (s *Server) restoreFormation(formationID string, port int) error {
 		spawnConfig.SIFPath = sifPath
 		spawnConfig.Command = "python"
 		spawnConfig.Args = []string{
-			"-m", "muxi.utils.run_formation",
+			"-m", "muxi.runtime.utils.run_formation",
 			"/formation",
 			"--port", fmt.Sprintf("%d", port),
 			"--host", bindHost,

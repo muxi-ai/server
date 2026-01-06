@@ -466,13 +466,13 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 		spawnConfig.RuntimeType = "singularity"
 		spawnConfig.SIFPath = sifPath
 		
-		// For Singularity/Docker, we run: python -m muxi.utils.run_formation /formation --port PORT --host HOST
+		// For Singularity/Docker, we run: python -m muxi.runtime.utils.run_formation /formation --port PORT --host HOST
 		// The formation directory is mounted as /formation inside the container
 		// The runtime will find formation.afs, formation.yaml, or formation.yml automatically
 		// bindHost was already set earlier based on platform
 		spawnConfig.Command = "python"
 		spawnConfig.Args = []string{
-			"-m", "muxi.utils.run_formation",
+			"-m", "muxi.runtime.utils.run_formation",
 			"/formation",
 			"--port", fmt.Sprintf("%d", port),
 			"--host", bindHost,

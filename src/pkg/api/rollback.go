@@ -254,7 +254,7 @@ func (s *Server) HandleRollback(w http.ResponseWriter, r *http.Request) {
 		spawnConfig.SIFPath = sifPath
 		spawnConfig.Command = "python"
 		spawnConfig.Args = []string{
-			"-m", "muxi.utils.run_formation",
+			"-m", "muxi.runtime.utils.run_formation",
 			"/formation",
 			"--port", fmt.Sprintf("%d", stagingPort),
 			"--host", bindHost,
@@ -381,7 +381,7 @@ func (s *Server) HandleRollback(w http.ResponseWriter, r *http.Request) {
 	if formationConfig.MuxiRuntime != "" {
 		finalSpawnConfig.Command = "python"
 		finalSpawnConfig.Args = []string{
-			"-m", "muxi.utils.run_formation",
+			"-m", "muxi.runtime.utils.run_formation",
 			"/formation",
 			"--port", fmt.Sprintf("%d", existingFormation.Port),
 			"--host", bindHost,
