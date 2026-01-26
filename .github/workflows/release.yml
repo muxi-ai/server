@@ -258,7 +258,7 @@ jobs:
           
           git fetch origin develop
           git checkout develop
-          git merge --no-ff main -m "chore: merge main back to develop (v${{ steps.version.outputs.VERSION }})"
+          git merge --no-ff main -m "chore: merge main back to develop (v${{ steps.version.outputs.VERSION }}) [skip ci]"
           git push origin develop
           
           echo "✓ Merged main → develop"
