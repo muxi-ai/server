@@ -1,13 +1,6 @@
 # Changelog
 
-All notable changes to MUXI Server will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
-This project uses **[ScalVer (Scalable Calendar Versioning)](https://scalver.org)** - format: `MAJOR.YYYYMMDD.PATCH`
-
----
-
-## [Unreleased]
+## X.XXXXXXXX.X - Initial Public Release
 
 ### Blue-Green Deployment & Reliability Improvements
 
