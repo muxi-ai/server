@@ -10,6 +10,13 @@ Websites have web servers. APIs have application servers. Agents finally have th
 
 MUXI Server is a single binary that deploys, manages, and routes to your AI agents. No Kubernetes. No Docker Compose. No nginx. Just `muxi-server start` and ship.
 
+> [!IMPORTANT]
+> ## MUXI Ecosystem
+>
+> This repository is part of the larger MUXI ecosystem.
+>
+> **📋 Complete architectural overview:** See [muxi/ARCHITECTURE.md](https://github.com/muxi-ai/muxi/blob/main/ARCHITECTURE.md) - explains how all 9 repositories fit together, dependencies, status, and roadmap.
+
 ---
 
 ## Quick Start
