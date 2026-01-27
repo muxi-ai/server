@@ -3,6 +3,17 @@
 # RELEASE FLOW:
 #   develop → rc (PR) → main (merge) → auto-release
 #
+# STEP ORDER:
+#   1. Calculate version
+#   2. Commit .version + CHANGELOG → push to main
+#   3. Build 6 release binaries (linux/darwin/windows × amd64/arm64)
+#   4. Create local git tag (NOT pushed yet)
+#   5. Create GitHub Release with binaries
+#   6. Merge main back to develop
+#   7. Push git tag → triggers Docker build workflow
+#
+# Tag is pushed LAST so Docker only builds after everything succeeds.
+#
 # VERSION FORMAT (ScalVer):
 #   MAJOR.YYYYMMDD.PATCH
 #
@@ -77,16 +88,6 @@ jobs:
             git push
           fi
       
-      - name: Create git tag
-        run: |
-          TAG="v${{ steps.version.outputs.VERSION }}"
-          if git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "Tag $TAG already exists"
-          else
-            git tag "$TAG"
-            git push origin "$TAG"
-          fi
-      
       - name: Set up Go
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
@@ -125,6 +126,15 @@ jobs:
           
           ls -lh dist/
       
+      - name: Create git tag
+        run: |
+          TAG="v${{ steps.version.outputs.VERSION }}"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists"
+          else
+            git tag "$TAG"
+          fi
+      
       - name: Create GitHub Release
         uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2
         with:
@@ -144,43 +154,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
-      - name: Update Homebrew Formula
-        env:
-          TAP_REPO_TOKEN: ${{ secrets.MUXI_TAP_REPO_TOKEN }}
-        run: |
-          SHA_DARWIN_ARM64=$(shasum -a 256 dist/muxi-server-darwin-arm64 | cut -d' ' -f1)
-          SHA_DARWIN_AMD64=$(shasum -a 256 dist/muxi-server-darwin-amd64 | cut -d' ' -f1)
-          SHA_LINUX_ARM64=$(shasum -a 256 dist/muxi-server-linux-arm64 | cut -d' ' -f1)
-          SHA_LINUX_AMD64=$(shasum -a 256 dist/muxi-server-linux-amd64 | cut -d' ' -f1)
-          
-          VERSION="${{ steps.version.outputs.VERSION }}"
-          
-          git clone https://x-access-token:$TAP_REPO_TOKEN@github.com/muxi-ai/homebrew-tap.git /tmp/tap
-          cd /tmp/tap
-          
-          sed -i.bak "s|version \"[^\"]*\"|version \"$VERSION\"|" Formula/muxi-server.rb
-          sed -i.bak "s|download/v[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*/|download/v$VERSION/|g" Formula/muxi-server.rb
-          sed -i.bak "s|PLACEHOLDER_SHA256_DARWIN_ARM64|$SHA_DARWIN_ARM64|g" Formula/muxi-server.rb
-          sed -i.bak "s|PLACEHOLDER_SHA256_DARWIN_AMD64|$SHA_DARWIN_AMD64|g" Formula/muxi-server.rb
-          sed -i.bak "s|PLACEHOLDER_SHA256_LINUX_ARM64|$SHA_LINUX_ARM64|g" Formula/muxi-server.rb
-          sed -i.bak "s|PLACEHOLDER_SHA256_LINUX_AMD64|$SHA_LINUX_AMD64|g" Formula/muxi-server.rb
-          sed -i.bak "s|sha256 \"$SHA_DARWIN_ARM64\"|sha256 \"$SHA_DARWIN_ARM64\"|g" Formula/muxi-server.rb
-          sed -i.bak "s|sha256 \"$SHA_DARWIN_AMD64\"|sha256 \"$SHA_DARWIN_AMD64\"|g" Formula/muxi-server.rb
-          sed -i.bak "s|sha256 \"$SHA_LINUX_ARM64\"|sha256 \"$SHA_LINUX_ARM64\"|g" Formula/muxi-server.rb
-          sed -i.bak "s|sha256 \"$SHA_LINUX_AMD64\"|sha256 \"$SHA_LINUX_AMD64\"|g" Formula/muxi-server.rb
-          rm -f Formula/*.bak
-          
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Formula/muxi-server.rb
-          
-          if git diff --cached --quiet; then
-            echo "No changes to Homebrew formula"
-          else
-            git commit -m "chore: update muxi-server to v$VERSION (auto-update from release workflow)"
-            git push origin main
-          fi
-      
       - name: Merge main back to develop
         run: |
           git fetch origin develop
@@ -189,3 +162,9 @@ jobs:
           git push origin develop
         env:
           GITHUB_TOKEN: ${{ secrets.MUXI_RELEASE_TOKEN }}
+      
+      - name: Push git tag (triggers Docker build)
+        run: |
+          git checkout main
+          TAG="v${{ steps.version.outputs.VERSION }}"
+          git push origin "$TAG"
