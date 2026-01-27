@@ -167,4 +167,4 @@ jobs:
         run: |
           git checkout main
           TAG="v${{ steps.version.outputs.VERSION }}"
-          git push origin "$TAG"
+          git push origin "$TAG" 2>/dev/null || echo "Tag $TAG already exists on remote (pushed by GitHub Release step)"
