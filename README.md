@@ -37,16 +37,16 @@ Your agent is live at `http://localhost:7890/api/my-agent`.
 ## How It Works
 
 ```
-                    Client Request
-                         │
-                         ▼
-              ┌─────────────────────┐
-              │   MUXI Server       │
-              │   Port 7890         │
-              │                     │
-              │  /rpc/*  → Manage   │
-              │  /api/*  → Proxy    │
-              └────────┬────────────┘
+                 Client Request
+                       │
+                       ▼
+            ┌─────────────────────┐
+            │   MUXI Server       │
+            │   Port 7890         │
+            │                     │
+            │  /rpc/*  → Manage   │
+            │  /api/*  → Proxy    │
+            └──────────┬──────────┘
                        │ routes to
             ┌──────────┼──────────┐
             ▼          ▼          ▼
