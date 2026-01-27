@@ -9,13 +9,23 @@
 **Open-source infrastructure for running agents in production** 🚀
 
 > [!IMPORTANT]
-> Agents aren't workflows. They don't follow predetermined sequences – they make decisions, evaluate context, and spawn tasks you didn't anticipate. Running them on infrastructure built for "step 1, step 2, step 3" means hacking around with Redis for state, Celery for tasks, and endless conditionals.
+> ## MUXI Ecosystem
 >
-> **Agents deserve their own infrastructure.**
+> This repository is part of the larger MUXI ecosystem.
 >
-> MUXI Server treats **agents as native primitives** – declared in YAML, orchestrated at the infrastructure layer, scaled like containers.
->
-> **Websites have web servers. APIs have application servers. Agents finally have their own.**
+> **📋 Complete architectural overview:** See [muxi/ARCHITECTURE.md](https://github.com/muxi-ai/muxi/blob/main/ARCHITECTURE.md) - explains how all 9 repositories fit together, dependencies, status, and roadmap.
+
+---
+
+## Introduction
+
+Agents aren't workflows. They don't follow predetermined sequences – they make decisions, evaluate context, and spawn tasks you didn't anticipate. Running them on infrastructure built for "step 1, step 2, step 3" means hacking around with Redis for state, Celery for tasks, and endless conditionals.
+
+**Agents deserve their own infrastructure.**
+
+MUXI Server treats **agents as native primitives** – declared in YAML, orchestrated at the infrastructure layer, scaled like containers.
+
+**Websites have web servers. APIs have application servers. Agents finally have their own.**
 
 ---
 
