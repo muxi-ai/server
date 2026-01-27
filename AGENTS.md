@@ -1,462 +1,175 @@
 # AGENTS.md - AI Agent Development Guide
 
-**Project:** MUXI Server  
-**Version:** 1.0.0-dev  
-**Status:** API Architecture Refactor Complete ✅ - Production Ready  
-**Last Updated:** 2025-10-24
+**Project:** MUXI Server
+**Language:** Go
+**License:** Elastic License 2.0
 
 ---
 
-## MUXI Ecosystem
+## What This Is
 
-This repository is part of the larger MUXI ecosystem.
+MUXI Server is a single-binary orchestration platform for deploying and managing AI agent formations. It combines process management, HTTP reverse proxy, port allocation, and HMAC authentication into one Go binary.
 
-**📋 Complete architectural overview:** See [MUXI-ARCHITECTURE.md](../MUXI-ARCHITECTURE.md) - explains how all 9 repositories fit together, dependencies, status, and roadmap.
-
-**🎯 This repo (server):** The orchestration platform - manages formation lifecycle, HTTP reverse proxy, process management, and HMAC authentication.
+This repo is part of the [MUXI ecosystem](https://github.com/muxi-ai/muxi/blob/main/ARCHITECTURE.md).
 
 ---
 
-## Project Overview
-
-MUXI Server is a production-grade orchestration platform for deploying and managing MUXI formations at scale. It combines robust process management with intelligent HTTP routing, enabling organizations to run multiple AI formations as a unified service.
-
-**Think:** Docker + PM2 + Nginx in a single Go binary, purpose-built for MUXI formations.
-
-**Key Features:**
-- 🚀 One-command deploy: formations become production APIs instantly
-- 🎯 Zero configuration: formations run as-is
-- 📦 Single binary: no dependencies except runtime (Singularity/Docker)
-- 🔄 Auto-recovery: crashed formations restart automatically
-- 🌐 Smart routing: HTTP proxy with formation-level isolation
-- 📊 Built-in telemetry: usage tracking without touching formation code
-
----
-
-## Architecture Overview
+## Repository Structure
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│ MUXI Server (Go Binary) - Port 7890                             │
-│                                                                 │
-│  Public Endpoints (no auth):                                    │
-│    GET /health              - Server health check               │
-│    GET /ping                - Simple ping                       │
-│                                                                 │
-│  Management API (HMAC auth): /rpc/*                             │
-│    POST   /rpc/formations/deploy      - Deploy formation        │
-│    GET    /rpc/formations             - List formations         │
-│    GET    /rpc/formations/{id}        - Get formation           │
-│    PUT    /rpc/formations/{id}        - Update formation        │
-│    POST   /rpc/formations/{id}/stop   - Stop formation          │
-│    POST   /rpc/formations/{id}/restart - Restart formation      │
-│    POST   /rpc/formations/{id}/rollback - Rollback version      │
-│    DELETE /rpc/formations/{id}        - Delete formation        │
-│    GET    /rpc/formations/{id}/logs   - Get logs                │
-│    GET    /rpc/server/status          - Server statistics       │
-│    GET    /rpc/server/logs            - Audit logs              │
-│                                                                 │
-│  Formation Proxy (no auth): /api/*                              │
-│    ALL   /api/{formation_id}/*        - Proxy to formation      │
-│                                                                 │
-│  Components:                                                    │
-│    - Formation Registry (in-memory + persistence)               │
-│    - Process Manager (spawning & auto-restart)                  │
-│    - Port Allocator (8000-9000 pool)                            │
-│    - Version Manager (current/previous)                         │
-│    - Audit Logger (JSON lines)                                  │
-└─────────────────────────────────────────────────────────────────┘
-                              ↓
-              Spawns formation runtimes
-                 (bind to 127.0.0.1)
-                              ↓
-  ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
-  │ Formation 1     │ │ Formation 2     │ │ Formation 3     │
-  │ 127.0.0.1:8001  │ │ 127.0.0.1:8002  │ │ 127.0.0.1:8003  │
-  │                 │ │                 │ │                 │
-  │ current/        │ │ current/        │ │ current/        │
-  │ previous/       │ │ previous/       │ │ previous/       │
-  │ version.json    │ │ version.json    │ │ version.json    │
-  │                 │ │                 │ │                 │
-  │ FastAPI         │ │ FastAPI         │ │ FastAPI         │
-  │ /chat           │ │ /chat           │ │ /workflow       │
-  │ /health         │ │ /health         │ │ /health         │
-  └─────────────────┘ └─────────────────┘ └─────────────────┘
-     ↑ Only accessible via MUXI proxy (security)
+.
+├── AGENTS.md                  # This file
+├── CHANGELOG.md               # Release changelog
+├── README.md                  # Public README
+├── LICENSE-ELv2               # Elastic License 2.0
+├── SECURITY.md                # Security policy (links to muxi repo)
+├── Dockerfile                 # Multi-arch Docker build
+├── docker-compose.yml         # Docker Compose setup
+├── contributing/              # Contributor documentation
+│   ├── README.md              # Contributing guide + install instructions
+│   ├── auth.md                # HMAC authentication design
+│   ├── cli-protocol.md        # CLI-Server communication protocol
+│   ├── how-formations-run.md  # Formation runtime execution
+│   ├── runtime-architecture.md # SIF/Docker runtime architecture
+│   ├── runtime-auto-download.md # Runtime auto-download
+│   └── windows-dev.md         # Windows development guide
+├── scripts/test/              # Test scripts
+├── .github/
+│   ├── workflows/             # CI, RC, Release, Docker (all SHA-pinned)
+│   └── dependabot.yml         # Automated dependency updates
+└── src/                       # Source code
+    ├── go.mod
+    ├── cmd/server/
+    │   ├── main.go            # Entry point
+    │   ├── commands.go        # CLI commands (init, start, version)
+    │   └── .version           # ScalVer version file
+    └── pkg/
+        ├── api/               # HTTP API endpoints & middleware
+        ├── auth/              # HMAC authentication
+        ├── config/            # Configuration (YAML)
+        ├── formation/         # Formation bundle handling
+        ├── process/           # Process lifecycle & auto-restart
+        ├── proxy/             # HTTP reverse proxy
+        ├── registry/          # Formation registry & port allocation
+        ├── runtime/           # Singularity/Docker runtime
+        └── telemetry/         # Anonymous usage telemetry
 ```
 
 ---
 
-## Key Architectural Decisions
+## Architecture
 
-### 1. Formation Runtime (Issue #1, comments)
-- **Phase 1 (Current):** Spawn Python processes directly (`python app.py`)
-- **Phase 2+ (Future):** Use Singularity/Apptainer SIF images (self-contained containers)
-- **Why:** Clean server (no Python pollution), container isolation, single file distribution
+```
+┌──────────────────────────────────────────────────────┐
+│ MUXI Server (Port 7890)                              │
+│                                                      │
+│  GET  /health, /ping          Public (no auth)       │
+│                                                      │
+│  /rpc/formations/*            Management API (HMAC)  │
+│    POST   /deploy             Deploy formation       │
+│    GET    /                   List formations        │
+│    GET    /{id}               Get formation          │
+│    PUT    /{id}               Update formation       │
+│    POST   /{id}/stop          Stop formation         │
+│    POST   /{id}/restart       Restart formation      │
+│    POST   /{id}/rollback      Rollback version       │
+│    DELETE /{id}               Delete formation       │
+│    GET    /{id}/logs          Get logs               │
+│  GET  /rpc/server/status      Server statistics      │
+│  GET  /rpc/server/logs        Audit logs             │
+│                                                      │
+│  ALL  /api/{formation_id}/*   Formation proxy        │
+└──────────────────────────────────────────────────────┘
+                       │
+         Spawns & proxies to formations
+         (bind to 127.0.0.1 only)
+                       │
+        ┌──────────────┼──────────────┐
+        ▼              ▼              ▼
+   Formation 1    Formation 2    Formation 3
+   :8001          :8002          :8003
+```
 
-### 2. Server Process Management (Issue #1, comments)
-- **Production:** systemd (Linux) / launchd (macOS)
-- **Development:** Manual execution (`muxi-server serve`)
-- **Windows:** Manual execution (optimized for dev, service support future)
-- Install script offers service setup by default (Unix only)
-
-### 3. Platform Support
-- **Linux:** Native support, systemd service, Singularity runtime
-- **macOS:** Native support, launchd service, Docker-wrapped Singularity
-- **Windows:** Native support, manual execution, Docker-wrapped Singularity ✨ **NEW**
-- **Process Management:** Platform-specific (Unix: process groups, Windows: Job Objects)
-
-### 3. Base Code (PRD)
-- Adapted from **pm2-go** (https://github.com/hatchet/pm2-go) for process management
-- Stripped: gRPC, Cobra CLI, cron features, JSON config
-- Kept: Process spawning, monitoring, log rotation, PID management
-- Added: HTTP API, formation registry, port allocation, HTTP proxy
-- **Note:** pm2-go code is available in git history and at the original repo if needed for reference
-
-### 4. Language & Dependencies
-- **Server:** Go (single binary, no runtime dependencies)
-- **Formations:** Python (FastAPI servers)
-- **Minimal deps:** gorilla/mux (routing), zerolog (logging), yaml.v3 (parsing)
-
-### 5. API Architecture (Latest: 2025-10-19)
-- **Port:** 7890 (official "MUXI Port" - memorable and unique)
-- **RESTful Routes:**
-  - `/health`, `/ping` - Public health checks (no auth)
-  - `/rpc/formations/*` - Management API (HMAC auth required)
-  - `/api/{id}/*` - Formation proxy (no server auth, formation handles its own)
-- **Security:** Formations bind to `127.0.0.1` only (localhost), accessible via proxy
-- **Versioning:** current/ and previous/ directories with version.json tracking
-- **Audit Logging:** All /rpc/* requests logged to audit.log
-
-### 6. Formation Versioning System
-- **Directory Structure:**
-  ```
-  formations/{id}/
-    ├── current/          # Active version
-    ├── previous/         # Backup for rollback
-    └── version.json      # Version metadata
-  ```
-- **Update Flow:** Upload → Stop → Backup current → Extract new → Start
-- **Rollback Flow:** Stop → Swap current↔previous → Update metadata → Start
-- **Bundle Hashing:** SHA256 hash tracking for integrity verification
+**Key design decisions:**
+- Formations bind to localhost only (all traffic through proxy)
+- Port pool: 8000-9000, auto-allocated
+- Versioning: `current/` and `previous/` directories with `version.json`
+- Update: upload -> stop -> backup current -> extract new -> start
+- Rollback: stop -> swap current/previous -> update metadata -> start
 
 ---
 
-## Directory Structure
+## Dependencies
 
-```
-/
-├── AGENTS.md              # This file - AI agent guide
-├── AUTH.md                # Authentication design document
-├── PRD.md                 # Product Requirements Document
-├── README.md              # Project overview
-├── LICENSE                # MIT License
-├── .gitignore
-├── docs/                  # User documentation
-│   ├── README.md
-│   ├── getting-started.md
-│   ├── installation.md
-│   ├── configuration.md
-│   ├── authentication.md
-│   ├── formations.md
-│   ├── api-reference.md
-│   └── troubleshooting.md
-│
-└── src/                   # MUXI Server implementation
-    ├── cmd/
-    │   └── server/
-    │       └── main.go            # Entry point: muxi-server serve
-    │
-    ├── pkg/
-    │   ├── process/               # Process lifecycle management
-    │   │   ├── process.go         # Process types & structs
-    │   │   ├── spawn.go           # Process spawning (adapted from pm2-go)
-    │   │   ├── monitor.go         # Health checks & auto-restart
-    │   │   └── manager.go         # Orchestration layer
-    │   │
-    │   ├── registry/              # Formation tracking
-    │   │   ├── formation.go       # Formation info struct
-    │   │   ├── registry.go        # In-memory registry (thread-safe)
-    │   │   ├── ports.go           # Port pool allocation
-    │   │   └── persistence.go     # Save/load to JSON
-    │   │
-    │   ├── api/                   # HTTP API endpoints
-    │   │   ├── server.go          # HTTP server setup
-    │   │   ├── deploy.go          # POST /formations/deploy
-    │   │   ├── list.go            # GET /formations
-    │   │   └── errors.go          # Error handling
-    │   │
-    │   ├── proxy/                 # HTTP reverse proxy (future)
-    │   │   └── proxy.go           # /{formation_id}/* routing
-    │   │
-    │   └── config/                # Configuration management
-    │       └── config.go          # Load ~/.muxi-server/config.yaml
-    │
-    ├── test/                      # Test fixtures
-    │   ├── dummy_app.py           # Simple FastAPI app for testing
-    │   └── fixtures/              # Test YAML files
-    │
-    ├── go.mod                     # Go module definition
-    └── go.sum                     # Dependency checksums
-```
+| Package | Purpose |
+|---------|---------|
+| `github.com/gorilla/mux` | HTTP routing |
+| `github.com/rs/zerolog` | Structured logging (zero-alloc) |
+| `gopkg.in/yaml.v3` | YAML parsing |
+| `golang.org/x/sys` | Platform-specific syscalls |
 
----
-
-## Development Phases
-
-### ✅ Phase 1: Baseline Server (COMPLETE!)
-**Goal:** Production-ready server with full API and bundle deployment
-
-- [x] Issue #3: Project setup & structure
-- [x] Issue #4: Process management core
-- [x] Issue #5: Formation registry & port allocation
-- [x] Issue #6: HTTP API (8 endpoints - full CRUD)
-- [x] HTTP proxy routing
-- [x] HMAC authentication
-- [x] Server CLI commands (`init`, `version`, `config show`)
-- [x] Formation bundle upload (gzip tarball support)
-- [x] Server ID generation & metadata injection
-- [x] Comprehensive documentation (8 user docs + 3 implementation summaries)
-
-**Deliverables:** Production-ready server with ~5,000+ lines of code
-
-### ✅ API Architecture Refactor (COMPLETE!)
-**Goal:** RESTful API, versioning, audit logging, production security
-
-- [x] Port 7890 (official MUXI Port)
-- [x] RESTful routes: `/rpc/formations/*` for management
-- [x] Proxy routes: `/api/{id}/*` for formation access
-- [x] Formation versioning (PUT /rpc/formations/{id})
-- [x] Rollback support (POST /rpc/formations/{id}/rollback)
-- [x] Server management endpoints (status, logs)
-- [x] Audit logging middleware
-- [x] Localhost-only formation binding (security)
-- [x] Reserved formation ID validation
-- [x] 42 new tests (88.3% coverage)
-- [x] All documentation updated
-- [x] CHANGELOG.md and MIGRATION.md created
-
-**Deliverables:** 11 new files, 28 modified files, ~3,000 lines added
-
-**Key Features:**
-- 14 API endpoints (vs 8 in Phase 1)
-- Formation update & rollback
-- Version tracking with SHA256 hashing
-- Audit logging (JSON lines format)
-- Enhanced security (formations on 127.0.0.1)
-
-### ✅ Phase 2: Singularity/Apptainer Runtime (COMPLETE!)
-**Goal:** Container-based formation execution with auto-provisioning
-
-- [x] SIF-based formation execution via Singularity
-- [x] Docker-wrapped Singularity for macOS/Windows (runtime-runner)
-- [x] Multi-arch support (amd64 + arm64)
-- [x] Auto-download SIF from GitHub releases or custom URL
-- [x] Auto-pull runtime-runner Docker image
-- [x] Runtime version resolution from formation.yaml
-- [x] Auto-start formations on server restart
-- [x] Configurable log level (--log-level flag, MUXI_LOG_LEVEL env)
-- [x] Simplified /health endpoint (security)
-
-**Key Features:**
-- Clean server (no Python dependencies required)
-- Self-provisioning: auto-downloads runtime components
-- Cross-platform: Linux (native Singularity), macOS/Windows (Docker)
-- Runtime config: `sif_base_url`, `auto_download`, `runtime_runner_image`
-
-### 🔜 Phase 3: Client CLI Tool (Separate Project)
-Build standalone `muxi` CLI tool for formation management:
-- Profile management (`~/.muxi/profiles.yaml`)
-- HMAC request signing (reusable auth library)
-- Formation deployment (`muxi formation deploy`)
-- Formation management (list, get, stop, restart, delete, logs)
-- Log streaming with `--follow` flag
-- Configuration commands
-
-**Timeline:** 1-2 weeks  
-**Repository:** Separate from server (independent evolution)
-
-### 🔜 Phase 4: Installation & Distribution
-- Install script (`curl | bash`)
-- Homebrew tap, APT/YUM repos
-- Docker images
-- systemd/launchd service generation
-
-### 🔜 Phase 5: Multi-Server Orchestration
-- Server registration API
-- Formation telemetry aggregation
-- Multi-server deployment
-- Server health dashboard
+No other dependencies. Keep it minimal.
 
 ---
 
 ## Coding Conventions
 
 ### Go Style
-- Follow standard Go conventions (gofmt, golint)
-- Use **zerolog** for structured logging
-- Error handling: always check errors, wrap with context
-- Package naming: lowercase, single word
-- Interfaces over concrete types where appropriate
-
-### File Organization
+- `gofmt` and `go vet` before committing
+- Wrap errors with context: `fmt.Errorf("failed to X: %w", err)`
 - One package per directory
-- `*_test.go` files alongside implementation
-- Internal packages in `pkg/` (not `internal/` - we want flexibility)
+- `*_test.go` alongside implementation
 
 ### Logging
 ```go
-import "github.com/rs/zerolog/log"
-
-// Use structured logging
-log.Info().
-    Str("formation_id", formationID).
-    Int("port", port).
-    Msg("Formation started")
-
-log.Error().
-    Err(err).
-    Str("formation_id", formationID).
-    Msg("Failed to spawn formation")
-```
-
-### Error Handling
-```go
-// Wrap errors with context
-if err != nil {
-    return fmt.Errorf("failed to spawn process: %w", err)
-}
-
-// Use custom error types for API
-type FormationNotFoundError struct {
-    ID string
-}
+log.Info().Str("formation_id", id).Int("port", port).Msg("Formation started")
+log.Error().Err(err).Str("formation_id", id).Msg("Failed to spawn formation")
 ```
 
 ### Configuration
+Config lives at `~/.muxi/server/config.yaml`:
 ```yaml
-# ~/.muxi/server/config.yaml
 server:
-  port: 7890              # MUXI Port (default)
-  host: "0.0.0.0"         # Server externally accessible
-
+  port: 7890
+  host: "0.0.0.0"
 formations:
   port_range_start: 8000
   port_range_end: 9000
-  logs_dir: "logs"
-  formations_dir: "formations"
-  bind_host: "127.0.0.1"  # Formations bind to localhost only (security)
-  keep_backups: 1         # Number of version backups to keep
+  bind_host: "127.0.0.1"
   auto_restart: true
-  max_restarts: 10
+  max_restart_count: 10
   restart_delay: 1
-
 runtime:
   sif_base_url: "https://github.com/muxi-ai/runtime/releases/download"
-  auto_download: true     # Auto-download SIF when missing
+  auto_download: true
   runtime_runner_image: "ghcr.io/muxi-ai/runtime-runner:latest"
-
 logging:
-  level: "info"           # debug|info|warn|error (also: --log-level flag, MUXI_LOG_LEVEL env)
+  level: "info"
   audit_log: "logs/audit.log"
 ```
 
 ---
 
-## Key Dependencies
+## Testing
 
-| Package | Purpose | Why This One |
-|---------|---------|--------------|
-| `github.com/gorilla/mux` | HTTP routing | Industry standard, clean API, powerful |
-| `gopkg.in/yaml.v3` | YAML parsing | Latest version, good API |
-| `github.com/rs/zerolog` | Structured logging | Zero allocation, fast, JSON output |
-
-### Dependencies to AVOID
-- ❌ `github.com/spf13/cobra` - We're not building a CLI (server only)
-- ❌ `google.golang.org/grpc` - Too heavy, HTTP is simpler
-- ❌ `github.com/aptible/supercronic` - No cron features needed
-
----
-
-## Testing Strategy
-
-### Unit Tests
-- All packages must have `*_test.go` files
-- Target: >80% coverage
-- Use table-driven tests for multiple cases
-```go
-func TestPortAllocate(t *testing.T) {
-    tests := []struct {
-        name    string
-        start   int
-        end     int
-        want    int
-    }{
-        {"first port", 8000, 8010, 8000},
-        {"second port", 8000, 8010, 8001},
-    }
-    // ...
-}
-```
-
-### Integration Tests
-- `test/dummy_app.py` - Simple FastAPI server for end-to-end tests
-- Test full flow: deploy → spawn → health check → list → stop
-
-### Manual Testing
 ```bash
-# Start server
-go run ./src/cmd/server serve
+cd src
 
-# Deploy formation (in another terminal)
-curl -X POST http://localhost:3000/formations/deploy \
-  -H "Content-Type: application/json" \
-  -d '{"command": "python test/dummy_app.py", "id": "test-1"}'
+# Run all tests
+go test ./... -v -race
 
-# List formations
-curl http://localhost:3000/formations
+# With coverage
+go test ./... -coverprofile=coverage.out
+go tool cover -func=coverage.out
 
-# Check formation health
-curl http://localhost:8001/health
+# Fuzz tests
+go test ./pkg/registry/... -fuzz FuzzValidateFormationID -fuzztime 5s
+go test ./pkg/auth/... -fuzz FuzzComputeHMAC -fuzztime 5s
 ```
 
----
-
-## Code Adapted from pm2-go
-
-We've already adapted the necessary code from **pm2-go** (https://github.com/hatchet/pm2-go).
-
-### What We Adapted
-
-1. **Process Spawning** (now in `pkg/process/spawn.go`)
-   - `exec.Command` setup
-   - Stdout/stderr redirection to log files
-   - PID tracking and management
-
-2. **Process Monitoring** (now in `pkg/process/monitor.go`)
-   - Check if process running by PID
-   - Auto-restart logic
-   - Restart count limiting
-
-3. **Log Management** (integrated into process management)
-   - Log file creation
-   - Log rotation (size-based)
-   - Keep N old log files
-
-### What We Removed
-
-1. **gRPC Communication** - Using HTTP/REST instead
-2. **CLI Commands** - Server only (CLI will be separate tool)
-3. **Protobuf Definitions** - Not needed for HTTP API
-4. **Cron Scheduling** - Out of scope for MUXI Server
-5. **JSON Process Config** - We use YAML for formations
-
-### Reference
-
-If you need to reference the original pm2-go code:
-- **GitHub:** https://github.com/hatchet/pm2-go
-- **Our adapted code:** See `src/pkg/process/` directory
-- **Git history:** Earlier commits contain the full pm2-go codebase
+- Use table-driven tests
+- Test ports should use 19000+ range (avoid conflicts with formation port pool)
+- CI threshold: 45% (platform-specific code is untestable on single OS)
 
 ---
 
@@ -466,173 +179,55 @@ If you need to reference the original pm2-go code:
 1. Create handler in `pkg/api/{name}.go`
 2. Register route in `pkg/api/server.go`
 3. Add tests in `pkg/api/{name}_test.go`
-4. Update this doc
 
 ### Adding a Configuration Option
 1. Update struct in `pkg/config/config.go`
-2. Update default config template
-3. Document in PRD.md
+2. Update default config generation in `cmd/server/commands.go`
 
 ### Debugging
 ```bash
-# Enable debug logging
-export MUXI_LOG_LEVEL=debug
-go run ./src/cmd/server serve
-
-# Check process status
-ps aux | grep muxi
-
-# Check logs
-tail -f ~/.muxi-server/logs/formation-{id}.log
-
-# Check registry
-cat ~/.muxi-server/registry.json | jq
+MUXI_LOG_LEVEL=debug go run ./cmd/server start
+tail -f ~/.muxi/server/logs/audit.log
+cat ~/.muxi/server/registry.json | jq
 ```
-
----
-
-## Important Files
-
-| File | Purpose | When to Modify |
-|------|---------|----------------|
-| `PRD.md` | Product requirements, full spec | Clarifying features, architecture changes |
-| `AGENTS.md` | This file - AI agent guide | New conventions, structure changes |
-| `src/cmd/server/main.go` | Entry point | Adding commands, startup logic |
-| `src/pkg/process/manager.go` | Core process orchestration | Changing process lifecycle |
-| `src/pkg/registry/registry.go` | Formation tracking | Adding formation metadata |
-| `src/pkg/api/server.go` | HTTP server setup | Adding routes, middleware |
-| `test/dummy_app.py` | Test fixture | Adding test endpoints |
 
 ---
 
 ## Git Workflow
 
-### Branch Naming
-- `feature/phase-1.1-setup` - New features
-- `fix/port-allocation-bug` - Bug fixes
-- `refactor/process-spawn` - Refactoring
-- `docs/update-readme` - Documentation
+- `develop` - Active development
+- `rc` - Release candidate (cross-platform build & test)
+- `main` - Production releases (auto-tagged, auto-released)
 
-### Commit Messages
-Follow the repository's existing style (check `git log --oneline`):
+### Commit Style
 ```
-Add process spawning logic
-
-- Implement process spawning based on pm2-go patterns
-- Support command-line arguments
-- Redirect stdout/stderr to log files
+feat: add formation health monitoring
+fix: port allocation race condition
+chore: update dependencies
+docs: improve auth documentation
 ```
 
 ### Before Committing
 ```bash
-# Format code
+cd src
 go fmt ./...
-
-# Run tests
-go test ./... -v
-
-# Check for issues
 go vet ./...
-
-# Ensure builds
-go build ./src/cmd/server
+go test ./... -v
+go build ./cmd/server
 ```
 
 ---
 
-## Key GitHub Issues
+## Key Files
 
-- **#1** - Master epic (PRD: MUXI Server)
-- **#2** - Distribution & Installation Strategy
-- **#3** - Phase 1.1: Project Setup & Structure ⬅️ **START HERE**
-- **#4** - Phase 1.2: Process Management Core
-- **#5** - Phase 1.3: Formation Registry & Port Allocation
-- **#6** - Phase 1.4: HTTP API Server (2 Endpoints)
-
----
-
-## Reference Links
-
-- **PRD:** See `PRD.md` in repository root
-- **AUTH.md:** Complete authentication design document
-- **docs/:** User-facing documentation for deployers
-- **pm2-go (original):** https://github.com/hatchet/pm2-go (process management reference)
-- **Issue #1 Comments:** Architectural decisions documented there
-  - Process management approach
-  - Runtime strategy (Singularity/Apptainer)
-  - Dependency audit
-  - Phase 1 implementation plan
-
----
-
-## Quick Start for AI Agents
-
-### Working on Phase 1
-1. Read this file (AGENTS.md)
-2. Review `PRD.md` for context
-3. Check current phase in issue tracker
-4. Follow issue checklist (e.g., #3 for setup)
-5. Write tests alongside implementation
-6. Update this file if adding new patterns
-
-### Making Changes
-1. Understand the phase goal (check issue description)
-2. Review existing code in `src/pkg/` for patterns
-3. Follow coding conventions above
-4. Write/update tests
-5. Run `go fmt`, `go vet`, `go test`
-6. Commit with descriptive message
-
-### Getting Context
-- **Architecture decisions:** Issue #1 comments
-- **Current phase:** Check open issues #3-6
-- **Design patterns:** Look at existing `pkg/` code
-- **Testing patterns:** Look at `*_test.go` files
-
----
-
-## Notes for AI Agents
-
-### When Adding New Code
-- Always add logging (use zerolog)
-- Always add error handling with context
-- Always write tests (aim for >80% coverage)
-- Always update this doc if adding new patterns
-
-### When Adding New Features
-- Look at existing patterns in `src/pkg/` directories
-- Follow the same structure and conventions
-- Add comprehensive error handling
-- Write tests alongside implementation
-- Update documentation (AGENTS.md, docs/)
-
-### When Unsure
-- Check PRD.md for requirements
-- Check AUTH.md for authentication details
-- Check issue #1 comments for architectural decisions
-- Review existing code for established patterns
-- Ask for clarification before making assumptions
-
----
-
-## Success Criteria
-
-### Phase 1 Complete ✅ ALL ACHIEVED!
-- [x] `go build ./src/cmd/server` compiles
-- [x] `muxi-server init` generates credentials
-- [x] `muxi-server start` starts HTTP server
-- [x] `POST /formations/deploy` accepts tarball bundles
-- [x] Full CRUD API (8 endpoints implemented)
-- [x] HTTP proxy routing works
-- [x] HMAC authentication functional
-- [x] Formation bundle upload with metadata injection
-- [x] Server ID generation (hostname + SHA256 hash)
-- [x] Killed formation auto-restarts
-- [x] Tests pass: `go test ./... -v`
-- [x] Documentation complete (8 user docs + 3 implementation summaries)
-
----
-
-**Last Updated:** 2025-10-17  
-**Current Phase:** Phase 1 Complete ✅  
-**Next Milestone:** Phase 2 - Build `muxi` CLI tool
+| File | Purpose |
+|------|---------|
+| `src/cmd/server/main.go` | Entry point, startup |
+| `src/cmd/server/commands.go` | CLI commands (init, start, version) |
+| `src/pkg/api/server.go` | HTTP server, route registration |
+| `src/pkg/process/manager.go` | Process lifecycle orchestration |
+| `src/pkg/registry/registry.go` | Formation registry (thread-safe) |
+| `src/pkg/proxy/proxy.go` | HTTP reverse proxy |
+| `src/pkg/auth/middleware.go` | HMAC auth middleware |
+| `src/pkg/telemetry/telemetry.go` | Telemetry global instance |
+| `test/dummy_app.py` | Test fixture (FastAPI app) |
