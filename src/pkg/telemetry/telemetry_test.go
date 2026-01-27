@@ -1,6 +1,7 @@
 package telemetry
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -216,6 +217,103 @@ func TestIsEnabled(t *testing.T) {
 
 	if IsEnabled() {
 		t.Error("telemetry should be disabled when config says false")
+	}
+}
+
+func TestGlobalTelemetry_StartStop(t *testing.T) {
+	// Reset global state
+	globalMu.Lock()
+	initialized = false
+	globalCollector = nil
+	globalSender = nil
+	globalMu.Unlock()
+
+	Init("1.0.0-startstop", "docker")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	Start(ctx)
+
+	// Double Start should be safe
+	Start(ctx)
+
+	cancel()
+	Stop()
+
+	// Double Stop should be safe
+	Stop()
+
+	// Reset for other tests
+	globalMu.Lock()
+	initialized = false
+	globalCollector = nil
+	globalSender = nil
+	globalMu.Unlock()
+}
+
+func TestGlobalTelemetry_StartStopBeforeInit(t *testing.T) {
+	globalMu.Lock()
+	initialized = false
+	globalCollector = nil
+	globalSender = nil
+	globalMu.Unlock()
+
+	// Start/Stop before Init should be safe
+	ctx := context.Background()
+	Start(ctx)
+	Stop()
+}
+
+func TestSaveGlobalConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpDir)
+	defer os.Setenv("HOME", origHome)
+
+	config := map[string]interface{}{
+		"telemetry":  true,
+		"machine_id": "test-id-123",
+	}
+
+	err := saveGlobalConfig(config)
+	if err != nil {
+		t.Fatalf("saveGlobalConfig() error = %v", err)
+	}
+
+	// Verify it was saved
+	loaded, err := loadGlobalConfig()
+	if err != nil {
+		t.Fatalf("loadGlobalConfig() error = %v", err)
+	}
+	if loaded["machine_id"] != "test-id-123" {
+		t.Errorf("machine_id = %v, want test-id-123", loaded["machine_id"])
+	}
+}
+
+func TestCacheMachineID(t *testing.T) {
+	tmpDir := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpDir)
+	defer os.Setenv("HOME", origHome)
+
+	cacheMachineID("cached-machine-id")
+
+	got := getCachedMachineID()
+	if got != "cached-machine-id" {
+		t.Errorf("getCachedMachineID() = %q, want cached-machine-id", got)
+	}
+}
+
+func TestCacheCountry(t *testing.T) {
+	tmpDir := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpDir)
+	defer os.Setenv("HOME", origHome)
+
+	cacheCountry("US")
+
+	got := getCachedCountry()
+	if got != "US" {
+		t.Errorf("getCachedCountry() = %q, want US", got)
 	}
 }
 

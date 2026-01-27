@@ -1,8 +1,12 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/rs/zerolog"
 )
 
 func TestGetArchString(t *testing.T) {
@@ -139,4 +143,175 @@ func TestVersion(t *testing.T) {
 	if Version == "" {
 		t.Error("Version should not be empty (embedded from .version)")
 	}
+}
+
+func TestCreateOrUpdateCLIProfile_NewProfile(t *testing.T) {
+	tmpDir := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpDir)
+	defer os.Setenv("HOME", origHome)
+
+	result, err := createOrUpdateCLIProfile(7890, "muxi_pk_test", "muxi_sk_test")
+	if err != nil {
+		t.Fatalf("createOrUpdateCLIProfile() error = %v", err)
+	}
+	if result != ProfileCreated {
+		t.Errorf("expected ProfileCreated, got %d", result)
+	}
+
+	// Verify file was created
+	profilesPath := filepath.Join(tmpDir, ".muxi", "cli", "profiles.yaml")
+	data, err := os.ReadFile(profilesPath)
+	if err != nil {
+		t.Fatalf("profiles.yaml not created: %v", err)
+	}
+	if !strings.Contains(string(data), "muxi_pk_test") {
+		t.Error("profiles.yaml doesn't contain the key")
+	}
+	if !strings.Contains(string(data), "localhost") {
+		t.Error("profiles.yaml doesn't contain localhost profile")
+	}
+}
+
+func TestCreateOrUpdateCLIProfile_UpdateProfile(t *testing.T) {
+	tmpDir := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpDir)
+	defer os.Setenv("HOME", origHome)
+
+	// Create initial profile
+	createOrUpdateCLIProfile(7890, "muxi_pk_old", "muxi_sk_old")
+
+	// Update with new credentials
+	result, err := createOrUpdateCLIProfile(7890, "muxi_pk_new", "muxi_sk_new")
+	if err != nil {
+		t.Fatalf("createOrUpdateCLIProfile() error = %v", err)
+	}
+	if result != ProfileUpdated {
+		t.Errorf("expected ProfileUpdated, got %d", result)
+	}
+}
+
+func TestCreateOrUpdateCLIProfile_Unchanged(t *testing.T) {
+	tmpDir := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpDir)
+	defer os.Setenv("HOME", origHome)
+
+	// Create profile
+	createOrUpdateCLIProfile(7890, "muxi_pk_same", "muxi_sk_same")
+
+	// Same credentials -> unchanged
+	result, err := createOrUpdateCLIProfile(7890, "muxi_pk_same", "muxi_sk_same")
+	if err != nil {
+		t.Fatalf("createOrUpdateCLIProfile() error = %v", err)
+	}
+	if result != ProfileUnchanged {
+		t.Errorf("expected ProfileUnchanged, got %d", result)
+	}
+}
+
+func TestCmdVersion(t *testing.T) {
+	// Should not panic
+	err := cmdVersion()
+	if err != nil {
+		t.Errorf("cmdVersion() error = %v", err)
+	}
+}
+
+func TestCmdHelp(t *testing.T) {
+	// Should not panic
+	cmdHelp()
+}
+
+func TestParseLogLevel(t *testing.T) {
+	tests := []struct {
+		input string
+		want  zerolog.Level
+	}{
+		{"debug", zerolog.DebugLevel},
+		{"DEBUG", zerolog.DebugLevel},
+		{"info", zerolog.InfoLevel},
+		{"warn", zerolog.WarnLevel},
+		{"warning", zerolog.WarnLevel},
+		{"error", zerolog.ErrorLevel},
+		{"unknown", zerolog.InfoLevel},
+		{"", zerolog.InfoLevel},
+	}
+	for _, tt := range tests {
+		got := parseLogLevel(tt.input)
+		if got != tt.want {
+			t.Errorf("parseLogLevel(%q) = %v, want %v", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestGetLogLevel_Default(t *testing.T) {
+	origLevel := os.Getenv("MUXI_LOG_LEVEL")
+	os.Unsetenv("MUXI_LOG_LEVEL")
+	defer func() {
+		if origLevel != "" {
+			os.Setenv("MUXI_LOG_LEVEL", origLevel)
+		}
+	}()
+
+	level := getLogLevel()
+	if level != zerolog.InfoLevel {
+		t.Errorf("getLogLevel() = %v, want InfoLevel", level)
+	}
+}
+
+func TestGetLogLevel_EnvVar(t *testing.T) {
+	os.Setenv("MUXI_LOG_LEVEL", "debug")
+	defer os.Unsetenv("MUXI_LOG_LEVEL")
+
+	level := getLogLevel()
+	if level != zerolog.DebugLevel {
+		t.Errorf("getLogLevel() = %v, want DebugLevel", level)
+	}
+}
+
+func TestPrintBanner(t *testing.T) {
+	// Should not panic
+	printBanner()
+}
+
+func TestPrintWelcome(t *testing.T) {
+	// Should not panic
+	printWelcome()
+}
+
+func TestGetMuxiServerPath(t *testing.T) {
+	path := getMuxiServerPath()
+	if path == "" {
+		t.Error("getMuxiServerPath() returned empty string")
+	}
+}
+
+func TestCmdConfigShow_NoConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	os.Setenv("MUXI_CONFIG_DIR", tmpDir)
+	defer os.Unsetenv("MUXI_CONFIG_DIR")
+
+	// Should use defaults when no config file exists
+	err := cmdConfigShow()
+	if err != nil {
+		t.Errorf("cmdConfigShow() error = %v", err)
+	}
+}
+
+func TestIsCLIInstalled(t *testing.T) {
+	// Just verify it doesn't panic
+	result := isCLIInstalled()
+	t.Logf("isCLIInstalled() = %v", result)
+}
+
+func TestCheckDockerAvailable(t *testing.T) {
+	result := checkDockerAvailable()
+	t.Logf("checkDockerAvailable() = %v", result)
+}
+
+func TestCheckRuntimeRunnerExists(t *testing.T) {
+	result := checkRuntimeRunnerExists()
+	t.Logf("checkRuntimeRunnerExists() = %v", result)
 }
