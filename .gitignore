@@ -23,10 +23,14 @@ go.work
 
 # IDE
 .idea/
-.vscode/
 *.swp
 *.swo
 *~
+
+# AI agent directories
+.factory/
+.claude/
+.cursor/
 
 # OS
 .DS_Store
@@ -42,6 +46,4 @@ temp/
 # MUXI Server specific
 .muxi-server/
 *.pid
-.claude/
-test-formation.tar.gz
-test-formation-v2.tar.gz
+*.tar.gz

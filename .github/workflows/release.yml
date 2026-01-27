@@ -5,21 +5,6 @@
 #
 # VERSION FORMAT (ScalVer):
 #   MAJOR.YYYYMMDD.PATCH
-#   - MAJOR: Manual change only (breaking changes)
-#   - YYYYMMDD: Auto-set to today's date
-#   - PATCH: Auto-incremented (resets to 0 on new day)
-#
-# ON MERGE TO MAIN:
-#   1. Read current version from src/cmd/server/.version
-#   2. Calculate next version:
-#      - Same day? → bump PATCH (0.20251205.0 → 0.20251205.1)
-#      - New day?  → reset to MAJOR.TODAY.0 (0.20251205.1 → 0.20251206.0)
-#   3. Update src/cmd/server/.version (embedded in binary at build time)
-#   4. Update CHANGELOG.md ([Unreleased] → [VERSION] - DATE)
-#   5. Commit & push "chore: release vX.Y.Z"
-#   6. Create git tag vX.Y.Z
-#   7. Build binaries for all platforms
-#   8. Create GitHub Release with artifacts
 #
 name: Release
 
@@ -27,72 +12,64 @@ on:
   push:
     branches: [main]
 
+permissions: {}
+
 jobs:
   release:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    # Skip if commit is a release (prevent infinite loop)
     if: "!startsWith(github.event.head_commit.message, 'chore: release')"
     
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
-          fetch-depth: 0  # Need full history for versioning
-          token: ${{ secrets.MUXI_RELEASE_TOKEN }}  # Use PAT to trigger workflows
+          fetch-depth: 0
+          token: ${{ secrets.MUXI_RELEASE_TOKEN }}
       
       - name: Calculate next version (ScalVer)
         id: version
         run: |
-          # Read current version from .version file (embedded in binary)
           CURRENT_VERSION=$(cat src/cmd/server/.version 2>/dev/null || echo "0.20000101.0")
-          
-          # Parse: 0.20251205.1 → MAJOR=0, DATE=20251205, PATCH=1
           MAJOR=$(echo $CURRENT_VERSION | cut -d. -f1)
           CURRENT_DATE=$(echo $CURRENT_VERSION | cut -d. -f2)
           CURRENT_PATCH=$(echo $CURRENT_VERSION | cut -d. -f3)
-          
-          # Today's date
           TODAY=$(date +%Y%m%d)
           
-          # Calculate next version (ScalVer: MAJOR.YYYYMMDD.PATCH)
-          # MAJOR is never auto-bumped (manual change only)
           if [ "$CURRENT_DATE" = "$TODAY" ]; then
-            # Same day - increment patch
             NEXT_PATCH=$((CURRENT_PATCH + 1))
             NEXT_VERSION="${MAJOR}.${TODAY}.${NEXT_PATCH}"
           else
-            # New day - reset to MAJOR.TODAY.0
             NEXT_VERSION="${MAJOR}.${TODAY}.0"
           fi
           
           echo "VERSION=$NEXT_VERSION" >> $GITHUB_OUTPUT
-          echo "CURRENT=$CURRENT_VERSION" >> $GITHUB_OUTPUT
-          echo "📦 Current version: $CURRENT_VERSION"
-          echo "📦 Next version: v$NEXT_VERSION"
+          echo "Current: $CURRENT_VERSION -> Next: v$NEXT_VERSION"
       
       - name: Update .version and CHANGELOG
         run: |
           VERSION="${{ steps.version.outputs.VERSION }}"
           TODAY=$(date +%Y-%m-%d)
           
-          # Update .version file
           echo "$VERSION" > src/cmd/server/.version
           
-          # Update CHANGELOG.md - replace [Unreleased] with version and date
+          # Update CHANGELOG.md - handle both [Unreleased] and X.XXXXXXXX.X placeholders
           if grep -q "## \[Unreleased\]" CHANGELOG.md; then
             sed -i.bak "s/## \[Unreleased\]/## [$VERSION] - $TODAY/" CHANGELOG.md
             rm -f CHANGELOG.md.bak
-            echo "✓ Updated CHANGELOG.md with version $VERSION"
+            echo "✓ Updated CHANGELOG.md: [Unreleased] → [$VERSION] - $TODAY"
+          elif grep -q "## X\.XXXXXXXX\.X" CHANGELOG.md; then
+            sed -i.bak "s/## X\.XXXXXXXX\.X/## $VERSION/" CHANGELOG.md
+            rm -f CHANGELOG.md.bak
+            echo "✓ Updated CHANGELOG.md: X.XXXXXXXX.X → $VERSION"
           fi
           
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -f src/cmd/server/.version  # -f because .gitignore has "server" pattern
+          git add -f src/cmd/server/.version
           git add CHANGELOG.md
           
-          # Only commit if there are changes
           if git diff --cached --quiet; then
             echo "No changes to commit"
           else
@@ -103,18 +80,15 @@ jobs:
       - name: Create git tag
         run: |
           TAG="v${{ steps.version.outputs.VERSION }}"
-          
-          # Check if tag already exists
           if git rev-parse "$TAG" >/dev/null 2>&1; then
             echo "Tag $TAG already exists"
           else
             git tag "$TAG"
             git push origin "$TAG"
-            echo "Created and pushed tag $TAG"
           fi
       
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: '1.21'
           cache-dependency-path: src/go.sum
@@ -127,12 +101,9 @@ jobs:
           
           mkdir -p dist
           
-          echo "🔨 Building binaries for all platforms..."
-          
-          # Unix platforms (Linux, macOS)
           for OS in linux darwin; do
             for ARCH in amd64 arm64; do
-              echo "  → Building $OS-$ARCH..."
+              echo "Building $OS-$ARCH..."
               cd src
               GOOS=$OS GOARCH=$ARCH go build -ldflags "\
                 -X 'main.GitCommit=$COMMIT' \
@@ -142,9 +113,8 @@ jobs:
             done
           done
           
-          # Windows platforms
           for ARCH in amd64 arm64; do
-            echo "  → Building windows-$ARCH..."
+            echo "Building windows-$ARCH..."
             cd src
             GOOS=windows GOARCH=$ARCH go build -ldflags "\
               -X 'main.GitCommit=$COMMIT' \
@@ -153,11 +123,10 @@ jobs:
             cd ..
           done
           
-          echo "✓ All binaries built (version embedded from src/cmd/server/.version)"
           ls -lh dist/
       
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2
         with:
           tag_name: v${{ steps.version.outputs.VERSION }}
           name: v${{ steps.version.outputs.VERSION }}
@@ -166,37 +135,11 @@ jobs:
           body: |
             ## MUXI Server v${{ steps.version.outputs.VERSION }}
             
-            **Git Commit:** ${{ github.sha }}
+            **Install:** `brew install muxi-ai/tap/muxi-server`
             
-            ### Installation
-            
-            ```bash
-            # One-command install
-            curl -sSL https://install.muxi.org | sudo bash
-            
-            # Or download binary directly
-            wget https://github.com/muxi-ai/server/releases/download/v${{ steps.version.outputs.VERSION }}/muxi-server-linux-amd64
-            chmod +x muxi-server-linux-amd64
-            sudo mv muxi-server-linux-amd64 /usr/local/bin/muxi-server
-            ```
-            
-            ### Changes
+            **Docker:** `docker pull ghcr.io/muxi-ai/muxi-server:v${{ steps.version.outputs.VERSION }}`
             
             See [CHANGELOG.md](https://github.com/muxi-ai/server/blob/main/CHANGELOG.md) for details.
-            
-            ### Binaries
-            
-            **Linux:**
-            - `muxi-server-linux-amd64` - Linux x86_64
-            - `muxi-server-linux-arm64` - Linux ARM64
-            
-            **macOS:**
-            - `muxi-server-darwin-amd64` - macOS Intel
-            - `muxi-server-darwin-arm64` - macOS Apple Silicon
-            
-            **Windows:**
-            - `muxi-server-windows-amd64.exe` - Windows x86_64
-            - `muxi-server-windows-arm64.exe` - Windows ARM64
           files: dist/muxi-server-*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -205,9 +148,6 @@ jobs:
         env:
           TAP_REPO_TOKEN: ${{ secrets.MUXI_TAP_REPO_TOKEN }}
         run: |
-          echo "🍺 Updating Homebrew formula..."
-          
-          # Calculate SHA256 checksums for all platform binaries
           SHA_DARWIN_ARM64=$(shasum -a 256 dist/muxi-server-darwin-arm64 | cut -d' ' -f1)
           SHA_DARWIN_AMD64=$(shasum -a 256 dist/muxi-server-darwin-amd64 | cut -d' ' -f1)
           SHA_LINUX_ARM64=$(shasum -a 256 dist/muxi-server-linux-arm64 | cut -d' ' -f1)
@@ -215,17 +155,9 @@ jobs:
           
           VERSION="${{ steps.version.outputs.VERSION }}"
           
-          echo "  Darwin ARM64: $SHA_DARWIN_ARM64"
-          echo "  Darwin AMD64: $SHA_DARWIN_AMD64"
-          echo "  Linux ARM64:  $SHA_LINUX_ARM64"
-          echo "  Linux AMD64:  $SHA_LINUX_AMD64"
-          
-          # Clone homebrew-tap repository
           git clone https://x-access-token:$TAP_REPO_TOKEN@github.com/muxi-ai/homebrew-tap.git /tmp/tap
           cd /tmp/tap
           
-          # Update formula with new version and checksums
-          # Note: Using | as sed delimiter to avoid conflicts with URLs
           sed -i.bak "s|version \"[^\"]*\"|version \"$VERSION\"|" Formula/muxi-server.rb
           sed -i.bak "s|download/v[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*/|download/v$VERSION/|g" Formula/muxi-server.rb
           sed -i.bak "s|PLACEHOLDER_SHA256_DARWIN_ARM64|$SHA_DARWIN_ARM64|g" Formula/muxi-server.rb
@@ -238,41 +170,22 @@ jobs:
           sed -i.bak "s|sha256 \"$SHA_LINUX_AMD64\"|sha256 \"$SHA_LINUX_AMD64\"|g" Formula/muxi-server.rb
           rm -f Formula/*.bak
           
-          # Commit and push changes
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Formula/muxi-server.rb
           
-          # Only commit if there are changes
           if git diff --cached --quiet; then
             echo "No changes to Homebrew formula"
           else
             git commit -m "chore: update muxi-server to v$VERSION (auto-update from release workflow)"
             git push origin main
-            echo "✓ Homebrew formula updated"
           fi
       
       - name: Merge main back to develop
         run: |
-          echo "🔄 Merging main back to develop..."
-          
           git fetch origin develop
           git checkout develop
           git merge --no-ff main -m "chore: merge main back to develop (v${{ steps.version.outputs.VERSION }}) [skip ci]"
           git push origin develop
-          
-          echo "✓ Merged main → develop"
         env:
-          GITHUB_TOKEN: ${{ secrets.MUXI_RELEASE_TOKEN }}  # Use PAT to trigger workflows
-      
-      - name: Summary
-        run: |
-          echo "🎉 Release complete!"
-          echo ""
-          echo "Version:  v${{ steps.version.outputs.VERSION }}"
-          echo "Commit:   $(git rev-parse --short HEAD)"
-          echo "Released: $(date -u)"
-          echo ""
-          echo "✓ Binaries built"
-          echo "✓ GitHub release created"
-          echo "✓ main merged back to develop"
+          GITHUB_TOKEN: ${{ secrets.MUXI_RELEASE_TOKEN }}

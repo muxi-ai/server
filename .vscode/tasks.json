@@ -1,0 +1,174 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Start MUXI Server (Unix)",
+      "type": "shell",
+      "command": "go run ./src/cmd/server serve",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "muxi"
+      },
+      "isBackground": true,
+      "runOptions": {
+        "instanceLimit": 1
+      }
+    },
+    {
+      "label": "Start MUXI Server (Windows)",
+      "type": "shell",
+      "command": "go",
+      "args": ["run", "./src/cmd/server", "serve"],
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "muxi"
+      },
+      "isBackground": true,
+      "runOptions": {
+        "instanceLimit": 1
+      },
+      "windows": {
+        "options": {
+          "shell": {
+            "executable": "powershell.exe"
+          }
+        }
+      }
+    },
+    {
+      "label": "Stop MUXI Server (Windows)",
+      "type": "shell",
+      "command": "Stop-Process -Name 'muxi-server' -Force -ErrorAction SilentlyContinue; Stop-Process -Name 'go' -Force -ErrorAction SilentlyContinue",
+      "problemMatcher": [],
+      "windows": {
+        "options": {
+          "shell": {
+            "executable": "powershell.exe"
+          }
+        }
+      }
+    },
+    {
+      "label": "Build MUXI Server",
+      "type": "shell",
+      "command": "go",
+      "args": ["build", "-o", "muxi-server", "./src/cmd/server"],
+      "problemMatcher": ["$go"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "Build MUXI Server (Windows)",
+      "type": "shell",
+      "command": "go",
+      "args": ["build", "-o", "muxi-server.exe", "./src/cmd/server"],
+      "problemMatcher": ["$go"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "windows": {
+        "options": {
+          "shell": {
+            "executable": "powershell.exe"
+          }
+        }
+      }
+    },
+    {
+      "label": "Run Tests",
+      "type": "shell",
+      "command": "go",
+      "args": ["test", "./src/..."],
+      "problemMatcher": ["$go"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "Run Tests (Verbose)",
+      "type": "shell",
+      "command": "go",
+      "args": ["test", "-v", "./src/..."],
+      "problemMatcher": ["$go"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Run Tests with Race Detector",
+      "type": "shell",
+      "command": "go",
+      "args": ["test", "-race", "-v", "./src/..."],
+      "problemMatcher": ["$go"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "View MUXI Logs (Windows)",
+      "type": "shell",
+      "command": "Get-Content $env:APPDATA\\muxi\\server\\logs\\*.log -Tail 50 -Wait",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "windows": {
+        "options": {
+          "shell": {
+            "executable": "powershell.exe"
+          }
+        }
+      }
+    },
+    {
+      "label": "View MUXI Logs (Unix)",
+      "type": "shell",
+      "command": "tail -f ~/.muxi/server/logs/*.log",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Initialize MUXI Server",
+      "type": "shell",
+      "command": "go",
+      "args": ["run", "./src/cmd/server", "init"],
+      "problemMatcher": []
+    },
+    {
+      "label": "Show MUXI Version",
+      "type": "shell",
+      "command": "go",
+      "args": ["run", "./src/cmd/server", "version"],
+      "problemMatcher": []
+    },
+    {
+      "label": "Show MUXI Config",
+      "type": "shell",
+      "command": "go",
+      "args": ["run", "./src/cmd/server", "config", "show"],
+      "problemMatcher": []
+    }
+  ]
+}

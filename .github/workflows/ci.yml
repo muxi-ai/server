@@ -6,16 +6,20 @@ on:
   pull_request:
     branches: [develop]
 
+permissions: {}
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: '1.21'
           cache-dependency-path: src/go.sum
@@ -48,10 +52,8 @@ jobs:
           # Use 45% threshold to account for platform-specific code
           # (spawn_windows.go = 226 lines untestable on Linux runners)
           # (spawn_unix.go = 100 lines untestable on Windows runners)
-          # Target: Increase to 60%+ by adding tests for critical paths
           THRESHOLD=45
           
-          # Check coverage against threshold
           if (( $(echo "$COVERAGE < $THRESHOLD" | bc -l) )); then
             echo "❌ Coverage ${COVERAGE}% is below ${THRESHOLD}% threshold"
             exit 1
@@ -60,7 +62,7 @@ jobs:
           fi
       
       - name: Upload coverage
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5
         with:
           files: ./src/coverage.out
           flags: unittests
