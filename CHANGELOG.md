@@ -1,6 +1,6 @@
 # Changelog
 
-## X.XXXXXXXX.X - Initial Public Release
+## 0.20260127.0 - Initial Public Release
 
 The orchestration platform for MUXI formations. Deploy, route, monitor, and auto-restart AI agent formations with a single Go binary.
 
