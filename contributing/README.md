@@ -2,6 +2,49 @@
 
 Thank you for your interest in contributing to MUXI Server.
 
+
+## What is MUXI Server?
+
+MUXI Server is a single-binary orchestration platform that makes deploying and managing MUXI formations simple and production-ready. Think of it as **"Docker + PM2 + Nginx"** specifically built for MUXI formations.
+
+### Key Features
+
+- 🚀 **One-Command Deploy** - `muxi formation deploy` → production API
+- 📦 **Single Binary** - No dependencies, just install and run
+- ⚡ **Zero-Downtime Deployments** ✨ NEW - Blue-green deployment with automatic health checks
+- 🔄 **Auto-Recovery** - Formations restart automatically on crash
+- 🔐 **Secure** - HMAC-based authentication (AWS-style)
+- 🌐 **HTTP Proxy** - Smart routing with formation-level isolation
+- 📊 **Process Management** - Monitor, restart, and manage formations
+
+### Architecture
+
+```
+┌───────────────────────────────────────┐
+│ MUXI Server (Port 7890)               │
+│                                       │
+│ ┌───────────────────────────────────┐ │
+│ │ Management API (Protected)        │ │
+│ │  POST /rpc/rpc/formations/deploy  │ │
+│ │  GET  /rpc/formations             │ │
+│ │  DELETE /rpc/rpc/formations/{id}  │ │
+│ └───────────────────────────────────┘ │
+│                                       │
+│ ┌───────────────────────────────────┐ │
+│ │ Proxy API (Transparent)           │ │
+│ │  /{formation_id}/*                │ │
+│ └───────────────────────────────────┘ │
+└───────────────────────────────────────┘
+               │
+               ↓
+┌───────────────────────────────────────┐
+│ Formations (Ports 8000-9000)          │
+│   • formation-1 (Port 8001)           │
+│   • formation-2 (Port 8002)           │
+│   • formation-3 (Port 8003)           │
+└───────────────────────────────────────┘
+```
+
 ## Installation
 
 ### macOS (Homebrew)
