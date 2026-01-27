@@ -7,12 +7,12 @@
 #   1. Calculate version
 #   2. Commit .version + CHANGELOG → push to main
 #   3. Build 6 release binaries (linux/darwin/windows × amd64/arm64)
-#   4. Create local git tag (NOT pushed yet)
-#   5. Create GitHub Release with binaries
+#   4. Create + push git tag → triggers Docker build workflow
+#   5. Create GitHub Release with binaries (attaches to existing tag)
 #   6. Merge main back to develop
-#   7. Push git tag → triggers Docker build workflow
 #
-# Tag is pushed LAST so Docker only builds after everything succeeds.
+# Tag is pushed AFTER binaries build but BEFORE GitHub Release,
+# so Docker only triggers once the build succeeds.
 #
 # VERSION FORMAT (ScalVer):
 #   MAJOR.YYYYMMDD.PATCH
@@ -126,13 +126,14 @@ jobs:
           
           ls -lh dist/
       
-      - name: Create git tag
+      - name: Create and push git tag
         run: |
           TAG="v${{ steps.version.outputs.VERSION }}"
           if git rev-parse "$TAG" >/dev/null 2>&1; then
             echo "Tag $TAG already exists"
           else
             git tag "$TAG"
+            git push origin "$TAG"
           fi
       
       - name: Create GitHub Release
@@ -163,8 +164,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.MUXI_RELEASE_TOKEN }}
       
-      - name: Push git tag (triggers Docker build)
-        run: |
-          git checkout main
-          TAG="v${{ steps.version.outputs.VERSION }}"
-          git push origin "$TAG" 2>/dev/null || echo "Tag $TAG already exists on remote (pushed by GitHub Release step)"
+
