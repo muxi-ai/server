@@ -1,195 +1,97 @@
-# MUXI Server Documentation
+# Contributing to MUXI Server
 
-**Production-grade orchestration platform for deploying and managing MUXI formations at scale.**
+Thank you for your interest in contributing to MUXI Server.
 
----
+## Installation
 
-## Quick Links
-
-- **[Getting Started](./getting-started.md)** - Deploy your first formation in 5 minutes
-- **[Installation](./installation.md)** - Install MUXI Server on your system
-- **[Configuration](./configuration.md)** - Configure server settings
-- **[Authentication](./authentication.md)** - Secure your server
-- **[Managing Formations](./rpc/formations.md)** - Deploy and manage formations
-- **[API Reference](./api-reference.md)** - HTTP API documentation
-- **[Troubleshooting](./troubleshooting.md)** - Common issues and solutions
-
----
-
-## What is MUXI Server?
-
-MUXI Server is a single-binary orchestration platform that makes deploying and managing MUXI formations simple and production-ready. Think of it as **"Docker + PM2 + Nginx"** specifically built for MUXI formations.
-
-### Key Features
-
-- 🚀 **One-Command Deploy** - `muxi formation deploy` → production API
-- 📦 **Single Binary** - No dependencies, just install and run
-- ⚡ **Zero-Downtime Deployments** ✨ NEW - Blue-green deployment with automatic health checks
-- 🔄 **Auto-Recovery** - Formations restart automatically on crash
-- 🔐 **Secure** - HMAC-based authentication (AWS-style)
-- 🌐 **HTTP Proxy** - Smart routing with formation-level isolation
-- 📊 **Process Management** - Monitor, restart, and manage formations
-
-### Architecture
-
-```
-┌───────────────────────────────────────────┐
-│ MUXI Server (Port 7890)                   │
-│                                           │
-│ ┌─────────────────────────────────────┐   │
-│ │ Management API (Protected)          │   │
-│ │  POST /rpc/rpc/formations/deploy    │   │
-│ │  GET  /rpc/formations               │   │
-│ │  DELETE /rpc/rpc/formations/{id}    │   │
-│ └─────────────────────────────────────┘   │
-│                                           │
-│ ┌─────────────────────────────────────┐   │
-│ │ Proxy API (Transparent)             │   │
-│ │  /{formation_id}/*                  │   │
-│ └─────────────────────────────────────┘   │
-└───────────────────────────────────────────┘
-               │
-               ↓
-┌─────────────────────────────────────────────┐
-│ Formations (Ports 8000-9000)                │
-│  • formation-1 (Port 8001)                  │
-│  • formation-2 (Port 8002)                  │
-│  • formation-3 (Port 8003)                  │
-└─────────────────────────────────────────────┘
-```
-
----
-
-## Quick Start
-
-### 1. Install
+### macOS (Homebrew)
 
 ```bash
-# Download and install (macOS/Linux)
-curl -sSL https://muxi.org/install.sh | bash
+brew install muxi-ai/tap/muxi
 ```
 
-### 2. Initialize
+### macOS / Linux
 
 ```bash
-# Generate authentication credentials
-muxi-server init
+curl -fsSL https://muxi.org/install | bash
 ```
 
-### 3. Start Server
+### Linux (Production)
 
 ```bash
-# Start the server
-muxi-server start
+curl -fsSL https://muxi.org/install | sudo bash
 ```
 
-### 4. Deploy Formation
+### Windows
+
+```powershell
+irm https://muxi.org/install | iex
+```
+
+See the [install repo](https://github.com/muxi-ai/install) for full options (`--cli-only`, `--non-interactive`, `--dry-run`).
+
+## Development Setup
 
 ```bash
-# Deploy your first formation
-muxi formation deploy my-formation.yaml
+# Clone the repo
+git clone https://github.com/muxi-ai/server.git
+cd server/src
+
+# Install dependencies
+go mod download
+
+# Build
+go build ./cmd/server
+
+# Run tests
+go test ./... -v -race
+
+# Format & vet
+go fmt ./...
+go vet ./...
 ```
 
-That's it! Your formation is now running and accessible.
+## Project Structure
 
----
+```
+src/
+├── cmd/server/         # Entry point (main.go)
+└── pkg/
+    ├── api/            # HTTP API endpoints & middleware
+    ├── auth/           # HMAC authentication
+    ├── config/         # Configuration management
+    ├── formation/      # Formation bundle handling
+    ├── process/        # Process lifecycle & auto-restart
+    ├── proxy/          # HTTP reverse proxy
+    ├── registry/       # Formation registry & port allocation
+    ├── runtime/        # Singularity/Docker runtime
+    └── telemetry/      # Anonymous usage telemetry
+```
 
-## Use Cases
+## Contributing Docs
 
-### For Solo Developers
+| Document | Description |
+|----------|-------------|
+| [auth.md](auth.md) | HMAC authentication design |
+| [cli-protocol.md](cli-protocol.md) | CLI-Server communication protocol |
+| [how-formations-run.md](how-formations-run.md) | Formation runtime execution guide |
+| [runtime-architecture.md](runtime-architecture.md) | SIF/Docker runtime architecture |
+| [runtime-auto-download.md](runtime-auto-download.md) | Auto-download of runtime components |
+| [windows-dev.md](windows-dev.md) | Windows development guide |
 
-Replace manual process management with automated orchestration:
-- Deploy formations with one command
-- Automatic crash recovery
-- Centralized logging
-- No need to manage ports manually
+## Conventions
 
-### For Small Teams
+- **Go style:** `gofmt`, `golint`, standard Go conventions
+- **Logging:** [zerolog](https://github.com/rs/zerolog) (structured, zero-alloc)
+- **Error handling:** Always wrap with context (`fmt.Errorf("...: %w", err)`)
+- **Tests:** Table-driven, `*_test.go` alongside implementation, target >80% coverage
 
-Simplify infrastructure:
-- Single server for all formations
-- Team access with shared credentials
-- Easy deployment and rollback
-- No complex DevOps setup needed
+## Branch Workflow
 
-### For Production
-
-Enterprise-ready features:
-- HMAC authentication (AWS-style)
-- Process isolation and monitoring
-- Resource management
-- Health checks and auto-restart
-
----
-
-## Documentation Structure
-
-### Getting Started
-Start here if you're new to MUXI Server. Learn the basics and deploy your first formation.
-
-### Installation
-Detailed installation instructions for different operating systems and deployment scenarios.
-
-### Configuration
-Complete reference for server configuration options, including process management, port allocation, and logging.
-
-### Authentication
-Set up secure authentication for your server using HMAC-based key/secret pairs.
-
-### Managing Formations
-Learn how to deploy, list, stop, restart, and delete formations. Includes best practices and examples.
-
-### API Reference
-Complete HTTP API documentation for integrating with MUXI Server programmatically.
-
-### Troubleshooting
-Solutions to common problems, debugging tips, and how to get help.
-
----
-
-## System Requirements
-
-### Minimum
-
-- **OS**: macOS 10.15+ or Linux (Ubuntu 20.04+, Debian 11+, RHEL 8+)
-- **CPU**: 2 cores
-- **RAM**: 2GB
-- **Disk**: 10GB free space
-
-### Recommended
-
-- **OS**: Linux (Ubuntu 22.04+)
-- **CPU**: 4+ cores
-- **RAM**: 8GB+
-- **Disk**: 50GB+ SSD
-
-### Dependencies
-
-- None! MUXI Server is a single binary with no external dependencies
-- Formations require Python 3.13+ (handled by formation runtime)
-
----
-
-## Getting Help
-
-### Documentation
-- Read the docs you're viewing now
-- Check the [Troubleshooting Guide](./troubleshooting.md)
-
-### Community
-- GitHub Issues: [github.com/muxi-ai/server/issues](https://github.com/muxi-ai/server/issues)
-- Discussions: [github.com/muxi-ai/server/discussions](https://github.com/muxi-ai/server/discussions)
-
-### Commercial Support
-- Contact: support@muxi.org
-- Enterprise plans available
-
----
+- `develop` - Active development
+- `rc` - Release candidate (cross-platform build & test)
+- `main` - Production releases (auto-tagged via CI)
 
 ## License
 
-MIT License - see [LICENSE](../LICENSE) file for details.
-
----
-
-**Next:** [Getting Started →](./getting-started.md)
+[Elastic License 2.0](../LICENSE-ELv2)
