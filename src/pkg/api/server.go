@@ -102,6 +102,7 @@ func (s *Server) setupRoutes() {
 	rpc.HandleFunc("/formations/{id}/rollback", s.HandleRollback).Methods(http.MethodPost)
 	rpc.HandleFunc("/formations/{id}/cancel-update", s.HandleCancelUpdate).Methods(http.MethodPost)
 	rpc.HandleFunc("/formations/{id}/logs", s.HandleLogs).Methods(http.MethodGet)
+	rpc.HandleFunc("/formations/{id}/download", s.HandleDownload).Methods(http.MethodGet)
 
 	// Server management
 	rpc.HandleFunc("/server/status", s.HandleServerStatus).Methods(http.MethodGet)
