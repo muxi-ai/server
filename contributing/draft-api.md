@@ -71,7 +71,7 @@ The Draft API reuses the core deployment logic:
          │                           │
          └───────────┬───────────────┘
                      ↓
-         ┌───────────────────────┐
+         ┌────────────────────────────┐
          │  deployNewFromDirectory()  │  ← Shared function
          │  or                        │
          │  updateFromDirectory()     │
@@ -81,7 +81,7 @@ The Draft API reuses the core deployment logic:
          │  • Move to current/        │
          │  • Start formation         │
          │  • Health check            │
-         └───────────────────────┘
+         └────────────────────────────┘
 ```
 
 Both paths:
