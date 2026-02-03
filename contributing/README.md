@@ -117,6 +117,7 @@ src/
 |----------|-------------|
 | [auth.md](auth.md) | HMAC authentication design |
 | [cli-protocol.md](cli-protocol.md) | CLI-Server communication protocol |
+| [draft-api.md](draft-api.md) | Draft File API for Console integration |
 | [how-formations-run.md](how-formations-run.md) | Formation runtime execution guide |
 | [runtime-architecture.md](runtime-architecture.md) | SIF/Docker runtime architecture |
 | [runtime-auto-download.md](runtime-auto-download.md) | Auto-download of runtime components |
