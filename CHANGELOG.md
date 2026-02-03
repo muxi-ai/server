@@ -1,5 +1,43 @@
 # Changelog
 
+## 0.20260203.1
+
+### Download Endpoint
+
+- **GET /rpc/formations/{id}/download** - Download formation as zip file
+- Excludes hidden files (except `.env`) and `memory.db` by default
+- Use `?db=true` query param to include persistent memory database
+
+### Draft File API
+
+New API for Console's visual formation editor (Studio):
+
+- **POST /rpc/formations/{id}/draft/files** - Single endpoint with action-based routing
+- **init** - Create new draft or clone from live version
+- **list** - List files in draft directory
+- **read** - Read file content (utf-8 or base64)
+- **write** - Write file content (utf-8 or base64)
+- **delete** - Delete file or directory
+- **deploy** - Deploy draft to live (new or blue-green update)
+- **discard** - Remove draft without affecting live
+
+Reuses existing deployment logic - same validation, health checks, and blue-green deployment.
+
+### Memory Persistence
+
+Runtime now creates `memory.db` for persistent agent memory. Server handles this automatically:
+
+- **Update** - Preserves `memory.db` from current version if not in upload
+- **Rollback** - Copies `memory.db` from current to previous before swap (roll back code, not data)
+- **Download** - Excludes `memory.db` by default for lightweight downloads
+
+### Internal
+
+- Updated GitHub Actions to latest versions (checkout v6, setup-go v6, upload-artifact v6)
+- Updated CI workflows to Go 1.24 to match go.mod
+
+---
+
 ## 0.20260127.0 - Initial Public Release
 
 The orchestration platform for MUXI formations. Deploy, route, monitor, and auto-restart AI agent formations with a single Go binary.
