@@ -164,14 +164,41 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Emit validating progress
-	progress.Emit(ProgressEvent{
-		Stage:   StageValidating,
-		Message: "Validating formation config...",
-	})
+	// Read bundle data for hash computation
+	bundleData, _ := os.ReadFile(tmpFile.Name())
+
+	// Deploy from the extracted directory
+	s.deployNewFromDirectory(w, headerFormationID, headerVersion, formationDir, bundleData, wantsSSE, progress)
+}
+
+// deployNewFromDirectory deploys a new formation from a source directory.
+// This is the core deployment logic shared between HTTP bundle deploy and draft deploy.
+// The sourceDir will be MOVED to current/ on success.
+// bundleData is optional - used for computing bundle hash for version history.
+func (s *Server) deployNewFromDirectory(
+	w http.ResponseWriter,
+	formationID string,
+	expectedVersion string,
+	sourceDir string,
+	bundleData []byte,
+	wantsSSE bool,
+	progress *ProgressEmitter,
+) {
+	// Helper to respond with error (handles both SSE and regular responses)
+	respondErr := func(status int, stage DeployStage, errType, message string) {
+		if wantsSSE && progress != nil && progress.sse != nil {
+			progress.Error(ErrorEvent{
+				Error:   errType,
+				Message: message,
+				Stage:   stage,
+			})
+		} else {
+			RespondError(w, status, message)
+		}
+	}
 
 	// Find and parse formation config (formation.afs/yaml/yml)
-	formationConfigPath, err := formation.FindFormationFile(formationDir)
+	formationConfigPath, err := formation.FindFormationFile(sourceDir)
 	if err != nil {
 		s.logger.Error().Err(err).Msg("Failed to find formation config")
 		respondErr(http.StatusBadRequest, StageValidating, "ParseError", fmt.Sprintf("Failed to find formation config: %v", err))
@@ -184,52 +211,51 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	formationID := formationConfig.ID
+	configFormationID := formationConfig.ID
 	s.logger.Info().
-		Str("id", formationID).
+		Str("id", configFormationID).
 		Str("name", formationConfig.Name).
 		Str("version", formationConfig.Version).
 		Msg("Parsed formation bundle")
 
 	// Validate secrets references
-	if err := formation.ValidateSecrets(formationDir); err != nil {
+	if err := formation.ValidateSecrets(sourceDir); err != nil {
 		s.logger.Error().Err(err).Msg("Secrets validation failed")
 		respondErr(http.StatusBadRequest, StageValidating, "SecretsError", err.Error())
 		return
 	}
 
-	// Verify bundle's formation ID matches the header
-	if formationID != headerFormationID {
+	// Verify config's formation ID matches the expected ID
+	if configFormationID != formationID {
 		s.logger.Warn().
-			Str("header_id", headerFormationID).
-			Str("bundle_id", formationID).
-			Msg("Formation ID mismatch between header and bundle")
+			Str("expected_id", formationID).
+			Str("config_id", configFormationID).
+			Msg("Formation ID mismatch")
 		respondErr(http.StatusBadRequest, StageValidating, "IDMismatch",
-			fmt.Sprintf("Formation ID mismatch: header says '%s' but bundle contains '%s'",
-				headerFormationID, formationID))
+			fmt.Sprintf("Formation ID mismatch: expected '%s' but config contains '%s'",
+				formationID, configFormationID))
 		return
 	}
 
-	// Verify bundle's version matches the header (if bundle has a version)
-	bundleVersion := formationConfig.Version
-	if bundleVersion == "" {
-		bundleVersion = "1.0.0" // Default if not specified in bundle
+	// Verify config's version matches the expected version
+	configVersion := formationConfig.Version
+	if configVersion == "" {
+		configVersion = "1.0.0" // Default if not specified
 	}
-	if bundleVersion != headerVersion {
+	if configVersion != expectedVersion {
 		s.logger.Warn().
-			Str("header_version", headerVersion).
-			Str("bundle_version", bundleVersion).
-			Msg("Formation version mismatch between header and bundle")
+			Str("expected_version", expectedVersion).
+			Str("config_version", configVersion).
+			Msg("Formation version mismatch")
 		respondErr(http.StatusBadRequest, StageValidating, "VersionMismatch",
-			fmt.Sprintf("Formation version mismatch: header says '%s' but bundle contains '%s'",
-				headerVersion, bundleVersion))
+			fmt.Sprintf("Formation version mismatch: expected '%s' but config contains '%s'",
+				expectedVersion, configVersion))
 		return
 	}
 
 	// Inject server metadata into formation config for telemetry
-	if err := formation.InjectMetadata(formationDir, s.config.ServerID); err != nil {
+	if err := formation.InjectMetadata(sourceDir, s.config.ServerID); err != nil {
 		s.logger.Warn().Err(err).Msg("Failed to inject metadata (continuing anyway)")
-		// Don't fail deployment if metadata injection fails
 	} else {
 		s.logger.Debug().
 			Str("server_id", s.config.ServerID).
@@ -276,8 +302,8 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Move extracted directory to current/
-	if err := os.Rename(formationDir, currentDir); err != nil {
+	// Move source directory to current/
+	if err := os.Rename(sourceDir, currentDir); err != nil {
 		s.logger.Error().Err(err).Msg("Failed to move formation to permanent location")
 		s.registry.ReleasePort(port)
 		respondErr(http.StatusInternalServerError, StageValidating, "MoveError", "Failed to move formation")
@@ -285,7 +311,6 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create initial version history
-	bundleData, _ := os.ReadFile(tmpFile.Name())
 	bundleHash := formation.ComputeBundleHash(bundleData)
 	versionHistory := &formation.VersionHistory{
 		CurrentVersion: 1,
@@ -465,7 +490,7 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 		// Update spawn config for Singularity execution
 		spawnConfig.RuntimeType = "singularity"
 		spawnConfig.SIFPath = sifPath
-		
+
 		// For Singularity/Docker, we run: python -m muxi.runtime.utils.run_formation /formation --port PORT --host HOST
 		// The formation directory is mounted as /formation inside the container
 		// The runtime will find formation.afs, formation.yaml, or formation.yml automatically

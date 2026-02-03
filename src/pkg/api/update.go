@@ -46,19 +46,6 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Helper to respond with error (handles both SSE and regular responses)
-	respondErr := func(status int, stage DeployStage, errType, message string) {
-		if wantsSSE && sseInitialized {
-			progress.Error(ErrorEvent{
-				Error:   errType,
-				Message: message,
-				Stage:   stage,
-			})
-		} else {
-			RespondError(w, status, message)
-		}
-	}
-
 	// Optional: X-Formation-Version header (defaults to "1.0.0")
 	headerVersion := r.Header.Get("X-Formation-Version")
 	if headerVersion == "" {
@@ -71,7 +58,7 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 		Msg("Starting zero-downtime deployment")
 
 	// Get existing formation
-	existingFormation, err := s.registry.Get(formationID)
+	_, err := s.registry.Get(formationID)
 	if err != nil {
 		s.logger.Warn().Str("id", formationID).Msg("Formation not found")
 		RespondError(w, http.StatusNotFound, "Formation not found")
@@ -120,11 +107,81 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 		Message: "Extracting bundle to staging...",
 	})
 
+	// Extract new version to temp directory
+	extractDir, err := os.MkdirTemp("", "formation-extract-*")
+	if err != nil {
+		s.logger.Error().Err(err).Msg("Failed to create extraction directory")
+		if wantsSSE && sseInitialized {
+			progress.Error(ErrorEvent{
+				Error:   "ExtractDirError",
+				Message: "Failed to create extraction directory",
+				Stage:   StageExtracting,
+			})
+		} else {
+			RespondError(w, http.StatusInternalServerError, "Failed to create extraction directory")
+		}
+		return
+	}
+	defer os.RemoveAll(extractDir)
+
+	newFormationDir, err := formation.ExtractBundle(tmpFile.Name(), extractDir)
+	if err != nil {
+		s.logger.Error().Err(err).Msg("Failed to extract bundle")
+		if wantsSSE && sseInitialized {
+			progress.Error(ErrorEvent{
+				Error:   "ExtractError",
+				Message: fmt.Sprintf("Failed to extract bundle: %v", err),
+				Stage:   StageExtracting,
+			})
+		} else {
+			RespondError(w, http.StatusBadRequest, fmt.Sprintf("Failed to extract bundle: %v", err))
+		}
+		return
+	}
+
+	// Delegate to updateFromDirectory
+	s.updateFromDirectory(w, formationID, headerVersion, newFormationDir, bundleData, wantsSSE, progress)
+}
+
+// updateFromDirectory updates an existing formation from a source directory.
+// This is the core update logic shared between HTTP bundle update and draft deploy.
+// The sourceDir will be MOVED to staging/ during blue-green deployment.
+// bundleData is optional - used for computing bundle hash for version history.
+func (s *Server) updateFromDirectory(
+	w http.ResponseWriter,
+	formationID string,
+	expectedVersion string,
+	sourceDir string,
+	bundleData []byte,
+	wantsSSE bool,
+	progress *ProgressEmitter,
+) {
+	// Helper to respond with error (handles both SSE and regular responses)
+	respondErr := func(status int, stage DeployStage, errType, message string) {
+		if wantsSSE && progress != nil && progress.sse != nil {
+			progress.Error(ErrorEvent{
+				Error:   errType,
+				Message: message,
+				Stage:   stage,
+			})
+		} else {
+			RespondError(w, status, message)
+		}
+	}
+
+	// Get existing formation for port info
+	existingFormation, err := s.registry.Get(formationID)
+	if err != nil {
+		s.logger.Warn().Str("id", formationID).Msg("Formation not found")
+		respondErr(http.StatusNotFound, StageValidating, "NotFound", "Formation not found")
+		return
+	}
+
 	// Get formation base directory
 	muxiDir, err := getMuxiDir()
 	if err != nil {
 		s.logger.Error().Err(err).Msg("Failed to get MUXI directory")
-		respondErr(http.StatusInternalServerError, StageExtracting, "DirectoryError", "Failed to get MUXI directory")
+		respondErr(http.StatusInternalServerError, StageValidating, "DirectoryError", "Failed to get MUXI directory")
 		return
 	}
 	formationBaseDir := filepath.Join(muxiDir, "formations", formationID)
@@ -133,7 +190,7 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 	history, err := formation.LoadVersionHistory(formationBaseDir)
 	if err != nil {
 		s.logger.Error().Err(err).Msg("Failed to load version history")
-		respondErr(http.StatusInternalServerError, StageExtracting, "HistoryError", "Failed to load version history")
+		respondErr(http.StatusInternalServerError, StageValidating, "HistoryError", "Failed to load version history")
 		return
 	}
 
@@ -143,8 +200,8 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 		s.logger.Warn().
 			Str("id", formationID).
 			Str("hash", newBundleHash).
-			Msg("Bundle is identical to current version")
-		respondErr(http.StatusConflict, StageValidating, "NoChange", "Bundle is identical to current version - nothing to update")
+			Msg("Source is identical to current version")
+		respondErr(http.StatusConflict, StageValidating, "NoChange", "Source is identical to current version - nothing to update")
 		return
 	}
 
@@ -152,7 +209,7 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 	stagingPort, err := s.registry.AllocatePort(formationID + "-staging")
 	if err != nil {
 		s.logger.Error().Err(err).Msg("No available ports for staging")
-		respondErr(http.StatusInsufficientStorage, StageExtracting, "PortAllocationError", "No available ports for staging deployment")
+		respondErr(http.StatusInsufficientStorage, StageValidating, "PortAllocationError", "No available ports for staging deployment")
 		return
 	}
 	defer func() {
@@ -171,11 +228,11 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 	// Update registry with staging port
 	if err := s.registry.SetStagingPort(formationID, stagingPort); err != nil {
 		s.logger.Error().Err(err).Msg("Failed to set staging port")
-		respondErr(http.StatusInternalServerError, StageExtracting, "RegistryError", "Failed to set staging port")
+		respondErr(http.StatusInternalServerError, StageValidating, "RegistryError", "Failed to set staging port")
 		return
 	}
 
-	// Create staging directory for new version
+	// Set up directories
 	currentDir := filepath.Join(formationBaseDir, "current")
 	previousDir := filepath.Join(formationBaseDir, "previous")
 	stagingDir := filepath.Join(formationBaseDir, "staging")
@@ -184,31 +241,15 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 	if _, err := os.Stat(stagingDir); err == nil {
 		if err := os.RemoveAll(stagingDir); err != nil {
 			s.logger.Error().Err(err).Msg("Failed to remove old staging")
-			respondErr(http.StatusInternalServerError, StageExtracting, "CleanupError", "Failed to clean staging directory")
+			respondErr(http.StatusInternalServerError, StageValidating, "CleanupError", "Failed to clean staging directory")
 			return
 		}
 	}
 
-	// Extract new version to staging/
-	extractDir, err := os.MkdirTemp("", "formation-extract-*")
-	if err != nil {
-		s.logger.Error().Err(err).Msg("Failed to create extraction directory")
-		respondErr(http.StatusInternalServerError, StageExtracting, "ExtractDirError", "Failed to create extraction directory")
-		return
-	}
-	defer os.RemoveAll(extractDir)
-
-	newFormationDir, err := formation.ExtractBundle(tmpFile.Name(), extractDir)
-	if err != nil {
-		s.logger.Error().Err(err).Msg("Failed to extract bundle")
-		respondErr(http.StatusBadRequest, StageExtracting, "ExtractError", fmt.Sprintf("Failed to extract bundle: %v", err))
-		return
-	}
-
-	// Move extracted formation to staging/
-	if err := os.Rename(newFormationDir, stagingDir); err != nil {
-		s.logger.Error().Err(err).Msg("Failed to move new version to staging")
-		respondErr(http.StatusInternalServerError, StageExtracting, "MoveError", "Failed to move new version to staging")
+	// Move source directory to staging/
+	if err := os.Rename(sourceDir, stagingDir); err != nil {
+		s.logger.Error().Err(err).Msg("Failed to move source to staging")
+		respondErr(http.StatusInternalServerError, StageValidating, "MoveError", "Failed to move source to staging")
 		return
 	}
 
@@ -242,20 +283,20 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify bundle's version matches the header
-	bundleVersion := formationConfig.Version
-	if bundleVersion == "" {
-		bundleVersion = "1.0.0" // Default if not specified in bundle
+	// Verify config's version matches the expected version
+	configVersion := formationConfig.Version
+	if configVersion == "" {
+		configVersion = "1.0.0" // Default if not specified
 	}
-	if bundleVersion != headerVersion {
+	if configVersion != expectedVersion {
 		s.logger.Warn().
-			Str("header_version", headerVersion).
-			Str("bundle_version", bundleVersion).
-			Msg("Formation version mismatch between header and bundle")
+			Str("expected_version", expectedVersion).
+			Str("config_version", configVersion).
+			Msg("Formation version mismatch")
 		os.RemoveAll(stagingDir)
 		respondErr(http.StatusBadRequest, StageValidating, "VersionMismatch",
-			fmt.Sprintf("Formation version mismatch: header says '%s' but bundle contains '%s'",
-				headerVersion, bundleVersion))
+			fmt.Sprintf("Formation version mismatch: expected '%s' but config contains '%s'",
+				expectedVersion, configVersion))
 		return
 	}
 
@@ -427,14 +468,14 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 	if healthInterval == 0 {
 		healthInterval = 1 * time.Second // Default 1 second
 	}
-	
+
 	// Wait a bit for formation to initialize
 	stagingDelay := time.Duration(s.config.Formations.Deployment.StagingHealthDelay) * time.Second
 	if stagingDelay == 0 {
 		stagingDelay = 2 * time.Second // Default 2 seconds
 	}
 	time.Sleep(stagingDelay)
-	
+
 	healthChecker := process.NewHealthChecker(healthTimeout, healthInterval)
 	healthEndpoint := s.config.Formations.Deployment.HealthCheck.Endpoint
 	if healthEndpoint == "" {

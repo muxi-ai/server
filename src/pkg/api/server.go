@@ -94,7 +94,7 @@ func (s *Server) setupRoutes() {
 	rpc.HandleFunc("/formations/{id}", s.HandleGet).Methods(http.MethodGet)
 	rpc.HandleFunc("/formations/{id}", s.HandleUpdate).Methods(http.MethodPut)
 	rpc.HandleFunc("/formations/{id}", s.HandleDelete).Methods(http.MethodDelete)
-	
+
 	// Formation actions
 	rpc.HandleFunc("/formations/{id}/start", s.HandleStart).Methods(http.MethodPost)
 	rpc.HandleFunc("/formations/{id}/stop", s.HandleStop).Methods(http.MethodPost)
@@ -103,6 +103,7 @@ func (s *Server) setupRoutes() {
 	rpc.HandleFunc("/formations/{id}/cancel-update", s.HandleCancelUpdate).Methods(http.MethodPost)
 	rpc.HandleFunc("/formations/{id}/logs", s.HandleLogs).Methods(http.MethodGet)
 	rpc.HandleFunc("/formations/{id}/download", s.HandleDownload).Methods(http.MethodGet)
+	rpc.HandleFunc("/formations/{id}/draft/files", s.HandleDraft).Methods(http.MethodPost)
 
 	// Server management
 	rpc.HandleFunc("/server/status", s.HandleServerStatus).Methods(http.MethodGet)
@@ -115,7 +116,7 @@ func (s *Server) setupRoutes() {
 	// Example: /api/my-api/v1/chat → http://127.0.0.1:8001/v1/chat
 	s.router.PathPrefix("/api/{formation_id}/{path:.*}").HandlerFunc(s.proxyHandler.ProxyRequest)
 	s.router.PathPrefix("/api/{formation_id}").HandlerFunc(s.proxyHandler.ProxyRequest)
-	
+
 	// /api with no formation ID → 404
 	s.router.HandleFunc("/api", s.handle404).Methods(http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete)
 
@@ -156,12 +157,12 @@ func (s *Server) Stop(ctx context.Context) error {
 func (s *Server) HandleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	
+
 	version := s.version
 	if version == "" {
 		version = "1.0.0-dev"
 	}
-	
+
 	fmt.Fprintf(w, `{"success":true,"status":"ok","version":"%s"}`, version)
 }
 
