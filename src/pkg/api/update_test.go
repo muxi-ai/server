@@ -266,3 +266,59 @@ version: 1.0.0
 		}
 	})
 }
+
+func TestCopyFile(t *testing.T) {
+	t.Run("copy file successfully", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		srcPath := filepath.Join(tmpDir, "source.txt")
+		dstPath := filepath.Join(tmpDir, "dest.txt")
+
+		content := "test content for copy"
+		if err := os.WriteFile(srcPath, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to write source file: %v", err)
+		}
+
+		if err := copyFile(srcPath, dstPath); err != nil {
+			t.Fatalf("copyFile failed: %v", err)
+		}
+
+		// Verify destination exists and has correct content
+		dstContent, err := os.ReadFile(dstPath)
+		if err != nil {
+			t.Fatalf("Failed to read destination file: %v", err)
+		}
+
+		if string(dstContent) != content {
+			t.Errorf("Destination content = %q, want %q", string(dstContent), content)
+		}
+	})
+
+	t.Run("copy nonexistent file fails", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		srcPath := filepath.Join(tmpDir, "nonexistent.txt")
+		dstPath := filepath.Join(tmpDir, "dest.txt")
+
+		err := copyFile(srcPath, dstPath)
+		if err == nil {
+			t.Error("Expected error when copying nonexistent file")
+		}
+	})
+
+	t.Run("copy to invalid destination fails", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		srcPath := filepath.Join(tmpDir, "source.txt")
+		dstPath := filepath.Join(tmpDir, "nonexistent-dir", "dest.txt")
+
+		if err := os.WriteFile(srcPath, []byte("test"), 0644); err != nil {
+			t.Fatalf("Failed to write source file: %v", err)
+		}
+
+		err := copyFile(srcPath, dstPath)
+		if err == nil {
+			t.Error("Expected error when copying to nonexistent directory")
+		}
+	})
+}

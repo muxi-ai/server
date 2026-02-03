@@ -18,6 +18,24 @@ import (
 	"github.com/muxi-ai/server/pkg/telemetry"
 )
 
+// copyFile copies a file from src to dst
+func copyFile(src, dst string) error {
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+
+	dstFile, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer dstFile.Close()
+
+	_, err = io.Copy(dstFile, srcFile)
+	return err
+}
+
 // HandleUpdate handles PUT /rpc/formations/{id}
 // Updates a formation to a new version using zero-downtime blue-green deployment
 func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
@@ -251,6 +269,25 @@ func (s *Server) updateFromDirectory(
 		s.logger.Error().Err(err).Msg("Failed to move source to staging")
 		respondErr(http.StatusInternalServerError, StageValidating, "MoveError", "Failed to move source to staging")
 		return
+	}
+
+	// Preserve memory.db from current version if not included in upload
+	// This ensures persistent memory state is carried forward across updates
+	memoryDBName := "memory.db"
+	currentMemoryDB := filepath.Join(currentDir, memoryDBName)
+	stagingMemoryDB := filepath.Join(stagingDir, memoryDBName)
+
+	if _, err := os.Stat(stagingMemoryDB); os.IsNotExist(err) {
+		// memory.db not in upload, check if current has one to preserve
+		if _, err := os.Stat(currentMemoryDB); err == nil {
+			if err := copyFile(currentMemoryDB, stagingMemoryDB); err != nil {
+				s.logger.Warn().Err(err).Msg("Failed to preserve memory.db (continuing anyway)")
+			} else {
+				s.logger.Info().
+					Str("id", formationID).
+					Msg("Preserved memory.db from current version")
+			}
+		}
 	}
 
 	// Emit validating progress

@@ -241,4 +241,146 @@ func TestHandleDownload(t *testing.T) {
 			t.Error(".git/config should be excluded from zip")
 		}
 	})
+
+	t.Run("download excludes memory.db by default", func(t *testing.T) {
+		server := createTestServer(t)
+		formationID := "test-download-memorydb"
+
+		// Setup formations directory
+		formationsDir := filepath.Join(t.TempDir(), "formations")
+		os.MkdirAll(formationsDir, 0755)
+		server.config.Formations.FormationsDir = formationsDir
+
+		// Create formation directory structure
+		formationDir := filepath.Join(formationsDir, formationID)
+		currentDir := filepath.Join(formationDir, "current")
+		if err := os.MkdirAll(currentDir, 0755); err != nil {
+			t.Fatalf("Failed to create current dir: %v", err)
+		}
+
+		// Create test files including memory.db
+		testFiles := map[string]string{
+			"formation.yaml": "id: test",
+			"memory.db":      "sqlite database content",
+		}
+
+		for path, content := range testFiles {
+			fullPath := filepath.Join(currentDir, path)
+			if err := os.WriteFile(fullPath, []byte(content), 0644); err != nil {
+				t.Fatalf("Failed to write %s: %v", path, err)
+			}
+		}
+
+		// Register formation
+		server.registry.Register(&registry.Formation{
+			ID:     formationID,
+			Port:   8080,
+			Status: "running",
+		})
+
+		// Request WITHOUT ?db=true
+		req := httptest.NewRequest("GET", "/rpc/formations/"+formationID+"/download", nil)
+		req = mux.SetURLVars(req, map[string]string{"id": formationID})
+		w := httptest.NewRecorder()
+
+		server.HandleDownload(w, req)
+
+		resp := w.Result()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("Status = %d, want %d", resp.StatusCode, http.StatusOK)
+		}
+
+		// Verify zip contents
+		body, _ := io.ReadAll(resp.Body)
+		zipReader, err := zip.NewReader(bytes.NewReader(body), int64(len(body)))
+		if err != nil {
+			t.Fatalf("Failed to read zip: %v", err)
+		}
+
+		foundFiles := make(map[string]bool)
+		for _, file := range zipReader.File {
+			foundFiles[file.Name] = true
+		}
+
+		// formation.yaml should be included
+		if !foundFiles["formation.yaml"] {
+			t.Error("formation.yaml should be included in zip")
+		}
+
+		// memory.db should be EXCLUDED by default
+		if foundFiles["memory.db"] {
+			t.Error("memory.db should be excluded from zip by default")
+		}
+	})
+
+	t.Run("download includes memory.db with db=true", func(t *testing.T) {
+		server := createTestServer(t)
+		formationID := "test-download-memorydb-include"
+
+		// Setup formations directory
+		formationsDir := filepath.Join(t.TempDir(), "formations")
+		os.MkdirAll(formationsDir, 0755)
+		server.config.Formations.FormationsDir = formationsDir
+
+		// Create formation directory structure
+		formationDir := filepath.Join(formationsDir, formationID)
+		currentDir := filepath.Join(formationDir, "current")
+		if err := os.MkdirAll(currentDir, 0755); err != nil {
+			t.Fatalf("Failed to create current dir: %v", err)
+		}
+
+		// Create test files including memory.db
+		testFiles := map[string]string{
+			"formation.yaml": "id: test",
+			"memory.db":      "sqlite database content",
+		}
+
+		for path, content := range testFiles {
+			fullPath := filepath.Join(currentDir, path)
+			if err := os.WriteFile(fullPath, []byte(content), 0644); err != nil {
+				t.Fatalf("Failed to write %s: %v", path, err)
+			}
+		}
+
+		// Register formation
+		server.registry.Register(&registry.Formation{
+			ID:     formationID,
+			Port:   8080,
+			Status: "running",
+		})
+
+		// Request WITH ?db=true
+		req := httptest.NewRequest("GET", "/rpc/formations/"+formationID+"/download?db=true", nil)
+		req = mux.SetURLVars(req, map[string]string{"id": formationID})
+		w := httptest.NewRecorder()
+
+		server.HandleDownload(w, req)
+
+		resp := w.Result()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("Status = %d, want %d", resp.StatusCode, http.StatusOK)
+		}
+
+		// Verify zip contents
+		body, _ := io.ReadAll(resp.Body)
+		zipReader, err := zip.NewReader(bytes.NewReader(body), int64(len(body)))
+		if err != nil {
+			t.Fatalf("Failed to read zip: %v", err)
+		}
+
+		foundFiles := make(map[string]bool)
+		for _, file := range zipReader.File {
+			foundFiles[file.Name] = true
+		}
+
+		// formation.yaml should be included
+		if !foundFiles["formation.yaml"] {
+			t.Error("formation.yaml should be included in zip")
+		}
+
+		// memory.db should be INCLUDED with ?db=true
+		if !foundFiles["memory.db"] {
+			t.Error("memory.db should be included in zip with ?db=true")
+		}
+	})
 }

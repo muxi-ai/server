@@ -338,6 +338,22 @@ func (s *Server) HandleRollback(w http.ResponseWriter, r *http.Request) {
 		Message: "Swapping versions...",
 	})
 
+	// Preserve memory.db from current version to previous before swap
+	// This ensures persistent memory state is carried forward during rollback
+	memoryDBName := "memory.db"
+	currentMemoryDB := filepath.Join(currentDir, memoryDBName)
+	previousMemoryDB := filepath.Join(previousDir, memoryDBName)
+
+	if _, err := os.Stat(currentMemoryDB); err == nil {
+		if err := copyFile(currentMemoryDB, previousMemoryDB); err != nil {
+			s.logger.Warn().Err(err).Msg("Failed to preserve memory.db during rollback (continuing anyway)")
+		} else {
+			s.logger.Info().
+				Str("id", formationID).
+				Msg("Preserved memory.db from current version during rollback")
+		}
+	}
+
 	// Three-way swap: current -> temp, previous -> current, temp -> previous
 	tempDir := filepath.Join(formationBaseDir, "temp")
 	if err := os.Rename(currentDir, tempDir); err != nil {

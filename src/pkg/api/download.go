@@ -15,12 +15,18 @@ import (
 
 // HandleDownload handles GET /rpc/formations/{id}/download
 // Downloads the formation's current directory as a zip file
+// Query params:
+//   - db=true: include memory.db file (excluded by default)
 func (s *Server) HandleDownload(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	formationID := vars["id"]
 
+	// Check if memory.db should be included
+	includeDB := r.URL.Query().Get("db") == "true"
+
 	log.Debug().
 		Str("formation_id", formationID).
+		Bool("include_db", includeDB).
 		Msg("Downloading formation")
 
 	// Check if formation exists in registry
@@ -79,6 +85,12 @@ func (s *Server) HandleDownload(w http.ResponseWriter, r *http.Request) {
 			if info.IsDir() {
 				return filepath.SkipDir
 			}
+			return nil
+		}
+
+		// Skip memory.db unless explicitly requested via ?db=true
+		// memory.db contains persistent memory state and is excluded by default
+		if baseName == "memory.db" && !includeDB {
 			return nil
 		}
 
