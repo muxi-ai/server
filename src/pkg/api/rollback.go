@@ -300,7 +300,7 @@ func (s *Server) HandleRollback(w http.ResponseWriter, r *http.Request) {
 		s.logger.Error().Err(healthErr).Str("id", formationID).Msg("Previous version failed health check")
 		// Kill staging process
 		s.processManager.ForceKill(stagingProcessID)
-		respondErr(http.StatusInternalServerError, StageHealthCheck, "HealthCheckFailed", 
+		respondErr(http.StatusInternalServerError, StageHealthCheck, "HealthCheckFailed",
 			fmt.Sprintf("Previous version failed health check: %v. Current version still running.", healthErr))
 		return
 	}

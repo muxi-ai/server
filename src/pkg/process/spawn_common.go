@@ -28,12 +28,12 @@ type SpawnConfig struct {
 	Logger      *zerolog.Logger   // Logger instance
 
 	// SIF Runtime support
-	RuntimeType string            // "native" or "singularity"
-	SIFPath     string            // Path to SIF file (if RuntimeType is "singularity")
+	RuntimeType string // "native" or "singularity"
+	SIFPath     string // Path to SIF file (if RuntimeType is "singularity")
 
 	// Skip initial health check in monitor (used when deploy does its own health check)
 	SkipInitialHealthCheck bool
-	
+
 	// Truncate log files on start (true for new deploys, false for updates/restarts)
 	TruncateLogs bool
 }
@@ -205,19 +205,19 @@ func Spawn(config SpawnConfig) (*Process, error) {
 
 	// Create Process struct
 	process := &Process{
-		ID:             config.ID,
-		Name:           config.Name,
-		PID:            pid,
-		Command:        execPath,
-		Args:           config.Args,
-		WorkDir:        config.WorkDir,
-		Status:         StatusStarting,
-		StartedAt:      now(),
-		RestartCount:   0,
-		StopSignal:     false,
-		PIDFile:        pidFile,
-		LogFile:        logFile,
-		ErrorFile:      errFile,
+		ID:                     config.ID,
+		Name:                   config.Name,
+		PID:                    pid,
+		Command:                execPath,
+		Args:                   config.Args,
+		WorkDir:                config.WorkDir,
+		Status:                 StatusStarting,
+		StartedAt:              now(),
+		RestartCount:           0,
+		StopSignal:             false,
+		PIDFile:                pidFile,
+		LogFile:                logFile,
+		ErrorFile:              errFile,
 		AutoRestart:            config.AutoRestart,
 		MaxRestarts:            10, // Default
 		HealthCheckURL:         healthCheckURL,
@@ -307,7 +307,7 @@ func buildDockerSingularityCommand(config SpawnConfig, logger *zerolog.Logger) *
 		"run",
 		"--rm",                  // Remove container after exit
 		"--name", containerName, // Named container for cleanup
-		"--privileged",          // Required for Singularity user namespaces
+		"--privileged", // Required for Singularity user namespaces
 
 		// Mount SIF file from host into Docker container
 		"-v", fmt.Sprintf("%s:/sif/runtime.sif:ro", config.SIFPath),

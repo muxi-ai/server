@@ -13,7 +13,7 @@ import (
 func TestNewDownloader(t *testing.T) {
 	logger := zerolog.Nop()
 	d := NewDownloader("https://example.com", "test-image:latest", "/tmp/runtimes", &logger)
-	
+
 	if d == nil {
 		t.Fatal("NewDownloader returned nil")
 	}

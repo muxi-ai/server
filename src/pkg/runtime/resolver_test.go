@@ -81,7 +81,7 @@ func TestResolver_Resolve(t *testing.T) {
 func TestResolver_GetSIFPath(t *testing.T) {
 	r := NewResolver([]string{}, "/tmp/runtimes")
 	path := r.GetSIFPath("1.0.0")
-	
+
 	// Should contain the version and platform
 	if path == "" {
 		t.Error("GetSIFPath() returned empty string")

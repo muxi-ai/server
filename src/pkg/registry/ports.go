@@ -72,7 +72,7 @@ func IsPortAvailable(port int) bool {
 		return false
 	}
 	listener.Close()
-	
+
 	// Also check 127.0.0.1 (what native formations use)
 	addr = fmt.Sprintf("127.0.0.1:%d", port)
 	listener, err = net.Listen("tcp", addr)
@@ -80,7 +80,7 @@ func IsPortAvailable(port int) bool {
 		return false
 	}
 	listener.Close()
-	
+
 	// Small delay to ensure port is fully released
 	time.Sleep(10 * time.Millisecond)
 	return true

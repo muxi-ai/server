@@ -152,7 +152,7 @@ func TestStop_StopSignalSet(t *testing.T) {
 func TestIsProcessRunning_CurrentProcess(t *testing.T) {
 	// Test with current process (should be running)
 	currentPID := os.Getpid()
-	
+
 	if !IsProcessRunning(currentPID) {
 		t.Errorf("IsProcessRunning(%d) = false, want true for current process", currentPID)
 	}
@@ -192,7 +192,7 @@ func TestIsProcessRunning_StoppedProcess(t *testing.T) {
 
 	// Process should have exited
 	pid := cmd.Process.Pid
-	
+
 	// Wait a bit to ensure process cleanup
 	time.Sleep(100 * time.Millisecond)
 
@@ -343,5 +343,3 @@ func TestStop_ProcessStatusTransitions(t *testing.T) {
 		t.Errorf("Final status = %s, want %s", proc.GetStatus(), StatusStopped)
 	}
 }
-
-

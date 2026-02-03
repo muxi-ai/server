@@ -342,9 +342,9 @@ func TestGenerateServerID(t *testing.T) {
 
 func TestInjectMetadata_NoFormationYAML(t *testing.T) {
 	tmpDir := t.TempDir()
-	
+
 	err := InjectMetadata(tmpDir, "test-server-123")
-	
+
 	if err == nil {
 		t.Error("InjectMetadata should error when formation config doesn't exist")
 	}
@@ -382,26 +382,26 @@ metadata:
 
 func TestGenerateServerID_Uniqueness(t *testing.T) {
 	ids := make(map[string]bool)
-	
+
 	// Generate multiple IDs
 	for i := 0; i < 100; i++ {
 		id, _ := GenerateServerID()
-		
+
 		if id == "" {
 			t.Error("GenerateServerID() returned empty string")
 		}
-		
+
 		if ids[id] {
 			t.Errorf("GenerateServerID() generated duplicate: %s", id)
 		}
 		ids[id] = true
-		
+
 		// Should start with "server-"
 		if !contains(id, "server-") {
 			t.Errorf("ID = %q, should start with server-", id)
 		}
 	}
-	
+
 	// Should have generated 100 unique IDs
 	if len(ids) != 100 {
 		t.Errorf("Generated %d unique IDs, want 100", len(ids))
@@ -410,17 +410,16 @@ func TestGenerateServerID_Uniqueness(t *testing.T) {
 
 func TestGenerateServerID_Format(t *testing.T) {
 	id, _ := GenerateServerID()
-	
+
 	// Check format: server-XXXXXXXX (8 hex chars)
 	if len(id) < 13 {
 		t.Errorf("ID length = %d, should be at least 13 (server- + 8 chars)", len(id))
 	}
 }
 
-
 func TestInjectMetadata_FileReadError(t *testing.T) {
 	tmpDir := t.TempDir()
-	
+
 	// Create a directory named formation.yaml (not a file)
 	yamlPath := filepath.Join(tmpDir, "formation.yaml")
 	os.MkdirAll(yamlPath, 0755)
@@ -444,7 +443,7 @@ func TestInjectMetadata_WriteError(t *testing.T) {
 	os.WriteFile(yamlPath, []byte(content), 0444)
 
 	err := InjectMetadata(tmpDir, "test-server")
-	
+
 	// May fail to write back due to permissions
 	t.Logf("InjectMetadata with read-only file: %v", err)
 }

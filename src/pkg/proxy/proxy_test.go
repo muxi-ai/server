@@ -374,7 +374,6 @@ func TestProxyRequest_RootPath(t *testing.T) {
 	}
 }
 
-
 func TestGetClientIP(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -515,7 +514,7 @@ func TestNewHandler_CheckRedirect(t *testing.T) {
 	// Test that CheckRedirect returns http.ErrUseLastResponse
 	req := &http.Request{}
 	via := []*http.Request{req}
-	
+
 	err := handler.client.CheckRedirect(req, via)
 	if err != http.ErrUseLastResponse {
 		t.Errorf("CheckRedirect = %v, want http.ErrUseLastResponse", err)
@@ -576,7 +575,7 @@ func TestProxyRequest_HeadersPreserved(t *testing.T) {
 	req.Header.Set("X-Custom-Header", "test-value")
 	req.Header.Set("Authorization", "Bearer token123")
 	req.Header.Set("Content-Type", "application/json")
-	
+
 	w := httptest.NewRecorder()
 
 	req = mux.SetURLVars(req, map[string]string{
@@ -615,7 +614,7 @@ func TestProxyRequest_QueryParamsPreserved(t *testing.T) {
 func TestGetClientIP_Direct(t *testing.T) {
 	req := httptest.NewRequest("GET", "/test", nil)
 	req.RemoteAddr = "192.168.1.100:12345"
-	
+
 	ip := getClientIP(req)
 	if ip != "192.168.1.100" {
 		t.Errorf("getClientIP() = %q, want 192.168.1.100", ip)
@@ -626,7 +625,7 @@ func TestGetClientIP_XForwardedFor(t *testing.T) {
 	req := httptest.NewRequest("GET", "/test", nil)
 	req.Header.Set("X-Forwarded-For", "203.0.113.1, 198.51.100.1")
 	req.RemoteAddr = "192.168.1.1:12345"
-	
+
 	ip := getClientIP(req)
 	if ip != "203.0.113.1" {
 		t.Errorf("getClientIP() = %q, want 203.0.113.1", ip)
@@ -637,13 +636,12 @@ func TestGetClientIP_XRealIP(t *testing.T) {
 	req := httptest.NewRequest("GET", "/test", nil)
 	req.Header.Set("X-Real-IP", "203.0.113.5")
 	req.RemoteAddr = "192.168.1.1:12345"
-	
+
 	ip := getClientIP(req)
 	if ip != "203.0.113.5" {
 		t.Errorf("getClientIP() = %q, want 203.0.113.5", ip)
 	}
 }
-
 
 func TestProxyRequest_EmptyPath(t *testing.T) {
 	reg, _ := registry.NewRegistry(8000, 8100)
@@ -780,7 +778,7 @@ func TestProxyRequest_WithCustomHeaders(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer token123")
 	req.Header.Set("X-Custom-Header", "custom-value")
 	req.Header.Set("User-Agent", "Test-Agent/1.0")
-	
+
 	w := httptest.NewRecorder()
 
 	req = mux.SetURLVars(req, map[string]string{
@@ -806,7 +804,7 @@ func TestProxyRequest_HostHeaderNotCopied(t *testing.T) {
 	req := httptest.NewRequest("GET", "/v1/host-header-test/api", nil)
 	req.Host = "example.com"
 	req.Header.Set("Host", "example.com")
-	
+
 	w := httptest.NewRecorder()
 
 	req = mux.SetURLVars(req, map[string]string{
@@ -833,7 +831,7 @@ func TestProxyRequest_XForwardedHeaders(t *testing.T) {
 	req := httptest.NewRequest("GET", "/v1/forwarded-test/api", nil)
 	req.RemoteAddr = "203.0.113.1:54321"
 	req.Host = "api.example.com"
-	
+
 	w := httptest.NewRecorder()
 
 	req = mux.SetURLVars(req, map[string]string{
@@ -849,9 +847,9 @@ func TestProxyRequest_XForwardedHeaders(t *testing.T) {
 
 func TestGetScheme_Default(t *testing.T) {
 	req := httptest.NewRequest("GET", "http://localhost/test", nil)
-	
+
 	scheme := getScheme(req)
-	
+
 	if scheme != "http" {
 		t.Errorf("getScheme() = %q, want http", scheme)
 	}
@@ -860,9 +858,9 @@ func TestGetScheme_Default(t *testing.T) {
 func TestGetScheme_HTTPS(t *testing.T) {
 	req := httptest.NewRequest("GET", "https://localhost/test", nil)
 	req.TLS = &tls.ConnectionState{} // Mark as TLS connection
-	
+
 	scheme := getScheme(req)
-	
+
 	if scheme != "https" {
 		t.Errorf("getScheme() = %q, want https", scheme)
 	}
@@ -871,9 +869,9 @@ func TestGetScheme_HTTPS(t *testing.T) {
 func TestGetScheme_XForwardedProto(t *testing.T) {
 	req := httptest.NewRequest("GET", "http://localhost/test", nil)
 	req.Header.Set("X-Forwarded-Proto", "https")
-	
+
 	scheme := getScheme(req)
-	
+
 	if scheme != "https" {
 		t.Errorf("getScheme() = %q, want https from X-Forwarded-Proto", scheme)
 	}
@@ -886,7 +884,7 @@ func TestProxyRequest_SSEStreaming(t *testing.T) {
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Header().Set("Connection", "keep-alive")
 		w.WriteHeader(http.StatusOK)
-		
+
 		// Write SSE events
 		fmt.Fprint(w, "data: event1\n\n")
 		if f, ok := w.(http.Flusher); ok {

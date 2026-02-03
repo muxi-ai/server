@@ -23,8 +23,8 @@ type Config struct {
 // RuntimeConfig contains runtime download settings
 type RuntimeConfig struct {
 	// SIF download settings
-	SIFBaseURL   string `yaml:"sif_base_url"`   // Base URL for SIF downloads (default: GitHub releases)
-	AutoDownload bool   `yaml:"auto_download"`  // Auto-download missing SIF files (default: true)
+	SIFBaseURL   string `yaml:"sif_base_url"`  // Base URL for SIF downloads (default: GitHub releases)
+	AutoDownload bool   `yaml:"auto_download"` // Auto-download missing SIF files (default: true)
 
 	// Docker runtime-runner settings
 	RuntimeRunnerImage string `yaml:"runtime_runner_image"` // Docker image for runtime-runner (default: ghcr.io/muxi-ai/runtime-runner:latest)
@@ -219,7 +219,7 @@ func GetConfigDir() (string, error) {
 		if runtime.GOOS == "linux" && strings.HasPrefix(exe, "/usr/") {
 			return "/etc/muxi/server", nil
 		}
-		
+
 		// Windows + installed in Program Files → system paths
 		if runtime.GOOS == "windows" && (strings.HasPrefix(exe, "C:\\Program Files") || strings.HasPrefix(exe, "C:\\Program Files (x86)")) {
 			return "C:\\ProgramData\\muxi\\server", nil
@@ -235,7 +235,7 @@ func GetConfigDir() (string, error) {
 		}
 		return filepath.Join(appData, "muxi", "server"), nil
 	}
-	
+
 	// Unix/macOS: ~/.muxi/server
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -259,7 +259,7 @@ func GetDataDir() (string, error) {
 		if runtime.GOOS == "linux" && strings.HasPrefix(exe, "/usr/") {
 			return "/var/lib/muxi", nil
 		}
-		
+
 		// Windows + installed in Program Files → system paths
 		if runtime.GOOS == "windows" && (strings.HasPrefix(exe, "C:\\Program Files") || strings.HasPrefix(exe, "C:\\Program Files (x86)")) {
 			return "C:\\ProgramData\\muxi\\data", nil
@@ -275,7 +275,7 @@ func GetDataDir() (string, error) {
 		}
 		return filepath.Join(appData, "muxi", "server"), nil
 	}
-	
+
 	// Unix/macOS: ~/.muxi/server
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -299,7 +299,7 @@ func GetLogDir() (string, error) {
 		if runtime.GOOS == "linux" && strings.HasPrefix(exe, "/usr/") {
 			return "/var/log/muxi", nil
 		}
-		
+
 		// Windows + installed in Program Files → system paths
 		if runtime.GOOS == "windows" && (strings.HasPrefix(exe, "C:\\Program Files") || strings.HasPrefix(exe, "C:\\Program Files (x86)")) {
 			return "C:\\ProgramData\\muxi\\logs", nil
@@ -315,7 +315,7 @@ func GetLogDir() (string, error) {
 		}
 		return filepath.Join(appData, "muxi", "logs"), nil
 	}
-	
+
 	// Unix/macOS: ~/.muxi/server/logs
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -339,7 +339,7 @@ func GetInstallType() string {
 		if runtime.GOOS == "linux" && strings.HasPrefix(exe, "/usr/") {
 			return "System (Linux)"
 		}
-		
+
 		// Windows + Program Files → System install
 		if runtime.GOOS == "windows" && (strings.HasPrefix(exe, "C:\\Program Files") || strings.HasPrefix(exe, "C:\\Program Files (x86)")) {
 			return "System (Windows)"

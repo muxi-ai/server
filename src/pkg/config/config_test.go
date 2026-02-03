@@ -1,9 +1,9 @@
 package config
 
 import (
-	"strings"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -218,7 +218,6 @@ func TestGetRegistryPath(t *testing.T) {
 	}
 }
 
-
 func TestSaveConfig(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "test-config.yaml")
@@ -377,14 +376,13 @@ func TestConfigPersistence(t *testing.T) {
 	}
 }
 
-
 func TestConfig_Save_InvalidPath(t *testing.T) {
 	cfg := DefaultConfig()
-	
+
 	// Try to save to a path that's actually a directory
 	tmpDir := t.TempDir()
 	err := cfg.Save(tmpDir) // Directory, not file
-	
+
 	if err == nil {
 		t.Error("Save() should error when path is a directory")
 	}
@@ -396,16 +394,14 @@ func TestConfig_Save_PermissionDenied(t *testing.T) {
 	}
 
 	cfg := DefaultConfig()
-	
+
 	// Try to save to /root (should fail with permission denied)
 	err := cfg.Save("/root/config.yaml")
-	
+
 	if err == nil {
 		t.Log("Save() should error with permission denied (may vary by system)")
 	}
 }
-
-
 
 func TestGetMuxiDir_HomeDirExists(t *testing.T) {
 	dir, err := GetMuxiDir()
@@ -455,9 +451,9 @@ func TestGetRegistryPath_Format(t *testing.T) {
 
 func TestEnsureDirectories_AllCreated(t *testing.T) {
 	tmpBase := t.TempDir()
-	
+
 	cfg := DefaultConfig()
-	
+
 	err := EnsureDirectories(tmpBase, cfg)
 	if err != nil {
 		t.Fatalf("EnsureDirectories() error = %v", err)
@@ -488,7 +484,7 @@ func TestEnsureDirectories_AllCreated(t *testing.T) {
 func TestEnsureDirectories_AlreadyExist(t *testing.T) {
 	tmpBase := t.TempDir()
 	cfg := DefaultConfig()
-	
+
 	// Create dirs first
 	logsDir := filepath.Join(tmpBase, cfg.Formations.LogsDir)
 	os.MkdirAll(logsDir, 0755)
@@ -502,11 +498,11 @@ func TestEnsureDirectories_AlreadyExist(t *testing.T) {
 
 func TestEnsureDirectories_NestedPaths(t *testing.T) {
 	tmpBase := t.TempDir()
-	
+
 	cfg := DefaultConfig()
 	cfg.Formations.LogsDir = "nested/deep/logs"
 	cfg.Formations.PIDsDir = "nested/deep/pids"
-	
+
 	err := EnsureDirectories(tmpBase, cfg)
 	if err != nil {
 		t.Fatalf("EnsureDirectories() error = %v", err)
@@ -525,10 +521,10 @@ func TestEnsureDirectories_InvalidPath(t *testing.T) {
 	}
 
 	cfg := DefaultConfig()
-	
+
 	// Try to create in /root (should fail with permission denied)
 	err := EnsureDirectories("/root/muxi-test", cfg)
-	
+
 	if err == nil {
 		t.Log("EnsureDirectories() should error with permission denied (may vary by system)")
 	} else {
@@ -599,7 +595,7 @@ func TestConfig_Save_WithMarshalError(t *testing.T) {
 
 func TestLoad_PartialConfig(t *testing.T) {
 	tmpFile := t.TempDir() + "/partial.yaml"
-	
+
 	// Write minimal valid config
 	content := `server_id: test-123
 server:
@@ -624,7 +620,7 @@ server:
 func TestLoad_FileReadError(t *testing.T) {
 	// Try to load from a directory (not a file)
 	tmpDir := t.TempDir()
-	
+
 	_, err := Load(tmpDir)
 	if err == nil {
 		t.Error("Load() should error when path is a directory")
@@ -637,10 +633,10 @@ func TestSave_DirectoryCreateError(t *testing.T) {
 	}
 
 	cfg := DefaultConfig()
-	
+
 	// Try to save to a path where we can't create the directory
 	err := cfg.Save("/root/nonexistent/deeply/nested/config.yaml")
-	
+
 	if err == nil {
 		t.Log("Save() should error when can't create directory (may vary by system)")
 	}

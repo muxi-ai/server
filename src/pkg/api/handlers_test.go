@@ -1,11 +1,11 @@
 package api
 
 import (
-	"os"
-	"path/filepath"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/gorilla/mux"
@@ -502,7 +502,7 @@ func TestHandleList_MultipleFormations(t *testing.T) {
 	}
 
 	body := w.Body.String()
-	
+
 	// Verify all formations in response
 	for i := 0; i < 5; i++ {
 		if !containsStr(body, fmt.Sprintf("list-test-%d", i)) {

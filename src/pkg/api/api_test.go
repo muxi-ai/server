@@ -100,7 +100,7 @@ func TestHandleHealth(t *testing.T) {
 	}
 
 	body, _ := io.ReadAll(resp.Body)
-	
+
 	// New simplified health response: {"success": true, "status": "ok", "version": "X.X.X"}
 	var result map[string]interface{}
 	if err := json.Unmarshal(body, &result); err != nil {
@@ -411,5 +411,3 @@ func TestLoggingMiddleware(t *testing.T) {
 		t.Errorf("Status = %d, want %d", resp.StatusCode, http.StatusOK)
 	}
 }
-
-

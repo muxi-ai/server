@@ -290,7 +290,7 @@ func TestProcess_RestartLogic(t *testing.T) {
 		for i := 1; i <= 10; i++ {
 			p.RestartCount = i
 			shouldRestart := p.ShouldRestart()
-			
+
 			if i < 10 && !shouldRestart {
 				t.Errorf("Should restart at count %d (max: 10)", i)
 			}

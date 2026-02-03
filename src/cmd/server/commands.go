@@ -172,7 +172,7 @@ func cmdInit() error {
 	fmt.Print("Email (optional but recommended): ")
 	email, _ = reader.ReadString('\n')
 	email = strings.TrimSpace(email)
-	
+
 	// Show confirmation if email provided
 	if email != "" {
 		fmt.Printf("\n%s Thank you! We've sent you a confirmation email.\n", checkMark)
@@ -309,10 +309,10 @@ func cmdInit() error {
 			RuntimeType:    "native",
 			PortRangeStart: 8000,
 			PortRangeEnd:   9000,
-			LogsDir:        "logs",        // Relative path, not absolute
-			PIDsDir:        "pids",        // Relative path
-			FormationsDir:  "formations",  // Relative path
-			BindHost:       "127.0.0.1",   // Formations bind to localhost
+			LogsDir:        "logs",       // Relative path, not absolute
+			PIDsDir:        "pids",       // Relative path
+			FormationsDir:  "formations", // Relative path
+			BindHost:       "127.0.0.1",  // Formations bind to localhost
 			AutoRestart:    true,
 			MaxRestarts:    10,
 			RestartDelay:   1,
@@ -729,9 +729,9 @@ func setupSystemdService() error {
 	if user == "" {
 		user = os.Getenv("LOGNAME")
 	}
-	
+
 	serverPath := getMuxiServerPath()
-	
+
 	serviceContent := fmt.Sprintf(`[Unit]
 Description=MUXI Server
 After=network.target
@@ -748,7 +748,7 @@ WantedBy=multi-user.target
 `, user, serverPath)
 
 	servicePath := "/etc/systemd/system/muxi-server.service"
-	
+
 	// Write service file (requires sudo)
 	cmd := exec.Command("sudo", "tee", servicePath)
 	cmd.Stdin = strings.NewReader(serviceContent)
@@ -783,7 +783,7 @@ func setupLaunchdService() error {
 	}
 
 	serverPath := getMuxiServerPath()
-	
+
 	plistContent := fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -814,7 +814,7 @@ func setupLaunchdService() error {
 	}
 
 	plistPath := filepath.Join(launchAgentsDir, "org.muxi.server.plist")
-	
+
 	// Unload existing service if present (ignore errors)
 	exec.Command("launchctl", "unload", plistPath).Run()
 
@@ -846,10 +846,10 @@ func promptServiceSetup(reader *bufio.Reader, port int) {
 	fmt.Println("This will start the server automatically on boot.")
 	fmt.Println()
 	fmt.Print("Set up as service? [y/N]: ")
-	
+
 	response, _ := reader.ReadString('\n')
 	response = strings.TrimSpace(strings.ToLower(response))
-	
+
 	if response != "y" && response != "yes" {
 		fmt.Println()
 		fmt.Printf("%s Skipped service setup. Start manually with: muxi-server start\n", bullet)

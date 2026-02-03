@@ -457,7 +457,7 @@ func TestRegistry_Concurrent(t *testing.T) {
 	}
 }
 
-// Helper function to format IDs  
+// Helper function to format IDs
 func formatID(id int) string {
 	// Create unique ID for each number
 	if id < 10 {

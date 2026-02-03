@@ -277,9 +277,9 @@ func TestReadLastNLines_EdgeCases(t *testing.T) {
 
 		if total != 5 {
 			t.Errorf("total = %d, want 5 (empty lines)", total)
-		if len(lines) != 5 {
-			t.Errorf("len(lines) = %d, want 5", len(lines))
-		}
+			if len(lines) != 5 {
+				t.Errorf("len(lines) = %d, want 5", len(lines))
+			}
 		}
 	})
 
@@ -517,8 +517,6 @@ func containsStr(s, substr string) bool {
 	return false
 }
 
-
-
 func TestHandleBundleDeploy_ExtractDirError(t *testing.T) {
 	server := createTestServer(t)
 
@@ -660,7 +658,7 @@ func TestHandleBundleDeploy_RegistrationError(t *testing.T) {
 
 func TestGetMuxiDir_CoverageHelper(t *testing.T) {
 	dir, err := getMuxiDir()
-	
+
 	if err != nil {
 		t.Logf("getMuxiDir() error = %v", err)
 		return
@@ -777,9 +775,9 @@ func TestHandleBundleDeploy_DirectoryMoveFails(t *testing.T) {
 
 func TestRespondJSON_ErrorResponse(t *testing.T) {
 	w := httptest.NewRecorder()
-	
+
 	RespondError(w, http.StatusBadRequest, "Test error message")
-	
+
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("Status = %d, want %d", w.Code, http.StatusBadRequest)
 	}
@@ -797,14 +795,14 @@ func TestRespondJSON_ErrorResponse(t *testing.T) {
 
 func TestRespondJSON_SuccessResponse(t *testing.T) {
 	w := httptest.NewRecorder()
-	
+
 	data := map[string]string{
 		"status": "success",
 		"id":     "test-123",
 	}
-	
+
 	RespondSuccess(w, data)
-	
+
 	if w.Code != http.StatusOK {
 		t.Errorf("Status = %d, want %d", w.Code, http.StatusOK)
 	}
@@ -822,13 +820,13 @@ func TestRespondJSON_SuccessResponse(t *testing.T) {
 
 func TestRespondCreated_Response(t *testing.T) {
 	w := httptest.NewRecorder()
-	
+
 	data := map[string]string{
 		"id": "new-resource",
 	}
-	
+
 	RespondCreated(w, data)
-	
+
 	if w.Code != http.StatusCreated {
 		t.Errorf("Status = %d, want %d", w.Code, http.StatusCreated)
 	}

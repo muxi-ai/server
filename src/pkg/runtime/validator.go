@@ -132,10 +132,10 @@ func GetRuntimeInfo() RuntimeEnvironment {
 
 	dockerPath, _ := exec.LookPath("docker")
 	return RuntimeEnvironment{
-		Platform:    runtime.GOOS,
-		RuntimeType: "docker-wrapper",
-		RuntimePath: dockerPath,
-		Native:      false,
+		Platform:     runtime.GOOS,
+		RuntimeType:  "docker-wrapper",
+		RuntimePath:  dockerPath,
+		Native:       false,
 		WrapperImage: "ghcr.io/muxi-ai/runtime-runner:latest",
 	}
 }

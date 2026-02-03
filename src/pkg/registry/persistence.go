@@ -51,10 +51,10 @@ func (p *Persistence) EnableAutoSave() {
 	}
 	p.autoSave = true
 	p.mu.Unlock()
-	
+
 	// Wait for any previous goroutine to exit before recreating stopChan
 	p.loopWg.Wait()
-	
+
 	// Recreate stop channel for this new cycle
 	p.stopChan = make(chan struct{})
 
@@ -81,13 +81,13 @@ func (p *Persistence) DisableAutoSave() {
 	}
 	p.autoSave = false
 	p.mu.Unlock()
-	
+
 	// Close stop channel to signal loop to exit
 	close(p.stopChan)
-	
+
 	// Wait for the goroutine to exit
 	p.loopWg.Wait()
-	
+
 	// Wait for all pending save operations to complete
 	p.wg.Wait()
 }
@@ -181,7 +181,7 @@ func (p *Persistence) Load() error {
 // autoSaveLoop runs the auto-save loop with debouncing
 func (p *Persistence) autoSaveLoop() {
 	defer p.loopWg.Done()
-	
+
 	var timer *time.Timer
 	var timerMu sync.Mutex // Protects timer access
 
@@ -201,11 +201,11 @@ func (p *Persistence) autoSaveLoop() {
 					return
 				}
 				p.mu.Unlock()
-				
+
 				// Track this save operation
 				p.wg.Add(1)
 				defer p.wg.Done()
-				
+
 				if err := p.Save(); err != nil {
 					p.logger.Error().
 						Err(err).

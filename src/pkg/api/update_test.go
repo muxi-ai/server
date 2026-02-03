@@ -260,11 +260,9 @@ version: 1.0.0
 		if data, err := os.ReadFile(versionPath); err == nil {
 			var updatedHistory formation.VersionHistory
 			if err := json.Unmarshal(data, &updatedHistory); err == nil {
-				t.Logf("Version history: current=%d, previous=%d", 
+				t.Logf("Version history: current=%d, previous=%d",
 					updatedHistory.CurrentVersion, updatedHistory.PreviousVersion)
 			}
 		}
 	})
 }
-
-

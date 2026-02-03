@@ -73,7 +73,7 @@ func (hc *HealthChecker) WaitForHealthyWithPID(port int, formationID string, pid
 			processDead := !IsProcessRunning(pid)
 			var logContent string
 			var hasFailureMarker bool
-			
+
 			// Check stdout for failure markers (works for both native and containerized)
 			if logFile != "" {
 				if content, err := extractErrorSection(logFile); err == nil && content != "" {
@@ -92,7 +92,7 @@ func (hc *HealthChecker) WaitForHealthyWithPID(port int, formationID string, pid
 					}
 				}
 			}
-			
+
 			if processDead || hasFailureMarker {
 				errMsg := "Formation process crashed during startup"
 				if logContent != "" {
@@ -157,7 +157,7 @@ func extractErrorSection(filePath string) (string, error) {
 		return "", err
 	}
 	content := string(data)
-	
+
 	// Find the LAST "====" separator (indicates start of latest run)
 	separator := "===================================================================="
 	lastSepIdx := -1
@@ -167,13 +167,13 @@ func extractErrorSection(filePath string) (string, error) {
 			break
 		}
 	}
-	
+
 	// If found, only look at content after the last separator
 	searchContent := content
 	if lastSepIdx >= 0 {
 		searchContent = content[lastSepIdx:]
 	}
-	
+
 	// Look for "[ FAIL ]" marker in the latest run
 	marker := "[ FAIL ]"
 	idx := -1
@@ -183,13 +183,13 @@ func extractErrorSection(filePath string) (string, error) {
 			break
 		}
 	}
-	
+
 	if idx >= 0 {
 		// Return everything AFTER the marker, trimmed
 		result := searchContent[idx+len(marker):]
 		return trimWhitespace(result), nil
 	}
-	
+
 	// Also check for "❌" marker (Unicode)
 	errorMarker := "❌"
 	for i := len(searchContent) - len(errorMarker); i >= 0; i-- {
@@ -198,12 +198,12 @@ func extractErrorSection(filePath string) (string, error) {
 			break
 		}
 	}
-	
+
 	if idx >= 0 {
 		result := searchContent[idx:]
 		return trimWhitespace(result), nil
 	}
-	
+
 	// No marker found
 	return "", nil
 }

@@ -85,10 +85,10 @@ func (s *Server) HandleCancelUpdate(w http.ResponseWriter, r *http.Request) {
 		Msg("Update cancelled successfully")
 
 	RespondJSON(w, http.StatusOK, map[string]interface{}{
-		"message":       "Update cancelled successfully",
-		"formation_id":  formationID,
-		"staging_port":  stagingPort,
-		"status":        formation.Status,
-		"current_port":  formation.Port,
+		"message":      "Update cancelled successfully",
+		"formation_id": formationID,
+		"staging_port": stagingPort,
+		"status":       formation.Status,
+		"current_port": formation.Port,
 	})
 }

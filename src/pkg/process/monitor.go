@@ -65,14 +65,14 @@ func (m *Monitor) run() {
 		maxRetries := 150 // 150 retries * 2 seconds = 300 seconds max startup time
 		for i := 0; i < maxRetries; i++ {
 			time.Sleep(2 * time.Second)
-			
+
 			// Check if stopped while waiting
 			select {
 			case <-m.stopChan:
 				return
 			default:
 			}
-			
+
 			if err := m.healthCheck(); err != nil {
 				// Only log every 10 attempts to reduce noise
 				if (i+1)%10 == 1 {
@@ -94,7 +94,7 @@ func (m *Monitor) run() {
 				}
 				break
 			}
-			
+
 			// If we've exhausted retries, set status to running (unhealthy) and keep monitoring
 			if i == maxRetries-1 {
 				m.process.SetStatus(StatusRunning)

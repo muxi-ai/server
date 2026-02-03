@@ -15,11 +15,11 @@ import (
 )
 
 var (
-	kernel32                  = windows.NewLazySystemDLL("kernel32.dll")
-	procCreateJobObjectW      = kernel32.NewProc("CreateJobObjectW")
+	kernel32                     = windows.NewLazySystemDLL("kernel32.dll")
+	procCreateJobObjectW         = kernel32.NewProc("CreateJobObjectW")
 	procAssignProcessToJobObject = kernel32.NewProc("AssignProcessToJobObject")
 	procSetInformationJobObject  = kernel32.NewProc("SetInformationJobObject")
-	procTerminateJobObject    = kernel32.NewProc("TerminateJobObject")
+	procTerminateJobObject       = kernel32.NewProc("TerminateJobObject")
 )
 
 // Job object structures for Windows process management
@@ -144,7 +144,7 @@ func Stop(proc *Process, logger *zerolog.Logger) error {
 		// This is the Windows equivalent of SIGTERM
 		dll := syscall.MustLoadDLL("kernel32.dll")
 		ctrlProc := dll.MustFindProc("GenerateConsoleCtrlEvent")
-		
+
 		// CTRL_BREAK_EVENT = 1
 		r1, _, err := ctrlProc.Call(uintptr(1), uintptr(proc.cmd.Process.Pid))
 		if r1 == 0 {
@@ -152,7 +152,7 @@ func Stop(proc *Process, logger *zerolog.Logger) error {
 				Err(err).
 				Str("id", proc.ID).
 				Msg("Failed to send Ctrl+Break, forcing termination")
-			
+
 			// Force kill if graceful termination fails
 			if err := proc.cmd.Process.Kill(); err != nil {
 				return fmt.Errorf("failed to kill process: %w", err)
@@ -160,7 +160,7 @@ func Stop(proc *Process, logger *zerolog.Logger) error {
 		} else {
 			// Wait a bit for graceful shutdown
 			time.Sleep(2 * time.Second)
-			
+
 			// Check if still running
 			if IsProcessRunning(proc.PID) {
 				logger.Warn().

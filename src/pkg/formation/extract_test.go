@@ -1,10 +1,10 @@
 package formation
 
 import (
-	"fmt"
-	"bytes"
 	"archive/tar"
+	"bytes"
 	"compress/gzip"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"

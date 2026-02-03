@@ -1,9 +1,9 @@
 package process
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"fmt"
 	"os"
 	"sync"
 	"testing"
@@ -126,10 +126,10 @@ func TestMonitor_Start_Stop(t *testing.T) {
 func TestMonitor_WithHealthCheck(t *testing.T) {
 	logger := zerolog.Nop()
 	proc := &Process{
-		ID:              "test",
-		PID:             99999,
-		Status:          StatusStarting,
-		HealthCheckURL:  "http://localhost:9999/nonexistent",
+		ID:             "test",
+		PID:            99999,
+		Status:         StatusStarting,
+		HealthCheckURL: "http://localhost:9999/nonexistent",
 	}
 
 	monitor := NewMonitor(proc, &logger)
@@ -437,7 +437,7 @@ func TestMonitor_HealthCheck_Timeout(t *testing.T) {
 	}
 
 	monitor := NewMonitor(proc, &logger)
-	
+
 	start := time.Now()
 	err := monitor.healthCheck()
 	elapsed := time.Since(start)
