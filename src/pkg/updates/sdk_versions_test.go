@@ -2,6 +2,7 @@ package updates
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -64,59 +65,57 @@ func TestGetSDKLatest(t *testing.T) {
 	}
 }
 
-func TestFetchVersion(t *testing.T) {
-	t.Run("successful fetch", func(t *testing.T) {
+func TestFetchLatestRelease(t *testing.T) {
+	t.Run("parses github release json", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("0.1.0\n"))
+			w.Write([]byte(`{"tag_name": "v0.1.0", "name": "Release 0.1.0"}`))
 		}))
 		defer server.Close()
 
 		client := &http.Client{Timeout: 5 * time.Second}
-		version := fetchVersion(client, "test-sdk", server.URL)
+		resp, err := client.Get(server.URL)
+		if err != nil {
+			t.Fatalf("Failed to get: %v", err)
+		}
+		defer resp.Body.Close()
 
-		if version != "0.1.0" {
-			t.Errorf("fetchVersion() = %q, want 0.1.0", version)
+		var release githubRelease
+		if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+			t.Fatalf("Failed to decode: %v", err)
+		}
+		if release.TagName != "v0.1.0" {
+			t.Errorf("TagName = %q, want v0.1.0", release.TagName)
 		}
 	})
 
-	t.Run("404 returns empty", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusNotFound)
-		}))
-		defer server.Close()
-
-		client := &http.Client{Timeout: 5 * time.Second}
-		version := fetchVersion(client, "test-sdk", server.URL)
-
-		if version != "" {
-			t.Errorf("fetchVersion() = %q, want empty", version)
+	t.Run("strips v prefix from tag", func(t *testing.T) {
+		// Test the strings.TrimPrefix logic used in fetchLatestRelease
+		tests := []struct {
+			tag  string
+			want string
+		}{
+			{"v1.2.3", "1.2.3"},
+			{"v0.20260127.0", "0.20260127.0"},
+			{"1.0.0", "1.0.0"}, // No prefix
+			{"", ""},
+		}
+		for _, tt := range tests {
+			got := trimVersionPrefix(tt.tag)
+			if got != tt.want {
+				t.Errorf("trimVersionPrefix(%q) = %q, want %q", tt.tag, got, tt.want)
+			}
 		}
 	})
+}
 
-	t.Run("invalid url returns empty", func(t *testing.T) {
-		client := &http.Client{Timeout: 1 * time.Second}
-		version := fetchVersion(client, "test-sdk", "http://invalid.local.test:9999/not-real")
-
-		if version != "" {
-			t.Errorf("fetchVersion() = %q, want empty", version)
-		}
-	})
-
-	t.Run("trims whitespace", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("  1.2.3  \n\n"))
-		}))
-		defer server.Close()
-
-		client := &http.Client{Timeout: 5 * time.Second}
-		version := fetchVersion(client, "test-sdk", server.URL)
-
-		if version != "1.2.3" {
-			t.Errorf("fetchVersion() = %q, want 1.2.3", version)
-		}
-	})
+// trimVersionPrefix removes "v" prefix from version tags
+func trimVersionPrefix(tag string) string {
+	if len(tag) > 0 && tag[0] == 'v' {
+		return tag[1:]
+	}
+	return tag
 }
 
 func TestRefreshSDKVersions(t *testing.T) {

@@ -2,7 +2,7 @@ package updates
 
 import (
 	"context"
-	"io"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"sync"
@@ -11,20 +11,25 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// SDK version file URLs
-var sdkVersionURLs = map[string]string{
-	"go":         "https://raw.githubusercontent.com/muxi-ai/muxi-go/main/.version",
-	"python":     "https://raw.githubusercontent.com/muxi-ai/muxi-python/main/.version",
-	"typescript": "https://raw.githubusercontent.com/muxi-ai/muxi-typescript/main/.version",
-	"ruby":       "https://raw.githubusercontent.com/muxi-ai/muxi-ruby/main/.version",
-	"php":        "https://raw.githubusercontent.com/muxi-ai/muxi-php/main/.version",
-	"csharp":     "https://raw.githubusercontent.com/muxi-ai/muxi-csharp/main/.version",
-	"swift":      "https://raw.githubusercontent.com/muxi-ai/muxi-swift/main/.version",
-	"kotlin":     "https://raw.githubusercontent.com/muxi-ai/muxi-kotlin/main/.version",
-	"dart":       "https://raw.githubusercontent.com/muxi-ai/muxi-dart/main/.version",
-	"java":       "https://raw.githubusercontent.com/muxi-ai/muxi-java/main/.version",
-	"rust":       "https://raw.githubusercontent.com/muxi-ai/muxi-rust/main/.version",
-	"cpp":        "https://raw.githubusercontent.com/muxi-ai/muxi-cpp/main/.version",
+// SDK GitHub repos (owner/repo format)
+var sdkRepos = map[string]string{
+	"go":         "muxi-ai/muxi-go",
+	"python":     "muxi-ai/muxi-python",
+	"typescript": "muxi-ai/muxi-typescript",
+	"ruby":       "muxi-ai/muxi-ruby",
+	"php":        "muxi-ai/muxi-php",
+	"csharp":     "muxi-ai/muxi-csharp",
+	"swift":      "muxi-ai/muxi-swift",
+	"kotlin":     "muxi-ai/muxi-kotlin",
+	"dart":       "muxi-ai/muxi-dart",
+	"java":       "muxi-ai/muxi-java",
+	"rust":       "muxi-ai/muxi-rust",
+	"cpp":        "muxi-ai/muxi-cpp",
+}
+
+// githubRelease represents the GitHub API response for latest release
+type githubRelease struct {
+	TagName string `json:"tag_name"`
 }
 
 const (
@@ -56,7 +61,7 @@ func ParseSDKHeader(header string) (sdk string, version string) {
 	return header, ""
 }
 
-// RefreshSDKVersions fetches latest versions from all SDK repos.
+// RefreshSDKVersions fetches latest versions from all SDK repos via GitHub API.
 // Called on startup and periodically. Errors are logged but don't fail.
 func RefreshSDKVersions() {
 	log.Debug().Msg("Refreshing SDK version cache")
@@ -66,20 +71,20 @@ func RefreshSDKVersions() {
 	results := make(chan struct {
 		sdk     string
 		version string
-	}, len(sdkVersionURLs))
+	}, len(sdkRepos))
 
-	for sdk, url := range sdkVersionURLs {
+	for sdk, repo := range sdkRepos {
 		wg.Add(1)
-		go func(sdk, url string) {
+		go func(sdk, repo string) {
 			defer wg.Done()
-			version := fetchVersion(client, sdk, url)
+			version := fetchLatestRelease(client, sdk, repo)
 			if version != "" {
 				results <- struct {
 					sdk     string
 					version string
 				}{sdk, version}
 			}
-		}(sdk, url)
+		}(sdk, repo)
 	}
 
 	// Wait for all fetches to complete
@@ -104,37 +109,43 @@ func RefreshSDKVersions() {
 	log.Info().Int("sdk_count", len(newCache)).Msg("SDK version cache refreshed")
 }
 
-// fetchVersion fetches a single SDK version file.
-func fetchVersion(client *http.Client, sdk, url string) string {
+// fetchLatestRelease fetches the latest release version from GitHub API.
+func fetchLatestRelease(client *http.Client, sdk, repo string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), fetchTimeout)
 	defer cancel()
 
+	url := "https://api.github.com/repos/" + repo + "/releases/latest"
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
-		log.Debug().Str("sdk", sdk).Err(err).Msg("Failed to create version request")
+		log.Debug().Str("sdk", sdk).Err(err).Msg("Failed to create GitHub API request")
 		return ""
 	}
 
+	// GitHub API requires User-Agent header
+	req.Header.Set("User-Agent", "muxi-server")
+	req.Header.Set("Accept", "application/vnd.github+json")
+
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Debug().Str("sdk", sdk).Err(err).Msg("Failed to fetch SDK version")
+		log.Debug().Str("sdk", sdk).Err(err).Msg("Failed to fetch latest release")
 		return ""
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		log.Debug().Str("sdk", sdk).Int("status", resp.StatusCode).Msg("SDK version fetch returned non-200")
+		log.Debug().Str("sdk", sdk).Int("status", resp.StatusCode).Msg("GitHub API returned non-200")
 		return ""
 	}
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 100)) // Version should be tiny
-	if err != nil {
-		log.Debug().Str("sdk", sdk).Err(err).Msg("Failed to read SDK version response")
+	var release githubRelease
+	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+		log.Debug().Str("sdk", sdk).Err(err).Msg("Failed to decode GitHub API response")
 		return ""
 	}
 
-	version := strings.TrimSpace(string(body))
-	log.Debug().Str("sdk", sdk).Str("version", version).Msg("Fetched SDK version")
+	// Strip "v" prefix if present (e.g., "v0.1.0" → "0.1.0")
+	version := strings.TrimPrefix(release.TagName, "v")
+	log.Debug().Str("sdk", sdk).Str("version", version).Msg("Fetched SDK version from GitHub")
 	return version
 }
 
