@@ -213,9 +213,14 @@ func (s *Server) sdkVersionMiddleware(next http.Handler) http.Handler {
 		// Parse incoming SDK header: "typescript/0.1.0"
 		sdkHeader := r.Header.Get("X-Muxi-SDK")
 		if sdkHeader != "" {
-			sdk, _ := updates.ParseSDKHeader(sdkHeader)
+			sdk, currentVersion := updates.ParseSDKHeader(sdkHeader)
 			if latest := updates.GetSDKLatest(sdk); latest != "" {
+				// We have version data - send latest
 				w.Header().Set("X-Muxi-SDK-Latest", latest)
+			} else if currentVersion != "" {
+				// No data (private repo, no releases) - echo back current version
+				// This prevents SDK from showing "update available" notification
+				w.Header().Set("X-Muxi-SDK-Latest", currentVersion)
 			}
 		}
 
