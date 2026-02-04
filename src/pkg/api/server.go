@@ -12,6 +12,7 @@ import (
 	"github.com/muxi-ai/server/pkg/process"
 	"github.com/muxi-ai/server/pkg/proxy"
 	"github.com/muxi-ai/server/pkg/registry"
+	"github.com/muxi-ai/server/pkg/updates"
 	"github.com/rs/zerolog"
 )
 
@@ -114,8 +115,10 @@ func (s *Server) setupRoutes() {
 	// ====================================
 	// Pattern: /api/{formation_id}/*
 	// Example: /api/my-api/v1/chat → http://127.0.0.1:8001/v1/chat
-	s.router.PathPrefix("/api/{formation_id}/{path:.*}").HandlerFunc(s.proxyHandler.ProxyRequest)
-	s.router.PathPrefix("/api/{formation_id}").HandlerFunc(s.proxyHandler.ProxyRequest)
+	apiRouter := s.router.PathPrefix("/api").Subrouter()
+	apiRouter.Use(s.sdkVersionMiddleware) // Add SDK version header for update notifications
+	apiRouter.PathPrefix("/{formation_id}/{path:.*}").HandlerFunc(s.proxyHandler.ProxyRequest)
+	apiRouter.PathPrefix("/{formation_id}").HandlerFunc(s.proxyHandler.ProxyRequest)
 
 	// /api with no formation ID → 404
 	s.router.HandleFunc("/api", s.handle404).Methods(http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete)
@@ -197,6 +200,23 @@ func (s *Server) corsMiddleware(next http.Handler) http.Handler {
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusOK)
 			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+// sdkVersionMiddleware adds X-Muxi-SDK-Latest header when X-Muxi-SDK is present.
+// This allows SDKs to know when updates are available.
+func (s *Server) sdkVersionMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Parse incoming SDK header: "typescript/0.1.0"
+		sdkHeader := r.Header.Get("X-Muxi-SDK")
+		if sdkHeader != "" {
+			sdk, _ := updates.ParseSDKHeader(sdkHeader)
+			if latest := updates.GetSDKLatest(sdk); latest != "" {
+				w.Header().Set("X-Muxi-SDK-Latest", latest)
+			}
 		}
 
 		next.ServeHTTP(w, r)

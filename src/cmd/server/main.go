@@ -17,6 +17,7 @@ import (
 	"github.com/muxi-ai/server/pkg/process"
 	"github.com/muxi-ai/server/pkg/registry"
 	"github.com/muxi-ai/server/pkg/telemetry"
+	"github.com/muxi-ai/server/pkg/updates"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
@@ -246,6 +247,9 @@ func cmdStart() error {
 	// Start telemetry sender
 	telemetry.Start(ctx)
 
+	// Start SDK version background refresh (for update notifications)
+	updates.StartBackgroundRefresh(ctx)
+
 	logger.Info().Msgf("MUXI Server listening on %s:%d", cfg.Server.Host, cfg.Server.Port)
 
 	// Wait for shutdown signal
@@ -253,6 +257,9 @@ func cmdStart() error {
 
 	// Graceful shutdown
 	logger.Info().Msg("Shutting down gracefully...")
+
+	// Stop SDK version background refresh
+	updates.StopBackgroundRefresh()
 
 	// Stop telemetry (sends final flush)
 	telemetry.Stop()
