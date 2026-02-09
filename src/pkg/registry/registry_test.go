@@ -289,3 +289,185 @@ func TestConfig(t *testing.T) {
 		t.Log("✓ Config save/load works correctly")
 	})
 }
+
+// TestDraftFormations tests the draft formation methods
+func TestDraftFormations(t *testing.T) {
+	reg, err := registry.NewRegistry(19100, 19110)
+	if err != nil {
+		t.Fatalf("Failed to create registry: %v", err)
+	}
+
+	t.Run("RegisterDraft", func(t *testing.T) {
+		formation := &registry.Formation{
+			ID:      "test-draft",
+			Name:    "Test Draft",
+			Version: "1.0.0",
+			Status:  "starting",
+		}
+
+		err := reg.RegisterDraft(formation)
+		if err != nil {
+			t.Fatalf("Failed to register draft: %v", err)
+		}
+
+		if formation.Port == 0 {
+			t.Error("Expected port to be allocated")
+		}
+
+		t.Logf("✓ Draft registered with port %d", formation.Port)
+	})
+
+	t.Run("GetDraft", func(t *testing.T) {
+		formation, err := reg.GetDraft("test-draft")
+		if err != nil {
+			t.Fatalf("Failed to get draft: %v", err)
+		}
+
+		if formation.ID != "test-draft" {
+			t.Errorf("Expected ID 'test-draft', got '%s'", formation.ID)
+		}
+
+		t.Log("✓ GetDraft works correctly")
+	})
+
+	t.Run("GetDraft_NotFound", func(t *testing.T) {
+		_, err := reg.GetDraft("nonexistent")
+		if err == nil {
+			t.Error("Expected error for nonexistent draft")
+		}
+
+		t.Log("✓ GetDraft returns error for nonexistent")
+	})
+
+	t.Run("ListDrafts", func(t *testing.T) {
+		drafts := reg.ListDrafts()
+		if len(drafts) != 1 {
+			t.Errorf("Expected 1 draft, got %d", len(drafts))
+		}
+
+		t.Log("✓ ListDrafts works correctly")
+	})
+
+	t.Run("UpdateDraft", func(t *testing.T) {
+		err := reg.UpdateDraft("test-draft", func(f *registry.Formation) {
+			f.Status = "running"
+		})
+		if err != nil {
+			t.Fatalf("Failed to update draft: %v", err)
+		}
+
+		formation, _ := reg.GetDraft("test-draft")
+		if formation.Status != "running" {
+			t.Errorf("Expected status 'running', got '%s'", formation.Status)
+		}
+
+		t.Log("✓ UpdateDraft works correctly")
+	})
+
+	t.Run("RegisterDraft_AlreadyExists", func(t *testing.T) {
+		formation := &registry.Formation{
+			ID:     "test-draft",
+			Name:   "Duplicate Draft",
+			Status: "starting",
+		}
+
+		err := reg.RegisterDraft(formation)
+		if err == nil {
+			t.Error("Expected error for duplicate draft registration")
+		}
+
+		t.Log("✓ RegisterDraft rejects duplicates")
+	})
+
+	t.Run("UnregisterDraft", func(t *testing.T) {
+		err := reg.UnregisterDraft("test-draft")
+		if err != nil {
+			t.Fatalf("Failed to unregister draft: %v", err)
+		}
+
+		_, err = reg.GetDraft("test-draft")
+		if err == nil {
+			t.Error("Expected error after unregistering draft")
+		}
+
+		t.Log("✓ UnregisterDraft works correctly")
+	})
+
+	t.Run("UnregisterDraft_NotFound", func(t *testing.T) {
+		err := reg.UnregisterDraft("nonexistent")
+		if err == nil {
+			t.Error("Expected error for nonexistent draft")
+		}
+
+		t.Log("✓ UnregisterDraft returns error for nonexistent")
+	})
+}
+
+// TestLiveAndDraftCoexist tests that live and draft formations can coexist
+func TestLiveAndDraftCoexist(t *testing.T) {
+	reg, err := registry.NewRegistry(19200, 19210)
+	if err != nil {
+		t.Fatalf("Failed to create registry: %v", err)
+	}
+
+	formationID := "coexist-test"
+
+	// Register live formation
+	liveFormation := &registry.Formation{
+		ID:      formationID,
+		Name:    "Live Formation",
+		Version: "1.0.0",
+		Status:  "running",
+	}
+	err = reg.Register(liveFormation)
+	if err != nil {
+		t.Fatalf("Failed to register live formation: %v", err)
+	}
+	livePort := liveFormation.Port
+
+	// Register draft formation with same ID
+	draftFormation := &registry.Formation{
+		ID:      formationID,
+		Name:    "Draft Formation",
+		Version: "2.0.0",
+		Status:  "running",
+	}
+	err = reg.RegisterDraft(draftFormation)
+	if err != nil {
+		t.Fatalf("Failed to register draft formation: %v", err)
+	}
+	draftPort := draftFormation.Port
+
+	// Verify both exist with different ports
+	if livePort == draftPort {
+		t.Errorf("Live and draft should have different ports: live=%d, draft=%d", livePort, draftPort)
+	}
+
+	// Verify Get returns live
+	live, err := reg.Get(formationID)
+	if err != nil {
+		t.Fatalf("Failed to get live formation: %v", err)
+	}
+	if live.Port != livePort {
+		t.Errorf("Get() returned wrong port: expected %d, got %d", livePort, live.Port)
+	}
+
+	// Verify GetDraft returns draft
+	draft, err := reg.GetDraft(formationID)
+	if err != nil {
+		t.Fatalf("Failed to get draft formation: %v", err)
+	}
+	if draft.Port != draftPort {
+		t.Errorf("GetDraft() returned wrong port: expected %d, got %d", draftPort, draft.Port)
+	}
+
+	// Count check
+	if reg.Count() != 1 {
+		t.Errorf("Expected 1 live formation, got %d", reg.Count())
+	}
+	if reg.CountDrafts() != 1 {
+		t.Errorf("Expected 1 draft formation, got %d", reg.CountDrafts())
+	}
+
+	t.Logf("✓ Live (port %d) and draft (port %d) coexist correctly", livePort, draftPort)
+}

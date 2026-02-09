@@ -294,3 +294,196 @@ func getScheme(r *http.Request) string {
 
 	return "http"
 }
+
+// ProxyDraftRequest handles proxy requests for draft formations
+// Pattern: /draft/{formation_id}/{path}
+// Identical to ProxyRequest but uses GetDraft() instead of Get()
+func (h *Handler) ProxyDraftRequest(w http.ResponseWriter, r *http.Request) {
+	startTime := time.Now()
+
+	// Extract formation ID from URL
+	vars := mux.Vars(r)
+	formationID := vars["formation_id"]
+
+	// Get draft formation from registry
+	formation, err := h.registry.GetDraft(formationID)
+	if err != nil {
+		log.Warn().
+			Str("formation_id", formationID).
+			Str("path", r.URL.Path).
+			Err(err).
+			Msg("Draft formation not found for proxy request")
+		h.respondError(w, http.StatusNotFound, "Draft formation not found", fmt.Sprintf("No draft formation with id '%s'", formationID))
+		return
+	}
+
+	// Update formation with latest process status
+	if h.processManager != nil {
+		if proc, err := h.processManager.Get(formationID + ":draft"); err == nil {
+			formation.UpdateFromProcess(proc)
+		}
+	}
+
+	// Check formation status
+	if formation.Status != "running" {
+		h.respondError(w, http.StatusServiceUnavailable, "Draft formation unavailable", fmt.Sprintf("Draft formation '%s' is not running (status: %s)", formationID, formation.Status))
+		return
+	}
+
+	// Check health status
+	if !formation.Healthy {
+		log.Warn().
+			Str("formation_id", formationID).
+			Msg("Draft formation unhealthy, proxying anyway")
+	}
+
+	// Build target URL
+	remainingPath := vars["path"]
+	if remainingPath == "" {
+		remainingPath = "/"
+	} else if !strings.HasPrefix(remainingPath, "/") {
+		remainingPath = "/" + remainingPath
+	}
+	targetURL := fmt.Sprintf("http://localhost:%d%s", formation.Port, remainingPath)
+
+	// Parse target URL
+	target, err := url.Parse(targetURL)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Str("formation_id", formationID).
+			Str("target_url", targetURL).
+			Msg("Failed to parse target URL")
+		h.respondError(w, http.StatusInternalServerError, "Internal server error", "Failed to parse target URL")
+		return
+	}
+
+	// Preserve query parameters
+	target.RawQuery = r.URL.RawQuery
+
+	log.Debug().
+		Str("formation_id", formationID).
+		Str("method", r.Method).
+		Str("source_path", r.URL.Path).
+		Str("target_url", target.String()).
+		Msg("Proxying draft request")
+
+	// Create proxy request
+	proxyReq, err := http.NewRequest(r.Method, target.String(), r.Body)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Str("formation_id", formationID).
+			Msg("Failed to create proxy request")
+		h.respondError(w, http.StatusInternalServerError, "Internal server error", "Failed to create proxy request")
+		return
+	}
+
+	// Server-owned headers
+	serverOwnedHeaders := map[string]bool{
+		"X-Muxi-Server": true,
+	}
+
+	// Copy headers from original request
+	for name, values := range r.Header {
+		if name == "Host" {
+			continue
+		}
+		if serverOwnedHeaders[name] {
+			continue
+		}
+		for _, value := range values {
+			proxyReq.Header.Add(name, value)
+		}
+	}
+
+	// Add X-Forwarded-* headers
+	proxyReq.Header.Set("X-Forwarded-For", getClientIP(r))
+	proxyReq.Header.Set("X-Forwarded-Proto", getScheme(r))
+	proxyReq.Header.Set("X-Forwarded-Host", r.Host)
+
+	// Add server-owned headers
+	proxyReq.Header.Set("X-Muxi-Server", h.serverVersion)
+
+	// Make the request
+	resp, err := h.client.Do(proxyReq)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Str("formation_id", formationID).
+			Str("target_url", target.String()).
+			Msg("Draft formation request failed")
+		h.respondError(w, http.StatusBadGateway, "Bad gateway", "Draft formation did not respond")
+		return
+	}
+	defer resp.Body.Close()
+
+	// Copy response headers
+	for name, values := range resp.Header {
+		for _, value := range values {
+			w.Header().Add(name, value)
+		}
+	}
+
+	// Copy status code
+	w.WriteHeader(resp.StatusCode)
+
+	// Handle SSE streaming
+	contentType := resp.Header.Get("Content-Type")
+	isSSE := strings.HasPrefix(contentType, "text/event-stream")
+
+	if isSSE {
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			log.Error().
+				Str("formation_id", formationID).
+				Msg("ResponseWriter does not support flushing for SSE")
+			return
+		}
+
+		buf := make([]byte, 4096)
+		for {
+			n, readErr := resp.Body.Read(buf)
+			if n > 0 {
+				_, writeErr := w.Write(buf[:n])
+				if writeErr != nil {
+					log.Error().
+						Err(writeErr).
+						Str("formation_id", formationID).
+						Msg("Failed to write SSE data")
+					return
+				}
+				flusher.Flush()
+			}
+			if readErr != nil {
+				if readErr != io.EOF {
+					log.Error().
+						Err(readErr).
+						Str("formation_id", formationID).
+						Msg("Error reading SSE response")
+				}
+				break
+			}
+		}
+	} else {
+		_, err = io.Copy(w, resp.Body)
+		if err != nil {
+			log.Error().
+				Err(err).
+				Str("formation_id", formationID).
+				Msg("Failed to copy response body")
+			return
+		}
+	}
+
+	// Track request in telemetry
+	telemetry.RecordRequest(resp.StatusCode, time.Since(startTime))
+
+	log.Debug().
+		Str("formation_id", formationID).
+		Int("status", resp.StatusCode).
+		Str("method", r.Method).
+		Str("path", r.URL.Path).
+		Bool("sse", isSSE).
+		Msg("Draft proxy request completed")
+}

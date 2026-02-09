@@ -110,6 +110,10 @@ func (s *Server) setupRoutes() {
 	rpc.HandleFunc("/server/status", s.HandleServerStatus).Methods(http.MethodGet)
 	rpc.HandleFunc("/server/logs", s.HandleServerLogs).Methods(http.MethodGet)
 
+	// Dev/draft management (for muxi up / Console draft testing)
+	rpc.HandleFunc("/dev/run", s.HandleDevRun).Methods(http.MethodPost)
+	rpc.HandleFunc("/dev/stop", s.HandleDevStop).Methods(http.MethodPost)
+
 	// ====================================
 	// FORMATION PROXY /api/* (no auth)
 	// ====================================
@@ -122,6 +126,20 @@ func (s *Server) setupRoutes() {
 
 	// /api with no formation ID → 404
 	s.router.HandleFunc("/api", s.handle404).Methods(http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete)
+
+	// ====================================
+	// DRAFT PROXY /draft/* (no auth)
+	// ====================================
+	// Pattern: /draft/{formation_id}/*
+	// Example: /draft/my-api/v1/chat → http://127.0.0.1:8002/v1/chat (draft port)
+	// Uses separate registry lookup (GetDraft instead of Get)
+	draftRouter := s.router.PathPrefix("/draft").Subrouter()
+	draftRouter.Use(s.sdkVersionMiddleware)
+	draftRouter.PathPrefix("/{formation_id}/{path:.*}").HandlerFunc(s.proxyHandler.ProxyDraftRequest)
+	draftRouter.PathPrefix("/{formation_id}").HandlerFunc(s.proxyHandler.ProxyDraftRequest)
+
+	// /draft with no formation ID → 404
+	s.router.HandleFunc("/draft", s.handle404).Methods(http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete)
 
 	// ====================================
 	// CATCH-ALL (404)

@@ -11,10 +11,11 @@ import (
 // Registry manages the mapping between formations and their runtime information
 // Thread-safe for concurrent access
 type Registry struct {
-	formations map[string]*Formation // formation ID -> Formation
-	portPool   *PortPool
-	mu         sync.RWMutex
-	onChange   func() // Callback when registry changes (for persistence)
+	formations      map[string]*Formation // formation ID -> Formation (live, persisted)
+	draftFormations map[string]*Formation // formation ID -> Formation (draft/dev, not persisted)
+	portPool        *PortPool
+	mu              sync.RWMutex
+	onChange        func() // Callback when registry changes (for persistence)
 }
 
 // NewRegistry creates a new formation registry
@@ -25,8 +26,9 @@ func NewRegistry(portStart, portEnd int) (*Registry, error) {
 	}
 
 	return &Registry{
-		formations: make(map[string]*Formation),
-		portPool:   portPool,
+		formations:      make(map[string]*Formation),
+		draftFormations: make(map[string]*Formation),
+		portPool:        portPool,
 	}, nil
 }
 
@@ -284,4 +286,106 @@ func (r *Registry) triggerChange() {
 	if r.onChange != nil {
 		r.onChange()
 	}
+}
+
+// ============================================================================
+// Draft Formation Methods (for muxi up / Console draft testing)
+// These operate on a separate map and are NOT persisted
+// ============================================================================
+
+// RegisterDraft adds a draft formation to the registry
+// Draft formations share the port pool but are not persisted
+func (r *Registry) RegisterDraft(formation *Formation) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Check if draft already exists for this ID
+	if _, exists := r.draftFormations[formation.ID]; exists {
+		return fmt.Errorf("draft formation %s already running", formation.ID)
+	}
+
+	// Allocate port if not set (shares pool with live formations)
+	if formation.Port == 0 {
+		port, err := r.portPool.Allocate(formation.ID + ":draft")
+		if err != nil {
+			return fmt.Errorf("failed to allocate port: %w", err)
+		}
+		formation.Port = port
+	} else {
+		r.portPool.allocated[formation.Port] = formation.ID + ":draft"
+	}
+
+	r.draftFormations[formation.ID] = formation
+
+	// Note: No triggerChange() - drafts are not persisted
+
+	return nil
+}
+
+// UnregisterDraft removes a draft formation from the registry
+func (r *Registry) UnregisterDraft(formationID string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	formation, exists := r.draftFormations[formationID]
+	if !exists {
+		return fmt.Errorf("draft formation %s not found", formationID)
+	}
+
+	// Release the port
+	r.portPool.Release(formation.Port)
+
+	// Remove from registry
+	delete(r.draftFormations, formationID)
+
+	return nil
+}
+
+// GetDraft retrieves a draft formation by ID
+func (r *Registry) GetDraft(formationID string) (*Formation, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	formation, exists := r.draftFormations[formationID]
+	if !exists {
+		return nil, fmt.Errorf("draft formation %s not found", formationID)
+	}
+
+	return formation, nil
+}
+
+// UpdateDraft updates a draft formation's information
+func (r *Registry) UpdateDraft(formationID string, updateFn func(*Formation)) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	formation, exists := r.draftFormations[formationID]
+	if !exists {
+		return fmt.Errorf("draft formation %s not found", formationID)
+	}
+
+	updateFn(formation)
+
+	return nil
+}
+
+// ListDrafts returns all draft formations
+func (r *Registry) ListDrafts() []*Formation {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	formations := make([]*Formation, 0, len(r.draftFormations))
+	for _, formation := range r.draftFormations {
+		formations = append(formations, formation)
+	}
+
+	return formations
+}
+
+// CountDrafts returns the number of draft formations
+func (r *Registry) CountDrafts() int {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	return len(r.draftFormations)
 }
