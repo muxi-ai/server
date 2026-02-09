@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.20260209.0
+
+### Local Development Mode (`muxi up`)
+
+New API for running formations in development mode without full deploy cycle:
+
+- **POST /rpc/dev/run** - Start draft formation from local path or draft directory
+- **POST /rpc/dev/stop** - Stop draft formation
+- **/draft/{id}/*** - Proxy route for draft formations (separate from live `/api/{id}/*`)
+
+Key features:
+- Live and draft formations can run simultaneously with same ID
+- Draft formations use separate registry (not persisted, not restored on restart)
+- Shares port pool with live formations
+- Enables `muxi up` CLI command for fast local iteration
+
+### SDK Update Notifications
+
+Server now notifies SDKs when updates are available:
+
+- Fetches latest release versions from GitHub API on startup (refreshes every 24h)
+- Parses `X-Muxi-SDK: {name}/{version}` header from SDK requests
+- Responds with `X-Muxi-SDK-Latest: {version}` header
+- If no release data available, echoes back SDK's version (no false notifications)
+
+Supported SDKs: go, python, typescript, ruby, php, csharp, swift, kotlin, dart, java, rust, cpp
+
+---
+
 ## 0.20260203.1
 
 ### Download Endpoint
