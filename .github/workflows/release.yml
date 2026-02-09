@@ -85,6 +85,8 @@ jobs:
             echo "No changes to commit"
           else
             git commit -m "chore: release v$VERSION"
+            # Pull latest to avoid race condition with concurrent workflows
+            git pull --rebase origin main
             git push
           fi
       
