@@ -121,6 +121,7 @@ src/
 | [how-formations-run.md](how-formations-run.md) | Formation runtime execution guide |
 | [runtime-architecture.md](runtime-architecture.md) | SIF/Docker runtime architecture |
 | [runtime-auto-download.md](runtime-auto-download.md) | Auto-download of runtime components |
+| [sdk-update-notifications.md](sdk-update-notifications.md) | SDK version update notifications |
 | [windows-dev.md](windows-dev.md) | Windows development guide |
 
 ## Conventions

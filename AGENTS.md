@@ -78,7 +78,12 @@ This repo is part of the [MUXI ecosystem](https://github.com/muxi-ai/muxi/blob/m
 │  GET  /rpc/server/status      Server statistics      │
 │  GET  /rpc/server/logs        Audit logs             │
 │                                                      │
-│  ALL  /api/{formation_id}/*   Formation proxy        │
+│  /rpc/dev/*                   Dev/Draft API (HMAC)   │
+│    POST /run                  Start draft formation  │
+│    POST /stop                 Stop draft formation   │
+│                                                      │
+│  ALL  /api/{formation_id}/*   Formation proxy (live) │
+│  ALL  /draft/{formation_id}/* Formation proxy (draft)│
 └──────────────────────────────────────────────────────┘
                        │
          Spawns & proxies to formations
@@ -96,6 +101,7 @@ This repo is part of the [MUXI ecosystem](https://github.com/muxi-ai/muxi/blob/m
 - Versioning: `current/` and `previous/` directories with `version.json`
 - Update: upload -> stop -> backup current -> extract new -> start
 - Rollback: stop -> swap current/previous -> update metadata -> start
+- Draft/dev: separate registry, same ID can have live + draft running simultaneously
 
 ---
 
