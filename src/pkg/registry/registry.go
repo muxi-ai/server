@@ -305,14 +305,15 @@ func (r *Registry) RegisterDraft(formation *Formation) error {
 	}
 
 	// Allocate port if not set (shares pool with live formations)
+	// Use -draft suffix (not :draft) because container names don't allow colons
 	if formation.Port == 0 {
-		port, err := r.portPool.Allocate(formation.ID + ":draft")
+		port, err := r.portPool.Allocate(formation.ID + "-draft")
 		if err != nil {
 			return fmt.Errorf("failed to allocate port: %w", err)
 		}
 		formation.Port = port
 	} else {
-		r.portPool.allocated[formation.Port] = formation.ID + ":draft"
+		r.portPool.allocated[formation.Port] = formation.ID + "-draft"
 	}
 
 	r.draftFormations[formation.ID] = formation

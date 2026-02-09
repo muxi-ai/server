@@ -153,8 +153,9 @@ func (s *Server) HandleDevRun(w http.ResponseWriter, r *http.Request) {
 	serverURL := fmt.Sprintf("http://localhost:%d", s.config.Server.Port)
 
 	// Build spawn config
+	// Use -draft suffix (not :draft) because container names don't allow colons
 	spawnConfig := process.SpawnConfig{
-		ID:          formationID + ":draft",
+		ID:          formationID + "-draft",
 		WorkDir:     workDir,
 		Port:        port,
 		Env:         formationConfig.GetEnvironmentVars(port, serverURL, bindHost),
@@ -322,7 +323,7 @@ func (s *Server) HandleDevStop(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Stop the process
-	processID := formationID + ":draft"
+	processID := formationID + "-draft"
 	if err := s.processManager.Stop(processID); err != nil {
 		log.Warn().Err(err).Str("id", formationID).Msg("Failed to stop draft process (may already be stopped)")
 	}

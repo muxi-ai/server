@@ -7,8 +7,44 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+func TestDevRunRouteRegistered(t *testing.T) {
+	server := createTestServer(t)
+
+	// Test that the route is registered (not 404)
+	req := httptest.NewRequest("POST", "/rpc/dev/run", strings.NewReader(`{"path":"/tmp"}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	server.router.ServeHTTP(w, req)
+
+	t.Logf("Status: %d, Body: %s", w.Code, w.Body.String())
+
+	// Should NOT be 404 - route should be registered
+	// Will be 400 (bad request) since /tmp doesn't have formation.afs
+	if w.Code == http.StatusNotFound {
+		t.Errorf("Route /rpc/dev/run returned 404 - route not registered!")
+	}
+}
+
+func TestDevStopRouteRegistered(t *testing.T) {
+	server := createTestServer(t)
+
+	req := httptest.NewRequest("POST", "/rpc/dev/stop", strings.NewReader(`{"formation_id":"test"}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	server.router.ServeHTTP(w, req)
+
+	t.Logf("Status: %d, Body: %s", w.Code, w.Body.String())
+
+	if w.Code == http.StatusNotFound {
+		t.Errorf("Route /rpc/dev/stop returned 404 - route not registered!")
+	}
+}
 
 func TestHandleDevRun_MissingParams(t *testing.T) {
 	server := createTestServer(t)
