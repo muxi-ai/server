@@ -319,7 +319,7 @@ func (h *Handler) ProxyDraftRequest(w http.ResponseWriter, r *http.Request) {
 
 	// Update formation with latest process status
 	if h.processManager != nil {
-		if proc, err := h.processManager.Get(formationID + ":draft"); err == nil {
+		if proc, err := h.processManager.Get(formationID + "-draft"); err == nil {
 			formation.UpdateFromProcess(proc)
 		}
 	}

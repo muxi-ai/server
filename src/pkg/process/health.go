@@ -96,7 +96,10 @@ func (hc *HealthChecker) WaitForHealthyWithPID(port int, formationID string, pid
 			if processDead || hasFailureMarker {
 				errMsg := "Formation process crashed during startup"
 				if logContent != "" {
-					errMsg = fmt.Sprintf("Formation crashed during startup:\n%s", logContent)
+					cleanedLog := sanitizeLogOutput(logContent)
+					if cleanedLog != "" {
+						errMsg = fmt.Sprintf("Formation crashed during startup:\n%s", cleanedLog)
+					}
 				}
 				log.Error().
 					Str("formation_id", formationID).
@@ -249,6 +252,78 @@ func readLastLines(filePath string, n int) (string, error) {
 		result += line
 	}
 	return result, nil
+}
+
+// sanitizeLogOutput removes ASCII art banners and cleans up log output for error messages
+func sanitizeLogOutput(content string) string {
+	lines := make([]string, 0)
+	start := 0
+	for i := 0; i < len(content); i++ {
+		if content[i] == '\n' {
+			lines = append(lines, content[start:i])
+			start = i + 1
+		}
+	}
+	if start < len(content) {
+		lines = append(lines, content[start:])
+	}
+
+	// Filter out ASCII art lines (contain box-drawing chars or mostly special chars)
+	// and consecutive empty lines
+	result := make([]string, 0)
+	lastWasEmpty := false
+	for _, line := range lines {
+		trimmed := trimWhitespace(line)
+
+		// Skip ASCII art lines (MUXI banner)
+		if isASCIIArtLine(trimmed) {
+			continue
+		}
+
+		// Skip "Documentation:" and "Support:" lines from banner
+		if len(trimmed) > 2 && trimmed[0] == '*' && trimmed[1] == ' ' {
+			continue
+		}
+
+		// Collapse consecutive empty lines
+		if trimmed == "" {
+			if lastWasEmpty {
+				continue
+			}
+			lastWasEmpty = true
+		} else {
+			lastWasEmpty = false
+		}
+
+		result = append(result, line)
+	}
+
+	// Join and trim
+	output := ""
+	for i, line := range result {
+		if i > 0 {
+			output += "\n"
+		}
+		output += line
+	}
+	return trimWhitespace(output)
+}
+
+// isASCIIArtLine checks if a line is part of ASCII art (MUXI banner)
+func isASCIIArtLine(line string) bool {
+	if len(line) == 0 {
+		return false
+	}
+	// Check for box-drawing characters or lines that are mostly special chars
+	specialCount := 0
+	for _, c := range line {
+		if c == '|' || c == '\\' || c == '/' || c == '_' || c == '=' || c == '[' || c == ']' {
+			specialCount++
+		}
+	}
+	// If more than 30% special chars, likely ASCII art
+	return specialCount > len(line)/3
+
 }
 
 // checkHealth performs a single health check against the formation
