@@ -315,3 +315,99 @@ func TestCheckRuntimeRunnerExists(t *testing.T) {
 	result := checkRuntimeRunnerExists()
 	t.Logf("checkRuntimeRunnerExists() = %v", result)
 }
+
+func TestCheckSingularityAvailable(t *testing.T) {
+	result := checkSingularityAvailable()
+	t.Logf("checkSingularityAvailable() = %v", result)
+}
+
+func TestGetSingularityPath(t *testing.T) {
+	path := getSingularityPath()
+	t.Logf("getSingularityPath() = %q", path)
+	// Path might be empty if neither singularity nor apptainer is installed
+}
+
+func TestGetLinuxDistro(t *testing.T) {
+	distro := getLinuxDistro()
+	t.Logf("getLinuxDistro() = %q", distro)
+	// On non-Linux systems, this will return empty string
+}
+
+func TestGetLinuxDistroLike(t *testing.T) {
+	distroLike := getLinuxDistroLike()
+	t.Logf("getLinuxDistroLike() = %q", distroLike)
+	// On non-Linux systems, this will return empty string
+}
+
+func TestGetLinuxDistro_MockOSRelease(t *testing.T) {
+	// Create a temp file simulating /etc/os-release
+	tmpDir := t.TempDir()
+	osRelease := filepath.Join(tmpDir, "os-release")
+
+	testCases := []struct {
+		name     string
+		content  string
+		wantID   string
+	}{
+		{
+			name: "Ubuntu",
+			content: `NAME="Ubuntu"
+VERSION="22.04.1 LTS (Jammy Jellyfish)"
+ID=ubuntu
+ID_LIKE=debian
+PRETTY_NAME="Ubuntu 22.04.1 LTS"
+VERSION_ID="22.04"`,
+			wantID: "ubuntu",
+		},
+		{
+			name: "Debian",
+			content: `PRETTY_NAME="Debian GNU/Linux 12 (bookworm)"
+NAME="Debian GNU/Linux"
+VERSION_ID="12"
+ID=debian`,
+			wantID: "debian",
+		},
+		{
+			name: "Fedora",
+			content: `NAME="Fedora Linux"
+VERSION="38 (Workstation Edition)"
+ID=fedora
+ID_LIKE="rhel centos"
+VERSION_ID=38`,
+			wantID: "fedora",
+		},
+		{
+			name: "Rocky Linux",
+			content: `NAME="Rocky Linux"
+VERSION="9.1 (Blue Onyx)"
+ID="rocky"
+ID_LIKE="rhel centos fedora"
+VERSION_ID="9.1"`,
+			wantID: "rocky",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := os.WriteFile(osRelease, []byte(tc.content), 0644); err != nil {
+				t.Fatalf("Failed to write test file: %v", err)
+			}
+
+			// Read the file directly to parse (simulating getLinuxDistro logic)
+			data, _ := os.ReadFile(osRelease)
+			var gotID string
+			for _, line := range strings.Split(string(data), "\n") {
+				if strings.HasPrefix(line, "ID=") {
+					gotID = strings.TrimPrefix(line, "ID=")
+					gotID = strings.Trim(gotID, "\"")
+					gotID = strings.ToLower(gotID)
+					break
+				}
+			}
+
+			if gotID != tc.wantID {
+				t.Errorf("Got ID=%q, want %q", gotID, tc.wantID)
+			}
+		})
+	}
+}

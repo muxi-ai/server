@@ -290,6 +290,26 @@ func cmdInit() error {
 		} else {
 			fmt.Printf("%s Runtime-runner image already available\n", checkMark)
 		}
+	} else if osName == "linux" {
+		// Check for Singularity or Apptainer
+		if !checkSingularityAvailable() {
+			fmt.Printf("%s Singularity/Apptainer not found, installing...\n", bullet)
+			if err := installApptainer(); err != nil {
+				fmt.Printf("%s Failed to install Apptainer: %v\n", crossMark, err)
+				fmt.Println()
+				fmt.Println("Please install Apptainer manually:")
+				fmt.Println("  Ubuntu/Debian: sudo apt update && sudo apt install -y apptainer")
+				fmt.Println("  RHEL/Fedora:   sudo dnf install -y apptainer")
+				fmt.Println("  Other:         https://apptainer.org/docs/admin/main/installation.html")
+				fmt.Println()
+				fmt.Println("After installing, run 'muxi-server init' again.")
+				return fmt.Errorf("Apptainer installation failed")
+			}
+			fmt.Printf("%s Apptainer installed successfully\n", checkMark)
+		} else {
+			singularityPath := getSingularityPath()
+			fmt.Printf("%s Singularity/Apptainer available: %s\n", checkMark, singularityPath)
+		}
 	}
 
 	// Create config
@@ -544,6 +564,124 @@ func pullRuntimeRunner() error {
 	// Suppress stdout (digest output), only show errors
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+// checkSingularityAvailable checks if Singularity or Apptainer is installed
+func checkSingularityAvailable() bool {
+	// Check for apptainer first (newer, community fork)
+	if _, err := exec.LookPath("apptainer"); err == nil {
+		return true
+	}
+	// Check for singularity
+	if _, err := exec.LookPath("singularity"); err == nil {
+		return true
+	}
+	return false
+}
+
+// getSingularityPath returns the path to singularity or apptainer binary
+func getSingularityPath() string {
+	if path, err := exec.LookPath("apptainer"); err == nil {
+		return path
+	}
+	if path, err := exec.LookPath("singularity"); err == nil {
+		return path
+	}
+	return ""
+}
+
+// getLinuxDistro returns the Linux distribution ID from /etc/os-release
+func getLinuxDistro() string {
+	data, err := os.ReadFile("/etc/os-release")
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if strings.HasPrefix(line, "ID=") {
+			id := strings.TrimPrefix(line, "ID=")
+			id = strings.Trim(id, "\"")
+			return strings.ToLower(id)
+		}
+	}
+	return ""
+}
+
+// getLinuxDistroLike returns the ID_LIKE field from /etc/os-release (parent distros)
+func getLinuxDistroLike() string {
+	data, err := os.ReadFile("/etc/os-release")
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if strings.HasPrefix(line, "ID_LIKE=") {
+			idLike := strings.TrimPrefix(line, "ID_LIKE=")
+			idLike = strings.Trim(idLike, "\"")
+			return strings.ToLower(idLike)
+		}
+	}
+	return ""
+}
+
+// installApptainer installs Apptainer based on the Linux distribution
+func installApptainer() error {
+	distro := getLinuxDistro()
+	distroLike := getLinuxDistroLike()
+
+	// Determine package manager and install command
+	var installCmd *exec.Cmd
+
+	switch distro {
+	case "ubuntu", "debian", "linuxmint", "pop":
+		// Debian-based: use apt
+		installCmd = exec.Command("apt-get", "update")
+		installCmd.Stdout = os.Stdout
+		installCmd.Stderr = os.Stderr
+		if err := installCmd.Run(); err != nil {
+			return fmt.Errorf("apt-get update failed: %w", err)
+		}
+		installCmd = exec.Command("apt-get", "install", "-y", "apptainer")
+
+	case "fedora", "rhel", "centos", "rocky", "almalinux", "ol":
+		// RHEL-based: use dnf
+		installCmd = exec.Command("dnf", "install", "-y", "apptainer")
+
+	case "arch", "manjaro":
+		// Arch-based: use pacman
+		installCmd = exec.Command("pacman", "-S", "--noconfirm", "apptainer")
+
+	case "opensuse", "sles":
+		// SUSE-based: use zypper
+		installCmd = exec.Command("zypper", "install", "-y", "apptainer")
+
+	default:
+		// Check ID_LIKE for derivative distros
+		if strings.Contains(distroLike, "debian") || strings.Contains(distroLike, "ubuntu") {
+			installCmd = exec.Command("apt-get", "update")
+			installCmd.Stdout = os.Stdout
+			installCmd.Stderr = os.Stderr
+			if err := installCmd.Run(); err != nil {
+				return fmt.Errorf("apt-get update failed: %w", err)
+			}
+			installCmd = exec.Command("apt-get", "install", "-y", "apptainer")
+		} else if strings.Contains(distroLike, "rhel") || strings.Contains(distroLike, "fedora") {
+			installCmd = exec.Command("dnf", "install", "-y", "apptainer")
+		} else {
+			return fmt.Errorf("unsupported Linux distribution: %s", distro)
+		}
+	}
+
+	installCmd.Stdout = os.Stdout
+	installCmd.Stderr = os.Stderr
+	if err := installCmd.Run(); err != nil {
+		return fmt.Errorf("installation failed: %w", err)
+	}
+
+	// Verify installation
+	if !checkSingularityAvailable() {
+		return fmt.Errorf("apptainer installed but not found in PATH")
+	}
+
+	return nil
 }
 
 // extractServerName extracts hostname from server ID (format: server-{hostname}-{hash})

@@ -265,8 +265,24 @@ var now = func() time.Time {
 	return time.Now()
 }
 
+// getSingularityBinary returns the path to singularity or apptainer binary
+func getSingularityBinary() string {
+	// Check for apptainer first (newer, community fork)
+	if path, err := exec.LookPath("apptainer"); err == nil {
+		return path
+	}
+	// Fall back to singularity
+	if path, err := exec.LookPath("singularity"); err == nil {
+		return path
+	}
+	// Default to singularity (will fail with clear error if not found)
+	return "singularity"
+}
+
 // buildNativeSingularityCommand builds a command for native Singularity execution on Linux
 func buildNativeSingularityCommand(config SpawnConfig, logger *zerolog.Logger) *exec.Cmd {
+	singularityBin := getSingularityBinary()
+
 	args := []string{"exec"}
 
 	// Add environment variables as --env flags (for inside container)
@@ -292,11 +308,12 @@ func buildNativeSingularityCommand(config SpawnConfig, logger *zerolog.Logger) *
 	logger.Debug().
 		Str("id", config.ID).
 		Str("platform", "linux").
+		Str("binary", singularityBin).
 		Str("sif_path", config.SIFPath).
 		Strs("singularity_args", args).
 		Msg("Spawning native Singularity process")
 
-	return exec.Command("singularity", args...)
+	return exec.Command(singularityBin, args...)
 }
 
 // buildDockerSingularityCommand builds a command for Docker-wrapped Singularity on macOS/Windows
