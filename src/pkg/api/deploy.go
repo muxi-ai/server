@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/muxi-ai/server/pkg/config"
 	"github.com/muxi-ai/server/pkg/formation"
 	"github.com/muxi-ai/server/pkg/process"
 	"github.com/muxi-ai/server/pkg/registry"
@@ -622,11 +623,7 @@ func (s *Server) deployNewFromDirectory(
 	}
 }
 
-// getMuxiDir returns the MUXI directory path
+// getMuxiDir returns the MUXI data directory path
 func getMuxiDir() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(home, ".muxi", "server"), nil
+	return config.GetDataDir()
 }
