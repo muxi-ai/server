@@ -279,9 +279,20 @@ func getSingularityBinary() string {
 	return "singularity"
 }
 
+// ensureLocaltime creates /etc/localtime if it doesn't exist (needed for Apptainer)
+func ensureLocaltime() {
+	if _, err := os.Stat("/etc/localtime"); os.IsNotExist(err) {
+		// Try to symlink to UTC timezone
+		os.Symlink("/usr/share/zoneinfo/UTC", "/etc/localtime")
+	}
+}
+
 // buildNativeSingularityCommand builds a command for native Singularity execution on Linux
 func buildNativeSingularityCommand(config SpawnConfig, logger *zerolog.Logger) *exec.Cmd {
 	singularityBin := getSingularityBinary()
+
+	// Ensure /etc/localtime exists (Apptainer requires it)
+	ensureLocaltime()
 
 	args := []string{"exec"}
 
@@ -289,9 +300,6 @@ func buildNativeSingularityCommand(config SpawnConfig, logger *zerolog.Logger) *
 	for key, value := range config.Env {
 		args = append(args, "--env", fmt.Sprintf("%s=%s", key, value))
 	}
-
-	// Skip mounting /etc/localtime (may not exist in containers)
-	args = append(args, "--no-mount", "/etc/localtime")
 
 	// Add bind mount for formation directory as /formation
 	args = append(args, "--bind", fmt.Sprintf("%s:/formation", config.WorkDir))
