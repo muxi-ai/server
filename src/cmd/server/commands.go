@@ -310,6 +310,9 @@ func cmdInit() error {
 			singularityPath := getSingularityPath()
 			fmt.Printf("%s Singularity/Apptainer available: %s\n", checkMark, singularityPath)
 		}
+
+		// Ensure timezone data exists (required by Apptainer)
+		ensureTimezoneData()
 	}
 
 	// Create config
@@ -755,6 +758,51 @@ func installApptainer() error {
 			return nil
 		}
 		return fmt.Errorf("unsupported Linux distribution: %s", distro)
+	}
+}
+
+// ensureTimezoneData ensures /etc/localtime exists (required by Apptainer)
+func ensureTimezoneData() {
+	// Check if /etc/localtime already exists
+	if _, err := os.Stat("/etc/localtime"); err == nil {
+		return
+	}
+
+	// Try to install tzdata and create localtime
+	distro := getLinuxDistro()
+	distroLike := getLinuxDistroLike()
+
+	switch distro {
+	case "ubuntu", "debian":
+		runCommand("apt-get", "update")
+		runCommand("apt-get", "install", "-y", "tzdata")
+	case "fedora", "rhel", "centos", "rocky", "almalinux":
+		runCommand("dnf", "install", "-y", "tzdata")
+	case "arch", "manjaro":
+		runCommand("pacman", "-S", "--noconfirm", "tzdata")
+	default:
+		if strings.Contains(distroLike, "debian") || strings.Contains(distroLike, "ubuntu") {
+			runCommand("apt-get", "update")
+			runCommand("apt-get", "install", "-y", "tzdata")
+		} else if strings.Contains(distroLike, "rhel") || strings.Contains(distroLike, "fedora") {
+			runCommand("dnf", "install", "-y", "tzdata")
+		}
+	}
+
+	// Create /etc/localtime symlink if it still doesn't exist
+	if _, err := os.Stat("/etc/localtime"); os.IsNotExist(err) {
+		// Try common timezone file locations
+		tzFiles := []string{
+			"/usr/share/zoneinfo/UTC",
+			"/usr/share/zoneinfo/Etc/UTC",
+			"/usr/share/lib/zoneinfo/UTC",
+		}
+		for _, tzFile := range tzFiles {
+			if _, err := os.Stat(tzFile); err == nil {
+				os.Symlink(tzFile, "/etc/localtime")
+				return
+			}
+		}
 	}
 }
 
