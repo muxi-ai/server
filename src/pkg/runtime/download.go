@@ -151,10 +151,10 @@ func (d *Downloader) EnsureSIF(version string) (string, bool, error) {
 	d.logger.Info().
 		Str("url", url).
 		Str("destination", sifPath).
-		Msg("Downloading SIF file...")
+		Msg("Downloading SIF file (this may take a few minutes)...")
 
-	// Download the file
-	if err := d.downloadFile(url, sifPath); err != nil {
+	// Download the file with progress logging
+	if err := d.downloadFileWithProgress(url, sifPath); err != nil {
 		return "", false, fmt.Errorf("failed to download SIF: %w", err)
 	}
 
@@ -165,8 +165,40 @@ func (d *Downloader) EnsureSIF(version string) (string, bool, error) {
 	return sifPath, true, nil
 }
 
-// downloadFile downloads a file from URL to destination
-func (d *Downloader) downloadFile(url, destination string) error {
+// progressReader wraps an io.Reader and logs progress
+type progressReader struct {
+	reader     io.Reader
+	total      int64
+	downloaded int64
+	lastLog    time.Time
+	logger     *zerolog.Logger
+}
+
+func (pr *progressReader) Read(p []byte) (int, error) {
+	n, err := pr.reader.Read(p)
+	pr.downloaded += int64(n)
+
+	// Log progress every 10 seconds
+	if time.Since(pr.lastLog) > 10*time.Second {
+		pr.lastLog = time.Now()
+		if pr.total > 0 {
+			pct := float64(pr.downloaded) / float64(pr.total) * 100
+			pr.logger.Info().
+				Str("progress", fmt.Sprintf("%.0f%%", pct)).
+				Str("downloaded", fmt.Sprintf("%d MB", pr.downloaded/1024/1024)).
+				Str("total", fmt.Sprintf("%d MB", pr.total/1024/1024)).
+				Msg("Downloading SIF file...")
+		} else {
+			pr.logger.Info().
+				Str("downloaded", fmt.Sprintf("%d MB", pr.downloaded/1024/1024)).
+				Msg("Downloading SIF file...")
+		}
+	}
+	return n, err
+}
+
+// downloadFileWithProgress downloads a file from URL to destination with progress logging
+func (d *Downloader) downloadFileWithProgress(url, destination string) error {
 	// Create HTTP request
 	resp, err := http.Get(url)
 	if err != nil {
@@ -179,6 +211,14 @@ func (d *Downloader) downloadFile(url, destination string) error {
 		return fmt.Errorf("download failed with status %d: %s", resp.StatusCode, resp.Status)
 	}
 
+	// Log total size
+	size := resp.ContentLength
+	if size > 0 {
+		d.logger.Info().
+			Str("size", fmt.Sprintf("%d MB", size/1024/1024)).
+			Msg("SIF file size")
+	}
+
 	// Create temporary file
 	tmpPath := destination + ".tmp"
 	out, err := os.Create(tmpPath)
@@ -186,9 +226,15 @@ func (d *Downloader) downloadFile(url, destination string) error {
 		return fmt.Errorf("failed to create temp file: %w", err)
 	}
 
-	// Copy with progress logging
-	size := resp.ContentLength
-	written, err := io.Copy(out, resp.Body)
+	// Wrap reader with progress logging
+	pr := &progressReader{
+		reader:  resp.Body,
+		total:   size,
+		lastLog: time.Now(),
+		logger:  d.logger,
+	}
+
+	written, err := io.Copy(out, pr)
 	out.Close()
 
 	if err != nil {
@@ -213,9 +259,9 @@ func (d *Downloader) downloadFile(url, destination string) error {
 		return fmt.Errorf("failed to move file: %w", err)
 	}
 
-	d.logger.Debug().
-		Int64("bytes", written).
-		Msg("Download complete")
+	d.logger.Info().
+		Str("size", fmt.Sprintf("%d MB", written/1024/1024)).
+		Msg("SIF download complete")
 
 	return nil
 }
