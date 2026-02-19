@@ -317,6 +317,11 @@ func cmdInit() error {
 			MaxRestarts:    10,
 			RestartDelay:   1,
 		},
+		Runtime: config.RuntimeConfig{
+			SIFBaseURL:         "https://github.com/muxi-ai/runtime/releases/download",
+			AutoDownload:       true,
+			RuntimeRunnerImage: "ghcr.io/muxi-ai/runtime-runner:latest",
+		},
 	}
 
 	// Store email if provided (TODO: add to config struct)
