@@ -130,10 +130,7 @@ func (s *Server) HandleRestart(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Compute environment variables
-	bindHost := s.config.Formations.BindHost
-	if goruntime.GOOS == "darwin" || goruntime.GOOS == "windows" {
-		bindHost = "0.0.0.0"
-	}
+	bindHost := getBindHost(s.config.Formations.BindHost)
 	serverURL := fmt.Sprintf("http://localhost:%d", s.config.Server.Port)
 
 	// Build spawn config

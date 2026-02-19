@@ -149,10 +149,7 @@ func (s *Server) HandleRollback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get environment variables for staging port
-	bindHost := s.config.Formations.BindHost
-	if goruntime.GOOS == "darwin" || goruntime.GOOS == "windows" {
-		bindHost = "0.0.0.0"
-	}
+	bindHost := getBindHost(s.config.Formations.BindHost)
 	serverURL := fmt.Sprintf("http://localhost:%d", s.config.Server.Port)
 	envVars := formationConfig.GetEnvironmentVars(stagingPort, serverURL, bindHost)
 

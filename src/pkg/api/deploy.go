@@ -331,12 +331,8 @@ func (s *Server) deployNewFromDirectory(
 	permanentDir := currentDir
 
 	// Get environment variables from formation
-	// On macOS/Windows (Docker), use 0.0.0.0 so formation is accessible from host
-	// On Linux (Singularity), use 127.0.0.1 for security
-	bindHost := s.config.Formations.BindHost
-	if goruntime.GOOS == "darwin" || goruntime.GOOS == "windows" {
-		bindHost = "0.0.0.0"
-	}
+	// Use 0.0.0.0 for macOS/Windows/containers, 127.0.0.1 for native Linux
+	bindHost := getBindHost(s.config.Formations.BindHost)
 	serverURL := fmt.Sprintf("http://localhost:%d", s.config.Server.Port)
 	envVars := formationConfig.GetEnvironmentVars(port, serverURL, bindHost)
 

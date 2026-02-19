@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	goruntime "runtime"
 	"time"
 
 	"github.com/muxi-ai/server/pkg/formation"
@@ -146,10 +145,7 @@ func (s *Server) HandleDevRun(w http.ResponseWriter, r *http.Request) {
 	port := draftFormation.Port
 
 	// Compute environment variables
-	bindHost := s.config.Formations.BindHost
-	if goruntime.GOOS == "darwin" || goruntime.GOOS == "windows" {
-		bindHost = "0.0.0.0"
-	}
+	bindHost := getBindHost(s.config.Formations.BindHost)
 	serverURL := fmt.Sprintf("http://localhost:%d", s.config.Server.Port)
 
 	// Build spawn config
