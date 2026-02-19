@@ -186,7 +186,7 @@ func (s *Server) HandleRestart(w http.ResponseWriter, r *http.Request) {
 		)
 
 		// Ensure SIF exists (download if missing)
-		sifPath, sifDownloaded, err := downloader.EnsureSIF(resolvedVersion)
+		sifPath, _, sifDownloaded, err := downloader.EnsureSIF(resolvedVersion)
 		if err != nil {
 			respondErr(http.StatusInternalServerError, StageDownloadingSIF, "DownloadError", fmt.Sprintf("Failed to download runtime: %v", err))
 			return

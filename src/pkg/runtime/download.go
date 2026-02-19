@@ -105,13 +105,13 @@ func (d *Downloader) fetchLatestVersion() (string, error) {
 }
 
 // EnsureSIF checks if the SIF file exists, downloads if missing
-// Returns the path to the SIF file and whether it was downloaded (vs already existed)
-func (d *Downloader) EnsureSIF(version string) (string, bool, error) {
+// Returns the path to the SIF file, the resolved version, and whether it was downloaded (vs already existed)
+func (d *Downloader) EnsureSIF(version string) (string, string, bool, error) {
 	// Resolve "latest" to actual version
 	if version == "latest" {
 		resolved, err := d.fetchLatestVersion()
 		if err != nil {
-			return "", false, fmt.Errorf("failed to resolve 'latest' version: %w", err)
+			return "", "", false, fmt.Errorf("failed to resolve 'latest' version: %w", err)
 		}
 		version = resolved
 	}
@@ -125,12 +125,12 @@ func (d *Downloader) EnsureSIF(version string) (string, bool, error) {
 		d.logger.Debug().
 			Str("path", sifPath).
 			Msg("SIF file already exists")
-		return sifPath, false, nil
+		return sifPath, version, false, nil
 	}
 
 	// Ensure runtimes directory exists
 	if err := os.MkdirAll(d.runtimesDir, 0755); err != nil {
-		return "", false, fmt.Errorf("failed to create runtimes directory: %w", err)
+		return "", "", false, fmt.Errorf("failed to create runtimes directory: %w", err)
 	}
 
 	// Build download URL
@@ -145,7 +145,7 @@ func (d *Downloader) EnsureSIF(version string) (string, bool, error) {
 			url = fmt.Sprintf("%s/%s", strings.TrimSuffix(d.sifBaseURL, "/"), filename)
 		}
 	} else {
-		return "", false, fmt.Errorf("invalid SIF base URL: %s", d.sifBaseURL)
+		return "", "", false, fmt.Errorf("invalid SIF base URL: %s", d.sifBaseURL)
 	}
 
 	d.logger.Info().
@@ -155,14 +155,14 @@ func (d *Downloader) EnsureSIF(version string) (string, bool, error) {
 
 	// Download the file with progress logging
 	if err := d.downloadFileWithProgress(url, sifPath); err != nil {
-		return "", false, fmt.Errorf("failed to download SIF: %w", err)
+		return "", "", false, fmt.Errorf("failed to download SIF: %w", err)
 	}
 
 	d.logger.Info().
 		Str("path", sifPath).
 		Msg("SIF file downloaded successfully")
 
-	return sifPath, true, nil
+	return sifPath, version, true, nil
 }
 
 // progressReader wraps an io.Reader and logs progress
@@ -306,7 +306,7 @@ func (d *Downloader) EnsureRuntimeRunner() (bool, error) {
 // EnsureRuntime ensures both SIF and runtime-runner are available
 func (d *Downloader) EnsureRuntime(version string) (string, error) {
 	// Download SIF if needed
-	sifPath, _, err := d.EnsureSIF(version)
+	sifPath, _, _, err := d.EnsureSIF(version)
 	if err != nil {
 		return "", err
 	}

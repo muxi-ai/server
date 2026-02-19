@@ -428,7 +428,8 @@ func (s *Server) deployNewFromDirectory(
 		)
 
 		// Ensure SIF exists (download if missing)
-		sifPath, sifDownloaded, err := downloader.EnsureSIF(resolvedVersion)
+		// EnsureSIF returns the actual resolved version (important when input was "latest")
+		sifPath, actualVersion, sifDownloaded, err := downloader.EnsureSIF(resolvedVersion)
 		if err != nil {
 			s.logger.Error().
 				Err(err).
@@ -484,13 +485,13 @@ func (s *Server) deployNewFromDirectory(
 
 		s.logger.Info().
 			Str("id", formationID).
-			Str("runtime_version", resolvedVersion).
+			Str("runtime_version", actualVersion).
 			Str("sif_path", sifPath).
 			Strs("args", spawnConfig.Args).
 			Msg("Using Singularity runtime")
 
-		// Add formation reference to runtime registry
-		if err := runtimeRegistry.AddFormation(resolvedVersion, formationID); err != nil {
+		// Add formation reference to runtime registry (use actualVersion, not resolvedVersion which may be "latest")
+		if err := runtimeRegistry.AddFormation(actualVersion, formationID); err != nil {
 			s.logger.Warn().Err(err).Msg("Failed to add formation reference to runtime registry")
 		}
 		if err := runtimeRegistry.Save(); err != nil {

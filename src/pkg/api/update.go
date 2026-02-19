@@ -415,7 +415,7 @@ func (s *Server) updateFromDirectory(
 		)
 
 		// Ensure SIF exists (download if missing)
-		sifPath, sifDownloaded, err := downloader.EnsureSIF(resolvedVersion)
+		sifPath, _, sifDownloaded, err := downloader.EnsureSIF(resolvedVersion)
 		if err != nil {
 			os.RemoveAll(stagingDir)
 			respondErr(http.StatusInternalServerError, StageDownloadingSIF, "DownloadError", fmt.Sprintf("Failed to download runtime: %v", err))

@@ -200,7 +200,7 @@ func (s *Server) HandleDevRun(w http.ResponseWriter, r *http.Request) {
 		)
 
 		// Ensure SIF exists (download if missing)
-		sifPath, _, err := downloader.EnsureSIF(resolvedVersion)
+		sifPath, _, _, err := downloader.EnsureSIF(resolvedVersion)
 		if err != nil {
 			s.registry.UnregisterDraft(formationID)
 			respondDevError(w, http.StatusInternalServerError, formationID, fmt.Sprintf("Failed to download runtime: %v", err))

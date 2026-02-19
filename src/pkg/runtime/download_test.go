@@ -45,12 +45,15 @@ func TestDownloader_EnsureSIF_AlreadyExists(t *testing.T) {
 	d := NewDownloader("https://example.com", "test-image:latest", tmpDir, &logger)
 
 	// Should return existing file without downloading
-	path, _, err := d.EnsureSIF("1.0.0")
+	path, resolvedVer, _, err := d.EnsureSIF("1.0.0")
 	if err != nil {
 		t.Fatalf("EnsureSIF() error = %v", err)
 	}
 	if path != sifPath {
-		t.Errorf("EnsureSIF() = %s, want %s", path, sifPath)
+		t.Errorf("EnsureSIF() path = %s, want %s", path, sifPath)
+	}
+	if resolvedVer != "1.0.0" {
+		t.Errorf("EnsureSIF() version = %s, want 1.0.0", resolvedVer)
 	}
 }
 
@@ -73,7 +76,7 @@ func TestDownloader_EnsureSIF_Download(t *testing.T) {
 	d := NewDownloader(server.URL, "test-image:latest", tmpDir, &logger)
 
 	// Should download the file
-	path, _, err := d.EnsureSIF("1.0.0")
+	path, _, _, err := d.EnsureSIF("1.0.0")
 	if err != nil {
 		t.Fatalf("EnsureSIF() error = %v", err)
 	}
@@ -111,7 +114,7 @@ func TestDownloader_EnsureSIF_DownloadFails(t *testing.T) {
 	d := NewDownloader(server.URL, "test-image:latest", tmpDir, &logger)
 
 	// Should fail
-	_, _, err = d.EnsureSIF("1.0.0")
+	_, _, _, err = d.EnsureSIF("1.0.0")
 	if err == nil {
 		t.Error("EnsureSIF() should have failed for 404 response")
 	}
@@ -138,7 +141,7 @@ func TestDownloader_EnsureSIF_DirectURL(t *testing.T) {
 	logger := zerolog.Nop()
 	d := NewDownloader(server.URL, "test-image:latest", tmpDir, &logger)
 
-	_, _, err = d.EnsureSIF("1.0.0")
+	_, _, _, err = d.EnsureSIF("1.0.0")
 	if err != nil {
 		t.Fatalf("EnsureSIF() error = %v", err)
 	}
@@ -161,7 +164,7 @@ func TestDownloader_InvalidURL(t *testing.T) {
 	logger := zerolog.Nop()
 	d := NewDownloader("not-a-url", "test-image:latest", tmpDir, &logger)
 
-	_, _, err = d.EnsureSIF("1.0.0")
+	_, _, _, err = d.EnsureSIF("1.0.0")
 	if err == nil {
 		t.Error("EnsureSIF() should have failed for invalid URL")
 	}
