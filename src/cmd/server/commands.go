@@ -293,7 +293,7 @@ func cmdInit() error {
 	} else if osName == "linux" {
 		// Check for Singularity or Apptainer
 		if !checkSingularityAvailable() {
-			fmt.Printf("%s Singularity/Apptainer not found, installing...\n", bullet)
+			fmt.Printf("%s Installing dependencies (Apptainer)...\n", bullet)
 			if err := installApptainer(); err != nil {
 				fmt.Printf("%s Failed to install Apptainer: %v\n", crossMark, err)
 				fmt.Println()
@@ -627,61 +627,135 @@ func installApptainer() error {
 	distro := getLinuxDistro()
 	distroLike := getLinuxDistroLike()
 
-	// Determine package manager and install command
-	var installCmd *exec.Cmd
+	// Helper to run a command with output
+	runCmd := func(name string, args ...string) error {
+		cmd := exec.Command(name, args...)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		return cmd.Run()
+	}
 
 	switch distro {
-	case "ubuntu", "debian", "linuxmint", "pop":
-		// Debian-based: use apt
-		installCmd = exec.Command("apt-get", "update")
-		installCmd.Stdout = os.Stdout
-		installCmd.Stderr = os.Stderr
-		if err := installCmd.Run(); err != nil {
+	case "ubuntu":
+		// Ubuntu: add Apptainer PPA first
+		// Install software-properties-common for add-apt-repository
+		if err := runCmd("apt-get", "update"); err != nil {
 			return fmt.Errorf("apt-get update failed: %w", err)
 		}
-		installCmd = exec.Command("apt-get", "install", "-y", "apptainer")
+		if err := runCmd("apt-get", "install", "-y", "software-properties-common"); err != nil {
+			return fmt.Errorf("failed to install software-properties-common: %w", err)
+		}
+		if err := runCmd("add-apt-repository", "-y", "ppa:apptainer/ppa"); err != nil {
+			return fmt.Errorf("failed to add Apptainer PPA: %w", err)
+		}
+		if err := runCmd("apt-get", "update"); err != nil {
+			return fmt.Errorf("apt-get update failed: %w", err)
+		}
+		if err := runCmd("apt-get", "install", "-y", "apptainer"); err != nil {
+			return fmt.Errorf("apt-get install apptainer failed: %w", err)
+		}
+		return nil
+
+	case "debian", "linuxmint", "pop":
+		// Debian-based: download and install .deb package directly
+		// Apptainer PPA is Ubuntu-specific, so we use the release .deb
+		if err := runCmd("apt-get", "update"); err != nil {
+			return fmt.Errorf("apt-get update failed: %w", err)
+		}
+		// Install dependencies
+		if err := runCmd("apt-get", "install", "-y", "wget"); err != nil {
+			return fmt.Errorf("failed to install wget: %w", err)
+		}
+		// Download and install Apptainer .deb
+		arch := runtime.GOARCH
+		if arch == "amd64" {
+			arch = "amd64"
+		} else {
+			arch = "arm64"
+		}
+		debURL := fmt.Sprintf("https://github.com/apptainer/apptainer/releases/download/v1.3.0/apptainer_1.3.0_linux_%s.deb", arch)
+		if err := runCmd("wget", "-q", debURL, "-O", "/tmp/apptainer.deb"); err != nil {
+			return fmt.Errorf("failed to download Apptainer: %w", err)
+		}
+		if err := runCmd("apt-get", "install", "-y", "/tmp/apptainer.deb"); err != nil {
+			return fmt.Errorf("failed to install Apptainer: %w", err)
+		}
+		return nil
 
 	case "fedora", "rhel", "centos", "rocky", "almalinux", "ol":
-		// RHEL-based: use dnf
-		installCmd = exec.Command("dnf", "install", "-y", "apptainer")
+		// RHEL-based: use dnf with EPEL
+		if err := runCmd("dnf", "install", "-y", "epel-release"); err != nil {
+			// EPEL might not be needed on Fedora, continue anyway
+		}
+		if err := runCmd("dnf", "install", "-y", "apptainer"); err != nil {
+			return fmt.Errorf("dnf install apptainer failed: %w", err)
+		}
+		return nil
 
 	case "arch", "manjaro":
 		// Arch-based: use pacman
-		installCmd = exec.Command("pacman", "-S", "--noconfirm", "apptainer")
+		if err := runCmd("pacman", "-S", "--noconfirm", "apptainer"); err != nil {
+			return fmt.Errorf("pacman install failed: %w", err)
+		}
+		return nil
 
 	case "opensuse", "sles":
 		// SUSE-based: use zypper
-		installCmd = exec.Command("zypper", "install", "-y", "apptainer")
+		if err := runCmd("zypper", "install", "-y", "apptainer"); err != nil {
+			return fmt.Errorf("zypper install failed: %w", err)
+		}
+		return nil
 
 	default:
 		// Check ID_LIKE for derivative distros
-		if strings.Contains(distroLike, "debian") || strings.Contains(distroLike, "ubuntu") {
-			installCmd = exec.Command("apt-get", "update")
-			installCmd.Stdout = os.Stdout
-			installCmd.Stderr = os.Stderr
-			if err := installCmd.Run(); err != nil {
+		if strings.Contains(distroLike, "ubuntu") {
+			// Ubuntu derivative - try PPA
+			if err := runCmd("apt-get", "update"); err != nil {
 				return fmt.Errorf("apt-get update failed: %w", err)
 			}
-			installCmd = exec.Command("apt-get", "install", "-y", "apptainer")
+			if err := runCmd("apt-get", "install", "-y", "software-properties-common"); err != nil {
+				return fmt.Errorf("failed to install software-properties-common: %w", err)
+			}
+			if err := runCmd("add-apt-repository", "-y", "ppa:apptainer/ppa"); err != nil {
+				return fmt.Errorf("failed to add Apptainer PPA: %w", err)
+			}
+			if err := runCmd("apt-get", "update"); err != nil {
+				return fmt.Errorf("apt-get update failed: %w", err)
+			}
+			if err := runCmd("apt-get", "install", "-y", "apptainer"); err != nil {
+				return fmt.Errorf("apt-get install apptainer failed: %w", err)
+			}
+			return nil
+		} else if strings.Contains(distroLike, "debian") {
+			// Debian derivative - download .deb
+			if err := runCmd("apt-get", "update"); err != nil {
+				return fmt.Errorf("apt-get update failed: %w", err)
+			}
+			if err := runCmd("apt-get", "install", "-y", "wget"); err != nil {
+				return fmt.Errorf("failed to install wget: %w", err)
+			}
+			arch := runtime.GOARCH
+			if arch == "amd64" {
+				arch = "amd64"
+			} else {
+				arch = "arm64"
+			}
+			debURL := fmt.Sprintf("https://github.com/apptainer/apptainer/releases/download/v1.3.0/apptainer_1.3.0_linux_%s.deb", arch)
+			if err := runCmd("wget", "-q", debURL, "-O", "/tmp/apptainer.deb"); err != nil {
+				return fmt.Errorf("failed to download Apptainer: %w", err)
+			}
+			if err := runCmd("apt-get", "install", "-y", "/tmp/apptainer.deb"); err != nil {
+				return fmt.Errorf("failed to install Apptainer: %w", err)
+			}
+			return nil
 		} else if strings.Contains(distroLike, "rhel") || strings.Contains(distroLike, "fedora") {
-			installCmd = exec.Command("dnf", "install", "-y", "apptainer")
-		} else {
-			return fmt.Errorf("unsupported Linux distribution: %s", distro)
+			if err := runCmd("dnf", "install", "-y", "apptainer"); err != nil {
+				return fmt.Errorf("dnf install apptainer failed: %w", err)
+			}
+			return nil
 		}
+		return fmt.Errorf("unsupported Linux distribution: %s", distro)
 	}
-
-	installCmd.Stdout = os.Stdout
-	installCmd.Stderr = os.Stderr
-	if err := installCmd.Run(); err != nil {
-		return fmt.Errorf("installation failed: %w", err)
-	}
-
-	// Verify installation
-	if !checkSingularityAvailable() {
-		return fmt.Errorf("apptainer installed but not found in PATH")
-	}
-
-	return nil
 }
 
 // extractServerName extracts hostname from server ID (format: server-{hostname}-{hash})
