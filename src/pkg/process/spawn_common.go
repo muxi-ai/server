@@ -291,7 +291,7 @@ func buildNativeSingularityCommand(config SpawnConfig, logger *zerolog.Logger) *
 	}
 
 	// Skip mounting /etc/localtime (may not exist in containers)
-	args = append(args, "--no-mount", "localtime")
+	args = append(args, "--no-mount", "/etc/localtime")
 
 	// Add bind mount for formation directory as /formation
 	args = append(args, "--bind", fmt.Sprintf("%s:/formation", config.WorkDir))
