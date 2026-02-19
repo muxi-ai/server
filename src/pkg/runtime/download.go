@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"path/filepath"
 	goruntime "runtime"
 	"strings"
+	"time"
 
 	"github.com/rs/zerolog"
 )
@@ -31,9 +33,69 @@ func NewDownloader(sifBaseURL, runtimeRunnerImage, runtimesDir string, logger *z
 	}
 }
 
+// fetchLatestVersion fetches the latest runtime version from GitHub
+func (d *Downloader) fetchLatestVersion() (string, error) {
+	// Extract org/repo from sifBaseURL
+	// Expected: https://github.com/muxi-ai/runtime/releases/download
+	if !strings.Contains(d.sifBaseURL, "github.com") {
+		return "", fmt.Errorf("cannot fetch latest version from non-GitHub URL")
+	}
+
+	// Parse: https://github.com/{org}/{repo}/releases/download
+	parts := strings.Split(d.sifBaseURL, "/")
+	var org, repo string
+	for i, p := range parts {
+		if p == "github.com" && i+2 < len(parts) {
+			org = parts[i+1]
+			repo = parts[i+2]
+			break
+		}
+	}
+	if org == "" || repo == "" {
+		return "", fmt.Errorf("could not parse GitHub org/repo from URL: %s", d.sifBaseURL)
+	}
+
+	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", org, repo)
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(apiURL)
+	if err != nil {
+		return "", fmt.Errorf("failed to fetch latest release: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("GitHub API returned status %d", resp.StatusCode)
+	}
+
+	var release struct {
+		TagName string `json:"tag_name"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+		return "", fmt.Errorf("failed to parse release info: %w", err)
+	}
+
+	// Tag is typically "v0.20260217.0", we need "0.20260217.0"
+	version := strings.TrimPrefix(release.TagName, "v")
+	d.logger.Info().
+		Str("version", version).
+		Msg("Resolved 'latest' to actual version")
+
+	return version, nil
+}
+
 // EnsureSIF checks if the SIF file exists, downloads if missing
 // Returns the path to the SIF file and whether it was downloaded (vs already existed)
 func (d *Downloader) EnsureSIF(version string) (string, bool, error) {
+	// Resolve "latest" to actual version
+	if version == "latest" {
+		resolved, err := d.fetchLatestVersion()
+		if err != nil {
+			return "", false, fmt.Errorf("failed to resolve 'latest' version: %w", err)
+		}
+		version = resolved
+	}
+
 	arch := getPlatform()
 	filename := fmt.Sprintf("muxi-runtime-%s-%s.sif", version, arch)
 	sifPath := filepath.Join(d.runtimesDir, filename)

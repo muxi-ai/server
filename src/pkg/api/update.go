@@ -417,44 +417,33 @@ func (s *Server) updateFromDirectory(
 			s.logger,
 		)
 
-		var sifPath string
-		if s.config.Runtime.AutoDownload {
-			var sifDownloaded bool
-			sifPath, sifDownloaded, err = downloader.EnsureSIF(resolvedVersion)
-			if err != nil {
-				os.RemoveAll(stagingDir)
-				respondErr(http.StatusInternalServerError, StageDownloadingSIF, "DownloadError", fmt.Sprintf("Failed to download runtime: %v", err))
-				return
-			}
+		// Ensure SIF exists (download if missing)
+		sifPath, sifDownloaded, err := downloader.EnsureSIF(resolvedVersion)
+		if err != nil {
+			os.RemoveAll(stagingDir)
+			respondErr(http.StatusInternalServerError, StageDownloadingSIF, "DownloadError", fmt.Sprintf("Failed to download runtime: %v", err))
+			return
+		}
 
-			if sifDownloaded {
-				progress.Emit(ProgressEvent{
-					Stage:   StageDownloadingSIF,
-					Message: "Downloaded runtime image",
-				})
-			}
+		if sifDownloaded {
+			progress.Emit(ProgressEvent{
+				Stage:   StageDownloadingSIF,
+				Message: "Downloaded runtime image",
+			})
+		}
 
-			runnerPulled, err := downloader.EnsureRuntimeRunner()
-			if err != nil {
-				os.RemoveAll(stagingDir)
-				respondErr(http.StatusInternalServerError, StagePullingRunner, "PullError", fmt.Sprintf("Failed to pull runtime-runner: %v", err))
-				return
-			}
+		runnerPulled, err := downloader.EnsureRuntimeRunner()
+		if err != nil {
+			os.RemoveAll(stagingDir)
+			respondErr(http.StatusInternalServerError, StagePullingRunner, "PullError", fmt.Sprintf("Failed to pull runtime-runner: %v", err))
+			return
+		}
 
-			if goruntime.GOOS != "linux" && runnerPulled {
-				progress.Emit(ProgressEvent{
-					Stage:   StagePullingRunner,
-					Message: "Pulled runtime runner",
-				})
-			}
-		} else {
-			sifPath = resolver.GetSIFPath(resolvedVersion)
-			if _, err := os.Stat(sifPath); os.IsNotExist(err) {
-				os.RemoveAll(stagingDir)
-				respondErr(http.StatusNotFound, StageDownloadingSIF, "RuntimeNotFound",
-					fmt.Sprintf("Runtime %s not found at %s. Enable auto_download or manually install.", resolvedVersion, sifPath))
-				return
-			}
+		if goruntime.GOOS != "linux" && runnerPulled {
+			progress.Emit(ProgressEvent{
+				Stage:   StagePullingRunner,
+				Message: "Pulled runtime runner",
+			})
 		}
 
 		spawnConfig.RuntimeType = "singularity"

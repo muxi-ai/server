@@ -23,8 +23,7 @@ type Config struct {
 // RuntimeConfig contains runtime download settings
 type RuntimeConfig struct {
 	// SIF download settings
-	SIFBaseURL   string `yaml:"sif_base_url"`  // Base URL for SIF downloads (default: GitHub releases)
-	AutoDownload bool   `yaml:"auto_download"` // Auto-download missing SIF files (default: true)
+	SIFBaseURL string `yaml:"sif_base_url"` // Base URL for SIF downloads (default: GitHub releases)
 
 	// Docker runtime-runner settings
 	RuntimeRunnerImage string `yaml:"runtime_runner_image"` // Docker image for runtime-runner (default: ghcr.io/muxi-ai/runtime-runner:latest)
@@ -146,7 +145,6 @@ func DefaultConfig() *Config {
 		},
 		Runtime: RuntimeConfig{
 			SIFBaseURL:         "https://github.com/muxi-ai/runtime/releases/download",
-			AutoDownload:       true,
 			RuntimeRunnerImage: "ghcr.io/muxi-ai/runtime-runner:latest",
 		},
 		Logging: LoggingConfig{

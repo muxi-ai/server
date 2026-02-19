@@ -430,61 +430,43 @@ func (s *Server) deployNewFromDirectory(
 			s.logger,
 		)
 
-		// Ensure SIF exists (download if missing and auto_download enabled)
-		var sifPath string
-		if s.config.Runtime.AutoDownload {
-			var sifDownloaded bool
-			sifPath, sifDownloaded, err = downloader.EnsureSIF(resolvedVersion)
-			if err != nil {
-				s.logger.Error().
-					Err(err).
-					Str("version", resolvedVersion).
-					Msg("Failed to ensure SIF file")
-				s.registry.ReleasePort(port)
-				os.RemoveAll(formationBaseDir)
-				respondErr(http.StatusInternalServerError, StageDownloadingSIF, "DownloadError", fmt.Sprintf("Failed to download runtime: %v", err))
-				return
-			}
+		// Ensure SIF exists (download if missing)
+		sifPath, sifDownloaded, err := downloader.EnsureSIF(resolvedVersion)
+		if err != nil {
+			s.logger.Error().
+				Err(err).
+				Str("version", resolvedVersion).
+				Msg("Failed to ensure SIF file")
+			s.registry.ReleasePort(port)
+			os.RemoveAll(formationBaseDir)
+			respondErr(http.StatusInternalServerError, StageDownloadingSIF, "DownloadError", fmt.Sprintf("Failed to download runtime: %v", err))
+			return
+		}
 
-			// Emit progress only if we actually downloaded
-			if sifDownloaded {
-				progress.Emit(ProgressEvent{
-					Stage:   StageDownloadingSIF,
-					Message: "Downloaded runtime image",
-				})
-			}
+		// Emit progress only if we actually downloaded
+		if sifDownloaded {
+			progress.Emit(ProgressEvent{
+				Stage:   StageDownloadingSIF,
+				Message: "Downloaded runtime image",
+			})
+		}
 
-			// Also ensure runtime-runner is available (macOS/Windows)
-			runnerPulled, err := downloader.EnsureRuntimeRunner()
-			if err != nil {
-				s.logger.Error().Err(err).Msg("Failed to ensure runtime-runner")
-				s.registry.ReleasePort(port)
-				os.RemoveAll(formationBaseDir)
-				respondErr(http.StatusInternalServerError, StagePullingRunner, "PullError", fmt.Sprintf("Failed to pull runtime-runner: %v", err))
-				return
-			}
+		// Also ensure runtime-runner is available (macOS/Windows)
+		runnerPulled, err := downloader.EnsureRuntimeRunner()
+		if err != nil {
+			s.logger.Error().Err(err).Msg("Failed to ensure runtime-runner")
+			s.registry.ReleasePort(port)
+			os.RemoveAll(formationBaseDir)
+			respondErr(http.StatusInternalServerError, StagePullingRunner, "PullError", fmt.Sprintf("Failed to pull runtime-runner: %v", err))
+			return
+		}
 
-			// Emit progress only if we actually pulled (macOS/Windows only)
-			if goruntime.GOOS != "linux" && runnerPulled {
-				progress.Emit(ProgressEvent{
-					Stage:   StagePullingRunner,
-					Message: "Pulled runtime runner",
-				})
-			}
-		} else {
-			// Auto-download disabled, just get path and check existence
-			sifPath = resolver.GetSIFPath(resolvedVersion)
-			if _, err := os.Stat(sifPath); os.IsNotExist(err) {
-				s.logger.Error().
-					Str("version", resolvedVersion).
-					Str("path", sifPath).
-					Msg("Runtime SIF file not found (auto_download disabled)")
-				s.registry.ReleasePort(port)
-				os.RemoveAll(formationBaseDir)
-				respondErr(http.StatusNotFound, StageDownloadingSIF, "RuntimeNotFound",
-					fmt.Sprintf("Runtime %s not found at %s. Enable auto_download or manually install.", resolvedVersion, sifPath))
-				return
-			}
+		// Emit progress only if we actually pulled (macOS/Windows only)
+		if goruntime.GOOS != "linux" && runnerPulled {
+			progress.Emit(ProgressEvent{
+				Stage:   StagePullingRunner,
+				Message: "Pulled runtime runner",
+			})
 		}
 
 		// Update spawn config for Singularity execution

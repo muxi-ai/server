@@ -203,30 +203,19 @@ func (s *Server) HandleDevRun(w http.ResponseWriter, r *http.Request) {
 			s.logger,
 		)
 
-		// Ensure SIF exists
-		var sifPath string
-		if s.config.Runtime.AutoDownload {
-			sifPath, _, err = downloader.EnsureSIF(resolvedVersion)
-			if err != nil {
-				s.registry.UnregisterDraft(formationID)
-				respondDevError(w, http.StatusInternalServerError, formationID, fmt.Sprintf("Failed to download runtime: %v", err))
-				return
-			}
+		// Ensure SIF exists (download if missing)
+		sifPath, _, err := downloader.EnsureSIF(resolvedVersion)
+		if err != nil {
+			s.registry.UnregisterDraft(formationID)
+			respondDevError(w, http.StatusInternalServerError, formationID, fmt.Sprintf("Failed to download runtime: %v", err))
+			return
+		}
 
-			_, err = downloader.EnsureRuntimeRunner()
-			if err != nil {
-				s.registry.UnregisterDraft(formationID)
-				respondDevError(w, http.StatusInternalServerError, formationID, fmt.Sprintf("Failed to pull runtime-runner: %v", err))
-				return
-			}
-		} else {
-			sifPath = resolver.GetSIFPath(resolvedVersion)
-			if _, err := os.Stat(sifPath); os.IsNotExist(err) {
-				s.registry.UnregisterDraft(formationID)
-				respondDevError(w, http.StatusNotFound, formationID,
-					fmt.Sprintf("Runtime %s not found. Enable auto_download or manually install.", resolvedVersion))
-				return
-			}
+		_, err = downloader.EnsureRuntimeRunner()
+		if err != nil {
+			s.registry.UnregisterDraft(formationID)
+			respondDevError(w, http.StatusInternalServerError, formationID, fmt.Sprintf("Failed to pull runtime-runner: %v", err))
+			return
 		}
 
 		spawnConfig.RuntimeType = "singularity"

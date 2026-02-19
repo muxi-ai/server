@@ -319,7 +319,6 @@ func cmdInit() error {
 		},
 		Runtime: config.RuntimeConfig{
 			SIFBaseURL:         "https://github.com/muxi-ai/runtime/releases/download",
-			AutoDownload:       true,
 			RuntimeRunnerImage: "ghcr.io/muxi-ai/runtime-runner:latest",
 		},
 	}
