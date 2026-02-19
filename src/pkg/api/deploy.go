@@ -490,7 +490,23 @@ func (s *Server) deployNewFromDirectory(
 			Strs("args", spawnConfig.Args).
 			Msg("Using Singularity runtime")
 
-		// Add formation reference to runtime registry (use actualVersion, not resolvedVersion which may be "latest")
+		// Register runtime in registry if not already present
+		if !runtimeRegistry.Exists(actualVersion) {
+			fileInfo, _ := os.Stat(sifPath)
+			var fileSize int64
+			if fileInfo != nil {
+				fileSize = fileInfo.Size()
+			}
+			runtimeRegistry.Add(&runtime.RuntimeInfo{
+				Version:      actualVersion,
+				Path:         sifPath,
+				Size:         fileSize,
+				DownloadedAt: time.Now(),
+				Formations:   []string{},
+			})
+		}
+
+		// Add formation reference to runtime registry
 		if err := runtimeRegistry.AddFormation(actualVersion, formationID); err != nil {
 			s.logger.Warn().Err(err).Msg("Failed to add formation reference to runtime registry")
 		}
