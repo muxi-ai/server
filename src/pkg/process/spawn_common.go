@@ -67,16 +67,22 @@ func Spawn(config SpawnConfig) (*Process, error) {
 		config.WorkDir, _ = os.Getwd()
 	}
 
-	// Resolve executable path
-	execPath, err := exec.LookPath(config.Command)
-	if err != nil {
-		return nil, fmt.Errorf("executable not found: %s: %w", config.Command, err)
+	// For singularity runtime, we don't need to resolve the command on the host
+	// since it will run inside the container
+	var execPath string
+	if config.RuntimeType != "singularity" {
+		var err error
+		execPath, err = exec.LookPath(config.Command)
+		if err != nil {
+			return nil, fmt.Errorf("executable not found: %s: %w", config.Command, err)
+		}
 	}
 
 	logger.Debug().
 		Str("id", config.ID).
-		Str("command", execPath).
+		Str("command", config.Command).
 		Strs("args", config.Args).
+		Str("runtime", config.RuntimeType).
 		Msg("Spawning process")
 
 	// Create log files
