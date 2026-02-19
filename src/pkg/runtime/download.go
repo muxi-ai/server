@@ -1,7 +1,6 @@
 package runtime
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -34,6 +33,7 @@ func NewDownloader(sifBaseURL, runtimeRunnerImage, runtimesDir string, logger *z
 }
 
 // fetchLatestVersion fetches the latest runtime version from GitHub
+// Uses redirect URL instead of API to avoid rate limiting
 func (d *Downloader) fetchLatestVersion() (string, error) {
 	// Extract org/repo from sifBaseURL
 	// Expected: https://github.com/muxi-ai/runtime/releases/download
@@ -55,28 +55,48 @@ func (d *Downloader) fetchLatestVersion() (string, error) {
 		return "", fmt.Errorf("could not parse GitHub org/repo from URL: %s", d.sifBaseURL)
 	}
 
-	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", org, repo)
+	// Use the "latest" redirect URL - no API call, no rate limit
+	// HEAD request to: https://github.com/{org}/{repo}/releases/latest/download/test.sif
+	// Returns redirect to: https://github.com/{org}/{repo}/releases/download/v{version}/test.sif
+	latestURL := fmt.Sprintf("https://github.com/%s/%s/releases/latest/download/version.txt", org, repo)
 
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get(apiURL)
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			// Don't follow redirects - we want to capture the redirect URL
+			return http.ErrUseLastResponse
+		},
+	}
+
+	resp, err := client.Head(latestURL)
 	if err != nil {
 		return "", fmt.Errorf("failed to fetch latest release: %w", err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("GitHub API returned status %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusFound && resp.StatusCode != http.StatusMovedPermanently {
+		return "", fmt.Errorf("expected redirect, got status %d", resp.StatusCode)
 	}
 
-	var release struct {
-		TagName string `json:"tag_name"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
-		return "", fmt.Errorf("failed to parse release info: %w", err)
+	// Parse version from redirect URL
+	// Location: https://github.com/{org}/{repo}/releases/download/v0.20260217.0/version.txt
+	location := resp.Header.Get("Location")
+	if location == "" {
+		return "", fmt.Errorf("no redirect location in response")
 	}
 
-	// Tag is typically "v0.20260217.0", we need "0.20260217.0"
-	version := strings.TrimPrefix(release.TagName, "v")
+	// Extract version from /download/v{version}/
+	idx := strings.Index(location, "/download/v")
+	if idx == -1 {
+		return "", fmt.Errorf("could not parse version from redirect URL: %s", location)
+	}
+	rest := location[idx+len("/download/v"):]
+	endIdx := strings.Index(rest, "/")
+	if endIdx == -1 {
+		return "", fmt.Errorf("could not parse version from redirect URL: %s", location)
+	}
+	version := rest[:endIdx]
+
 	d.logger.Info().
 		Str("version", version).
 		Msg("Resolved 'latest' to actual version")
