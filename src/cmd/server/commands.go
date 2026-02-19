@@ -723,8 +723,49 @@ func getMuxiServerPath() string {
 	return "muxi-server" // fallback to PATH
 }
 
+// isRunningInContainer checks if we're running inside a container
+func isRunningInContainer() bool {
+	// Check for Docker
+	if _, err := os.Stat("/.dockerenv"); err == nil {
+		return true
+	}
+	// Check for container environment variable (Podman, etc.)
+	if os.Getenv("container") != "" {
+		return true
+	}
+	return false
+}
+
+// runCommand runs a command, using sudo if not root
+func runCommand(name string, args ...string) error {
+	if os.Getuid() != 0 {
+		// Not root, use sudo
+		args = append([]string{name}, args...)
+		name = "sudo"
+	}
+	return exec.Command(name, args...).Run()
+}
+
+// runCommandWithStdin runs a command with stdin, using sudo if not root
+func runCommandWithStdin(stdin string, name string, args ...string) error {
+	if os.Getuid() != 0 {
+		// Not root, use sudo
+		args = append([]string{name}, args...)
+		name = "sudo"
+	}
+	cmd := exec.Command(name, args...)
+	cmd.Stdin = strings.NewReader(stdin)
+	cmd.Stdout = nil
+	return cmd.Run()
+}
+
 // setupSystemdService creates and enables a systemd service (Linux)
 func setupSystemdService() error {
+	// Check if running in a container
+	if isRunningInContainer() {
+		return fmt.Errorf("container environment detected (systemd not available)")
+	}
+
 	user := os.Getenv("USER")
 	if user == "" {
 		user = os.Getenv("LOGNAME")
@@ -749,26 +790,23 @@ WantedBy=multi-user.target
 
 	servicePath := "/etc/systemd/system/muxi-server.service"
 
-	// Write service file (requires sudo)
-	cmd := exec.Command("sudo", "tee", servicePath)
-	cmd.Stdin = strings.NewReader(serviceContent)
-	cmd.Stdout = nil // suppress tee output
-	if err := cmd.Run(); err != nil {
+	// Write service file (requires sudo if not root)
+	if err := runCommandWithStdin(serviceContent, "tee", servicePath); err != nil {
 		return fmt.Errorf("failed to create service file: %w", err)
 	}
 
 	// Reload systemd
-	if err := exec.Command("sudo", "systemctl", "daemon-reload").Run(); err != nil {
+	if err := runCommand("systemctl", "daemon-reload"); err != nil {
 		return fmt.Errorf("failed to reload systemd: %w", err)
 	}
 
 	// Enable service
-	if err := exec.Command("sudo", "systemctl", "enable", "muxi-server").Run(); err != nil {
+	if err := runCommand("systemctl", "enable", "muxi-server"); err != nil {
 		return fmt.Errorf("failed to enable service: %w", err)
 	}
 
 	// Start service
-	if err := exec.Command("sudo", "systemctl", "start", "muxi-server").Run(); err != nil {
+	if err := runCommand("systemctl", "start", "muxi-server"); err != nil {
 		return fmt.Errorf("failed to start service: %w", err)
 	}
 
