@@ -179,7 +179,55 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("failed to parse config file: %w", err)
 	}
 
+	// Apply defaults for empty values (handles old configs with missing fields)
+	config.applyDefaults()
+
 	return config, nil
+}
+
+// applyDefaults fills in default values for empty fields
+// This handles old config files that may be missing newer fields
+func (c *Config) applyDefaults() {
+	defaults := DefaultConfig()
+
+	// Runtime defaults
+	if c.Runtime.SIFBaseURL == "" {
+		c.Runtime.SIFBaseURL = defaults.Runtime.SIFBaseURL
+	}
+	if c.Runtime.RuntimeRunnerImage == "" {
+		c.Runtime.RuntimeRunnerImage = defaults.Runtime.RuntimeRunnerImage
+	}
+
+	// Formations defaults
+	if c.Formations.RuntimeType == "" {
+		c.Formations.RuntimeType = defaults.Formations.RuntimeType
+	}
+	if c.Formations.LogsDir == "" {
+		c.Formations.LogsDir = defaults.Formations.LogsDir
+	}
+	if c.Formations.PIDsDir == "" {
+		c.Formations.PIDsDir = defaults.Formations.PIDsDir
+	}
+	if c.Formations.FormationsDir == "" {
+		c.Formations.FormationsDir = defaults.Formations.FormationsDir
+	}
+	if c.Formations.BindHost == "" {
+		c.Formations.BindHost = defaults.Formations.BindHost
+	}
+	if c.Formations.PortRangeStart == 0 {
+		c.Formations.PortRangeStart = defaults.Formations.PortRangeStart
+	}
+	if c.Formations.PortRangeEnd == 0 {
+		c.Formations.PortRangeEnd = defaults.Formations.PortRangeEnd
+	}
+
+	// Logging defaults
+	if c.Logging.Level == "" {
+		c.Logging.Level = defaults.Logging.Level
+	}
+	if c.Logging.AuditLog == "" {
+		c.Logging.AuditLog = defaults.Logging.AuditLog
+	}
 }
 
 // Save saves configuration to file
