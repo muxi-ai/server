@@ -265,6 +265,104 @@ var now = func() time.Time {
 	return time.Now()
 }
 
+// hostToolBinaries lists binaries to copy from the host into /opt/muxi-tools/bin.
+// These are tools that MCP servers and formations may need but are not in the SIF.
+var hostToolBinaries = []string{
+	"node", "git", "curl", "wget", "jq", "unzip", "ssh", "sqlite3", "python3",
+	"ffmpeg", "ffprobe", "tesseract", "pdftotext", "pdfinfo", "pandoc", "dot",
+	"make", "gcc", "g++", "cc",
+}
+
+// muxiToolsEnvVars returns environment variables needed for /opt/muxi-tools inside the SIF.
+// Used by both native Linux (bind-mounted host dirs) and runtime-runner (pre-built tools dir).
+// NOTE: We intentionally do NOT set LD_LIBRARY_PATH because the runner's shared libraries
+// (e.g. libcrypto, libc) would override the SIF's own versions and break Python/SSL imports.
+// Tools in /opt/muxi-tools/bin should work with the SIF's base system libraries.
+func muxiToolsEnvVars() []string {
+	return []string{
+		"PATH=/opt/muxi-tools/bin:$PATH",
+		"FONTCONFIG_PATH=/opt/muxi-tools/share/fonts",
+		"SSL_CERT_FILE=/opt/muxi-tools/share/certs/ca-certificates.crt",
+		"NODE_PATH=/opt/muxi-tools/lib/node_modules",
+	}
+}
+
+// bindHostToolsArgs returns Apptainer --bind and --env flags to expose host tools
+// inside the SIF at /opt/muxi-tools. On native Linux, the host already has the
+// binaries and shared libraries installed, so we bind-mount them directly.
+func bindHostToolsArgs(logger *zerolog.Logger) []string {
+	var args []string
+	found := 0
+
+	// Bind each host binary to /opt/muxi-tools/bin/<name>
+	for _, tool := range hostToolBinaries {
+		if toolPath, err := exec.LookPath(tool); err == nil {
+			realPath, _ := filepath.EvalSymlinks(toolPath)
+			if realPath == "" {
+				realPath = toolPath
+			}
+			args = append(args, "--bind", fmt.Sprintf("%s:/opt/muxi-tools/bin/%s", realPath, tool))
+			found++
+		}
+	}
+
+	if found == 0 {
+		return nil
+	}
+
+	// Bind host shared library directories so dynamically-linked tools work
+	for _, libDir := range []string{
+		"/usr/lib",
+		"/usr/lib64",
+		"/lib",
+		"/lib64",
+	} {
+		if _, err := os.Stat(libDir); err == nil {
+			args = append(args, "--bind", fmt.Sprintf("%s:/opt/muxi-tools/lib/%s", libDir, filepath.Base(libDir)))
+		}
+	}
+	// Architecture-specific lib dir (e.g. /usr/lib/x86_64-linux-gnu, /usr/lib/aarch64-linux-gnu)
+	if matches, _ := filepath.Glob("/usr/lib/*-linux-gnu"); len(matches) > 0 {
+		for _, m := range matches {
+			args = append(args, "--bind", fmt.Sprintf("%s:/opt/muxi-tools/lib/%s", m, filepath.Base(m)))
+		}
+	}
+
+	// Bind node_modules for npm/npx
+	for _, nodeModDir := range []string{"/usr/lib/node_modules", "/usr/local/lib/node_modules"} {
+		if _, err := os.Stat(nodeModDir); err == nil {
+			args = append(args, "--bind", fmt.Sprintf("%s:/opt/muxi-tools/lib/node_modules", nodeModDir))
+			break
+		}
+	}
+
+	// Bind fonts directory
+	for _, fontDir := range []string{"/usr/share/fonts/truetype/dejavu", "/usr/share/fonts/dejavu", "/usr/share/fonts"} {
+		if _, err := os.Stat(fontDir); err == nil {
+			args = append(args, "--bind", fmt.Sprintf("%s:/opt/muxi-tools/share/fonts", fontDir))
+			break
+		}
+	}
+
+	// Bind CA certificates
+	for _, certFile := range []string{"/etc/ssl/certs/ca-certificates.crt", "/etc/pki/tls/certs/ca-bundle.crt"} {
+		if _, err := os.Stat(certFile); err == nil {
+			args = append(args, "--bind", fmt.Sprintf("%s:/opt/muxi-tools/share/certs/ca-certificates.crt", certFile))
+			break
+		}
+	}
+
+	// Set environment variables for the tools
+	for _, env := range muxiToolsEnvVars() {
+		args = append(args, "--env", env)
+	}
+
+	if logger != nil {
+		logger.Info().Int("tools", found).Msg("Binding host tools into SIF at /opt/muxi-tools")
+	}
+	return args
+}
+
 // getSingularityBinary returns the path to singularity or apptainer binary
 func getSingularityBinary() string {
 	// Check for apptainer first (newer, community fork)
@@ -306,6 +404,10 @@ func buildNativeSingularityCommand(config SpawnConfig, logger *zerolog.Logger) *
 
 	// Add bind mount for /tmp (allows formations to write temporary files)
 	args = append(args, "--bind", "/tmp")
+
+	// Bind host tools into the SIF via /opt/muxi-tools (required for npx-based MCP servers).
+	// On native Linux, Apptainer can bind-mount host binaries and libraries directly.
+	args = append(args, bindHostToolsArgs(logger)...)
 
 	// Add SIF file path
 	args = append(args, config.SIFPath)
@@ -375,6 +477,14 @@ func buildDockerSingularityCommand(config SpawnConfig, logger *zerolog.Logger) *
 
 	// Bind /tmp for temporary files
 	args = append(args, "--bind", "/tmp")
+
+	// Bind host tools into the SIF via /opt/muxi-tools (required for npx-based MCP servers)
+	// In runtime-runner, tools are pre-staged at /opt/muxi-tools/bin and /opt/muxi-tools/lib.
+	// No host check needed - the directory exists inside the runtime-runner image.
+	args = append(args, "--bind", "/opt/muxi-tools:/opt/muxi-tools")
+	for _, env := range muxiToolsEnvVars() {
+		args = append(args, "--env", env)
+	}
 
 	// The SIF file path (as mounted in Docker at /sif/runtime.sif)
 	args = append(args, "/sif/runtime.sif")

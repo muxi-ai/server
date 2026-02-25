@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -16,6 +17,7 @@ type Monitor struct {
 	onCrash   func(*Process) // Callback when process crashes
 	onHealthy func(*Process) // Callback when health check passes
 	stopChan  chan struct{}
+	stopOnce  sync.Once
 }
 
 // NewMonitor creates a new process monitor
@@ -48,9 +50,11 @@ func (m *Monitor) Start() {
 	go m.run()
 }
 
-// Stop stops the monitor
+// Stop stops the monitor (safe to call multiple times)
 func (m *Monitor) Stop() {
-	close(m.stopChan)
+	m.stopOnce.Do(func() {
+		close(m.stopChan)
+	})
 }
 
 func (m *Monitor) run() {
