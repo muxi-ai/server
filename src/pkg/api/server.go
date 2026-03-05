@@ -142,6 +142,19 @@ func (s *Server) setupRoutes() {
 	s.router.HandleFunc("/draft", s.handle404).Methods(http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete)
 
 	// ====================================
+	// MCP PROXY /mcp/* (no auth)
+	// ====================================
+	// Pattern: /mcp/{formation_id}/*
+	// Example: /mcp/my-api/mcp → http://127.0.0.1:8001/mcp
+	// Proxies MCP protocol requests to the formation's /mcp endpoint
+	mcpRouter := s.router.PathPrefix("/mcp").Subrouter()
+	mcpRouter.PathPrefix("/{formation_id}/{path:.*}").HandlerFunc(s.proxyHandler.ProxyMCPRequest)
+	mcpRouter.PathPrefix("/{formation_id}").HandlerFunc(s.proxyHandler.ProxyMCPRequest)
+
+	// /mcp with no formation ID → 404
+	s.router.HandleFunc("/mcp", s.handle404).Methods(http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete)
+
+	// ====================================
 	// CATCH-ALL (404)
 	// ====================================
 	s.router.NotFoundHandler = http.HandlerFunc(s.handle404)

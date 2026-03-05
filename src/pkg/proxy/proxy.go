@@ -487,3 +487,17 @@ func (h *Handler) ProxyDraftRequest(w http.ResponseWriter, r *http.Request) {
 		Bool("sse", isSSE).
 		Msg("Draft proxy request completed")
 }
+
+// ProxyMCPRequest handles MCP proxy requests for live formations.
+// Pattern: /mcp/{formation_id}/* → http://localhost:{port}/mcp/*
+// The /mcp prefix is preserved so the formation's MCP endpoint receives requests at /mcp.
+func (h *Handler) ProxyMCPRequest(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	remainingPath := vars["path"]
+	if remainingPath == "" {
+		vars["path"] = "mcp"
+	} else {
+		vars["path"] = "mcp/" + remainingPath
+	}
+	h.ProxyRequest(w, r)
+}

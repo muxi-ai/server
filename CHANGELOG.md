@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.20260305.0
+
+### MCP Proxy
+
+- **`/mcp/{formation_id}/*`** - New proxy route for MCP protocol requests
+- Maps `/mcp/{id}` to the formation's `/mcp` endpoint (preserves `/mcp` prefix)
+- Supports SSE transport for MCP client connections (Claude Desktop, Cursor, etc.)
+
+### Host Tools for SIF Containers
+
+- Bind-mount host tools (Node.js, git, curl, ffmpeg, etc.) into SIF at `/opt/muxi-tools`
+- Runtime-runner (macOS/Windows): pre-staged tools directory with shared libs via `ldd`
+- Native Linux: direct bind-mount of host binaries and library directories
+- Sets `PATH`, `NODE_PATH`, `FONTCONFIG_PATH`, `SSL_CERT_FILE` inside SIF
+
+### Fixes
+
+- **Dev logs**: truncate log files on each `muxi up` run (prevents stale error accumulation)
+- **Graceful shutdown**: fix panic on Ctrl+C when monitor channel already closed (`sync.Once`)
+
+---
+
 ## 0.20260209.0
 
 ### Local Development Mode (`muxi up`)
