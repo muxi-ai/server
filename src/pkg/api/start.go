@@ -118,11 +118,15 @@ func (s *Server) HandleStart(w http.ResponseWriter, r *http.Request) {
 	serverURL := fmt.Sprintf("http://localhost:%d", s.config.Server.Port)
 
 	// Build spawn config
+	envVars := formationConfig.GetEnvironmentVars(port, serverURL, bindHost)
+	if s.rceManager != nil {
+		s.rceManager.InjectEnvVars(envVars)
+	}
 	spawnConfig := process.SpawnConfig{
 		ID:          formationID,
 		WorkDir:     formationDir,
 		Port:        port,
-		Env:         formationConfig.GetEnvironmentVars(port, serverURL, bindHost),
+		Env:         envVars,
 		AutoRestart: s.config.Formations.AutoRestart,
 		RuntimeType: "native",
 	}

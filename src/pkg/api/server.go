@@ -11,6 +11,7 @@ import (
 	"github.com/muxi-ai/server/pkg/config"
 	"github.com/muxi-ai/server/pkg/process"
 	"github.com/muxi-ai/server/pkg/proxy"
+	"github.com/muxi-ai/server/pkg/rce"
 	"github.com/muxi-ai/server/pkg/registry"
 	"github.com/muxi-ai/server/pkg/updates"
 	"github.com/rs/zerolog"
@@ -25,8 +26,14 @@ type Server struct {
 	registry       *registry.Registry
 	authMiddleware *auth.Middleware
 	proxyHandler   *proxy.Handler
+	rceManager     *rce.Manager
 	logger         *zerolog.Logger
 	version        string // Server version (injected at build time)
+}
+
+// SetRCEManager sets the RCE manager for injecting env vars into formations
+func (s *Server) SetRCEManager(m *rce.Manager) {
+	s.rceManager = m
 }
 
 // NewServer creates a new API server

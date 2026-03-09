@@ -6,7 +6,9 @@ import (
 	_ "embed"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,6 +18,9 @@ import (
 	"time"
 
 	"github.com/muxi-ai/server/pkg/config"
+	"github.com/muxi-ai/server/pkg/rce"
+	"github.com/muxi-ai/server/pkg/registry"
+	"github.com/rs/zerolog"
 	"gopkg.in/yaml.v3"
 )
 
@@ -92,6 +97,200 @@ func printWelcome() {
 	fmt.Println(" * Documentation:  https://muxi.org/docs")
 	fmt.Println(" * Support:        https://muxi.org/support")
 	fmt.Println()
+}
+
+// cmdUpgrade handles the 'upgrade' command
+// Upgrades the server binary, RCE, and runtime components
+func cmdUpgrade() error {
+	fmt.Println()
+	fmt.Printf("%s MUXI Server Upgrade\n", bullet)
+	fmt.Println(strings.Repeat(boxH, 40))
+	fmt.Printf("  Current version: %s\n\n", Version)
+
+	logger := zerolog.New(os.Stderr).With().Timestamp().Logger()
+	upgraded := false
+
+	// Load config
+	configPath, err := config.GetConfigPath()
+	if err != nil {
+		return fmt.Errorf("failed to get config path: %w", err)
+	}
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	// 1. Upgrade server binary
+	fmt.Printf("%s Checking for server updates...\n", bullet)
+	latestVersion, err := fetchLatestServerVersion()
+	if err != nil {
+		fmt.Printf("  %s Could not check for updates: %v\n", crossMark, err)
+	} else if latestVersion == Version {
+		fmt.Printf("  %s Server is up to date (%s)\n", checkMark, Version)
+	} else {
+		fmt.Printf("  %s New version available: %s\n", arrowRight, latestVersion)
+		if err := upgradeServerBinary(latestVersion); err != nil {
+			fmt.Printf("  %s Failed to upgrade server: %v\n", crossMark, err)
+		} else {
+			fmt.Printf("  %s Server upgraded to %s\n", checkMark, latestVersion)
+			upgraded = true
+		}
+	}
+
+	// 2. Upgrade Skills RCE
+	fmt.Printf("\n%s Checking Skills RCE...\n", bullet)
+	dataDir, err := config.GetDataDir()
+	if err != nil {
+		fmt.Printf("  %s Could not get data dir: %v\n", crossMark, err)
+	} else if runtime.GOOS == "linux" {
+		if _, err := rce.EnsureSIF(dataDir, &logger); err != nil {
+			fmt.Printf("  %s Failed to update RCE SIF: %v\n", crossMark, err)
+		} else {
+			fmt.Printf("  %s Skills RCE SIF is up to date\n", checkMark)
+			upgraded = true
+		}
+	} else {
+		if err := rce.EnsureDocker(&logger); err != nil {
+			fmt.Printf("  %s Failed to pull RCE image: %v\n", crossMark, err)
+		} else {
+			fmt.Printf("  %s Skills RCE Docker image updated\n", checkMark)
+			upgraded = true
+		}
+	}
+
+	// 3. Migrate config (add missing fields)
+	configChanged := false
+	if cfg.RCE.AuthToken == "" {
+		cfg.RCE.AuthToken = rce.GenerateAuthToken()
+		configChanged = true
+		fmt.Printf("\n%s Generated RCE auth token\n", checkMark)
+	}
+	if cfg.RCE.Port == 0 {
+		cfg.RCE.Port = findAvailableRCEPort()
+		configChanged = true
+	}
+
+	if configChanged {
+		if err := cfg.Save(configPath); err != nil {
+			fmt.Printf("  %s Failed to save config: %v\n", crossMark, err)
+		} else {
+			fmt.Printf("%s Configuration updated\n", checkMark)
+		}
+	}
+
+	// Summary
+	fmt.Println()
+	fmt.Println(strings.Repeat(boxH, 40))
+	if upgraded || configChanged {
+		fmt.Printf("%s Upgrade complete!\n", checkMark)
+	} else {
+		fmt.Printf("%s Everything is up to date.\n", checkMark)
+	}
+	fmt.Println()
+
+	return nil
+}
+
+// fetchLatestServerVersion resolves the latest server release version from GitHub
+func fetchLatestServerVersion() (string, error) {
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	resp, err := client.Head("https://github.com/muxi-ai/server/releases/latest")
+	if err != nil {
+		return "", fmt.Errorf("failed to check latest release: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusFound && resp.StatusCode != http.StatusMovedPermanently {
+		return "", fmt.Errorf("expected redirect, got status %d", resp.StatusCode)
+	}
+
+	location := resp.Header.Get("Location")
+	// Location: https://github.com/muxi-ai/server/releases/tag/v0.20260305.0
+	idx := strings.LastIndex(location, "/v")
+	if idx == -1 {
+		return "", fmt.Errorf("could not parse version from: %s", location)
+	}
+	return location[idx+2:], nil
+}
+
+// upgradeServerBinary downloads and replaces the current server binary
+func upgradeServerBinary(version string) error {
+	// Determine binary name
+	goos := runtime.GOOS
+	goarch := runtime.GOARCH
+	binaryName := fmt.Sprintf("muxi-server-%s-%s", goos, goarch)
+	if goos == "windows" {
+		binaryName += ".exe"
+	}
+
+	url := fmt.Sprintf("https://github.com/muxi-ai/server/releases/download/v%s/%s", version, binaryName)
+
+	// Get current executable path
+	exePath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("failed to get executable path: %w", err)
+	}
+	// Resolve symlinks
+	exePath, err = filepath.EvalSymlinks(exePath)
+	if err != nil {
+		return fmt.Errorf("failed to resolve executable path: %w", err)
+	}
+
+	// Download to temp file
+	tmpPath := exePath + ".new"
+	resp, err := http.Get(url)
+	if err != nil {
+		return fmt.Errorf("download failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("download failed with status %d", resp.StatusCode)
+	}
+
+	out, err := os.Create(tmpPath)
+	if err != nil {
+		return fmt.Errorf("failed to create temp file: %w", err)
+	}
+
+	if _, err := io.Copy(out, resp.Body); err != nil {
+		out.Close()
+		os.Remove(tmpPath)
+		return fmt.Errorf("download failed: %w", err)
+	}
+	out.Close()
+
+	// Make executable
+	if err := os.Chmod(tmpPath, 0755); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("failed to set permissions: %w", err)
+	}
+
+	// Replace old binary: rename current to .old, move new to current
+	oldPath := exePath + ".old"
+	os.Remove(oldPath) // clean up any previous .old
+
+	if err := os.Rename(exePath, oldPath); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("failed to backup current binary: %w", err)
+	}
+
+	if err := os.Rename(tmpPath, exePath); err != nil {
+		// Try to restore
+		os.Rename(oldPath, exePath)
+		return fmt.Errorf("failed to install new binary: %w", err)
+	}
+
+	// Clean up old binary
+	os.Remove(oldPath)
+
+	return nil
 }
 
 // cmdInit handles the 'init' command - improved UX version
@@ -344,6 +543,10 @@ func cmdInit() error {
 			SIFBaseURL:         "https://github.com/muxi-ai/runtime/releases/download",
 			RuntimeRunnerImage: "ghcr.io/muxi-ai/runtime-runner:latest",
 		},
+		RCE: config.RCEConfig{
+			Port:      findAvailableRCEPort(),
+			AuthToken: rce.GenerateAuthToken(),
+		},
 	}
 
 	// Store email if provided (TODO: add to config struct)
@@ -368,6 +571,26 @@ func cmdInit() error {
 	for _, dir := range []string{logsDir, formationsDir} {
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			return fmt.Errorf("failed to create directory %s: %w", dir, err)
+		}
+	}
+
+	// Download Skills RCE
+	fmt.Printf("\n%s Setting up Skills RCE...\n", bullet)
+	dataDir, _ := config.GetDataDir()
+	initLogger := zerolog.New(os.Stderr).With().Timestamp().Logger()
+	if runtime.GOOS == "linux" {
+		if _, err := rce.EnsureSIF(dataDir, &initLogger); err != nil {
+			fmt.Printf("%s Failed to download RCE SIF: %v\n", crossMark, err)
+			fmt.Println("  Skills RCE can be downloaded later. Formations will start without code execution.")
+		} else {
+			fmt.Printf("%s Skills RCE downloaded\n", checkMark)
+		}
+	} else {
+		if err := rce.EnsureDocker(&initLogger); err != nil {
+			fmt.Printf("%s Failed to pull RCE Docker image: %v\n", crossMark, err)
+			fmt.Println("  Skills RCE can be pulled later. Formations will start without code execution.")
+		} else {
+			fmt.Printf("%s Skills RCE Docker image pulled\n", checkMark)
 		}
 	}
 
@@ -487,6 +710,7 @@ func cmdHelp() {
 	fmt.Println("COMMANDS")
 	fmt.Printf("  init           Initialize server with credentials and configuration\n")
 	fmt.Printf("  start          Start the MUXI Server (default)\n")
+	fmt.Printf("  upgrade        Upgrade server binary, RCE, and runtime components\n")
 	fmt.Printf("  version        Display version information\n")
 	fmt.Printf("  config show    Display current configuration\n")
 	fmt.Printf("  help           Show this help message\n")
@@ -511,6 +735,20 @@ func cmdHelp() {
 }
 
 // Helper functions
+
+// findAvailableRCEPort finds an available port for the RCE service,
+// starting from the default (7891) and scanning upward if occupied.
+func findAvailableRCEPort() int {
+	const defaultPort = 7891
+	const maxAttempts = 100
+
+	for port := defaultPort; port < defaultPort+maxAttempts; port++ {
+		if registry.IsPortAvailable(port) {
+			return port
+		}
+	}
+	return defaultPort
+}
 
 // generateKey generates a random MUXI key
 func generateKey() (string, error) {

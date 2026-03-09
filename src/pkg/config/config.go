@@ -17,7 +17,15 @@ type Config struct {
 	Auth       AuthConfig       `yaml:"auth"`
 	Formations FormationsConfig `yaml:"formations"`
 	Runtime    RuntimeConfig    `yaml:"runtime"`
+	RCE        RCEConfig        `yaml:"rce"`
 	Logging    LoggingConfig    `yaml:"logging"`
+}
+
+// RCEConfig contains Skills RCE service settings
+type RCEConfig struct {
+	Port      int    `yaml:"port"`       // RCE listen port (default: 7891)
+	AuthToken string `yaml:"auth_token"` // Bearer token for RCE authentication
+	DataDir   string `yaml:"data_dir"`   // Data directory for RCE (default: derived from GetDataDir)
 }
 
 // RuntimeConfig contains runtime download settings
@@ -147,6 +155,9 @@ func DefaultConfig() *Config {
 			SIFBaseURL:         "https://github.com/muxi-ai/runtime/releases/download",
 			RuntimeRunnerImage: "ghcr.io/muxi-ai/runtime-runner:latest",
 		},
+		RCE: RCEConfig{
+			Port: 7891,
+		},
 		Logging: LoggingConfig{
 			Level:    "info",
 			AuditLog: "logs/audit.log",
@@ -217,6 +228,11 @@ func (c *Config) applyDefaults() {
 	}
 	if c.Formations.PortRangeEnd == 0 {
 		c.Formations.PortRangeEnd = defaults.Formations.PortRangeEnd
+	}
+
+	// RCE defaults
+	if c.RCE.Port == 0 {
+		c.RCE.Port = defaults.RCE.Port
 	}
 
 	// Logging defaults

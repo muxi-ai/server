@@ -336,6 +336,11 @@ func (s *Server) deployNewFromDirectory(
 	serverURL := fmt.Sprintf("http://localhost:%d", s.config.Server.Port)
 	envVars := formationConfig.GetEnvironmentVars(port, serverURL, bindHost)
 
+	// Inject RCE connection info if available
+	if s.rceManager != nil {
+		s.rceManager.InjectEnvVars(envVars)
+	}
+
 	// Prepare spawn configuration
 	spawnConfig := process.SpawnConfig{
 		ID:                     formationID,

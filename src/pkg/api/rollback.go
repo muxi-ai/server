@@ -152,6 +152,9 @@ func (s *Server) HandleRollback(w http.ResponseWriter, r *http.Request) {
 	bindHost := getBindHost(s.config.Formations.BindHost)
 	serverURL := fmt.Sprintf("http://localhost:%d", s.config.Server.Port)
 	envVars := formationConfig.GetEnvironmentVars(stagingPort, serverURL, bindHost)
+	if s.rceManager != nil {
+		s.rceManager.InjectEnvVars(envVars)
+	}
 
 	// Build spawn config for previous version on staging port
 	stagingProcessID := formationID + "-rollback"
@@ -368,6 +371,9 @@ func (s *Server) HandleRollback(w http.ResponseWriter, r *http.Request) {
 
 	// Now start the formation properly from current dir on the original port
 	finalEnvVars := formationConfig.GetEnvironmentVars(existingFormation.Port, serverURL, bindHost)
+	if s.rceManager != nil {
+		s.rceManager.InjectEnvVars(finalEnvVars)
+	}
 	finalSpawnConfig := process.SpawnConfig{
 		ID:                     formationID,
 		Name:                   formationConfig.Name,

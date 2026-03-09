@@ -150,11 +150,18 @@ func (s *Server) HandleDevRun(w http.ResponseWriter, r *http.Request) {
 
 	// Build spawn config
 	// Use -draft suffix (not :draft) because container names don't allow colons
+	envVars := formationConfig.GetEnvironmentVars(port, serverURL, bindHost)
+
+	// Inject RCE connection info if available
+	if s.rceManager != nil {
+		s.rceManager.InjectEnvVars(envVars)
+	}
+
 	spawnConfig := process.SpawnConfig{
 		ID:           formationID + "-draft",
 		WorkDir:      workDir,
 		Port:         port,
-		Env:          formationConfig.GetEnvironmentVars(port, serverURL, bindHost),
+		Env:          envVars,
 		AutoRestart:  false, // No auto-restart for dev formations
 		TruncateLogs: true,  // Fresh logs each dev run
 		RuntimeType:  "native",

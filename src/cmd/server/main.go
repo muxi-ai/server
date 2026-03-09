@@ -15,6 +15,7 @@ import (
 	"github.com/muxi-ai/server/pkg/config"
 	"github.com/muxi-ai/server/pkg/formation"
 	"github.com/muxi-ai/server/pkg/process"
+	"github.com/muxi-ai/server/pkg/rce"
 	"github.com/muxi-ai/server/pkg/registry"
 	"github.com/muxi-ai/server/pkg/telemetry"
 	"github.com/muxi-ai/server/pkg/updates"
@@ -46,6 +47,8 @@ func main() {
 	case "help", "-h", "--help":
 		cmdHelp()
 		return
+	case "upgrade":
+		err = cmdUpgrade()
 	case "start":
 		err = cmdStart()
 	default:
@@ -219,6 +222,23 @@ func cmdStart() error {
 	// Create API server
 	apiServer := api.NewServer(cfg, processManager, formationRegistry, authMiddleware, &logger, Version)
 
+	// Start Skills RCE service
+	var rceManager *rce.Manager
+	if cfg.RCE.AuthToken != "" {
+		cfg.RCE.DataDir = dataDir
+		rceManager = rce.NewManager(cfg, processManager, &logger)
+		if err := rceManager.Start(); err != nil {
+			logger.Error().Err(err).Msg("Failed to start Skills RCE (formations will run without code execution)")
+		} else {
+			if err := rceManager.WaitForHealthy(30 * time.Second); err != nil {
+				logger.Warn().Err(err).Msg("Skills RCE health check failed (may still be starting)")
+			}
+		}
+		apiServer.SetRCEManager(rceManager)
+	} else {
+		logger.Warn().Msg("Skills RCE not configured (no auth token). Run 'muxi-server init' to set up.")
+	}
+
 	// Restore previously running formations
 	apiServer.RestoreFormations()
 
@@ -275,6 +295,11 @@ func cmdStart() error {
 	// Stop all processes
 	if err := processManager.StopAll(); err != nil {
 		logger.Error().Err(err).Msg("Failed to stop all processes")
+	}
+
+	// Stop Skills RCE
+	if rceManager != nil {
+		rceManager.Stop()
 	}
 
 	// Final save of registry
