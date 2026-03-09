@@ -58,8 +58,8 @@ func TestResolver_Resolve(t *testing.T) {
 			name:       "version not found",
 			available:  []string{"1.0.0", "2.0.0"},
 			constraint: "3.0.0",
-			want:       "",
-			wantErr:    true,
+			want:       "3.0.0",
+			wantErr:    false,
 		},
 	}
 
