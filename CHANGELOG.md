@@ -6,7 +6,7 @@
 
 - **New `pkg/rce` package**: full lifecycle management for the Skills RCE code execution service
 - **`muxi-server init`**: downloads RCE automatically (SIF on Linux, Docker image on macOS/Windows)
-- **`muxi-server start`**: launches RCE as a managed process, injects `MUXI_RCE_URL` and `MUXI_RCE_TOKEN` into all formation environment variables
+- **`muxi-server start`**: launches RCE as a managed process, injects `MUXI_RCE_URL` and `MUXI_RCE_TOKEN` into formations that don't specify their own RCE configuration
 - **Auto port discovery**: if default port 7891 is occupied, scans upward for an available port
 - RCE env vars injected in all spawn points (deploy, dev, restore, restart, rollback, start, update)
 
