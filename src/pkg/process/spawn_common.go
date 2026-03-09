@@ -294,9 +294,35 @@ func bindHostToolsArgs(logger *zerolog.Logger) []string {
 	var args []string
 	found := 0
 
+	// Additional search paths for tools installed in user-local directories.
+	// When running as a systemd service, $PATH is minimal and won't include these.
+	extraSearchPaths := []string{
+		"/root/.local/bin",
+		"/usr/local/bin",
+		"/snap/bin",
+	}
+	// Add home-relative paths for the running user
+	if home, err := os.UserHomeDir(); err == nil && home != "/root" {
+		extraSearchPaths = append(extraSearchPaths, filepath.Join(home, ".local", "bin"))
+	}
+
+	// lookupTool searches $PATH first, then falls back to extra search paths
+	lookupTool := func(name string) string {
+		if p, err := exec.LookPath(name); err == nil {
+			return p
+		}
+		for _, dir := range extraSearchPaths {
+			p := filepath.Join(dir, name)
+			if _, err := os.Stat(p); err == nil {
+				return p
+			}
+		}
+		return ""
+	}
+
 	// Bind each host binary to /opt/muxi-tools/bin/<name>
 	for _, tool := range hostToolBinaries {
-		if toolPath, err := exec.LookPath(tool); err == nil {
+		if toolPath := lookupTool(tool); toolPath != "" {
 			realPath, _ := filepath.EvalSymlinks(toolPath)
 			if realPath == "" {
 				realPath = toolPath
