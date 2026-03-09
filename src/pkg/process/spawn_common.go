@@ -268,7 +268,7 @@ var now = func() time.Time {
 // hostToolBinaries lists binaries to copy from the host into /opt/muxi-tools/bin.
 // These are tools that MCP servers and formations may need but are not in the SIF.
 var hostToolBinaries = []string{
-	"node", "git", "curl", "wget", "jq", "unzip", "ssh", "sqlite3", "python3",
+	"node", "npm", "npx", "git", "curl", "wget", "jq", "unzip", "ssh", "sqlite3", "python3",
 	"ffmpeg", "ffprobe", "tesseract", "pdftotext", "pdfinfo", "pandoc", "dot",
 	"make", "gcc", "g++", "cc",
 }
