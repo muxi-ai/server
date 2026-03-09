@@ -94,23 +94,17 @@ func (s *Server) restoreFormation(formationID string, port int) error {
 			return err
 		}
 
-		runtimeRegistryPath := filepath.Join(runtimesDir, "registry.json")
-		runtimeRegistry := runtime.NewRegistry(runtimeRegistryPath)
-		if err := runtimeRegistry.Load(); err != nil {
-			s.logger.Warn().Err(err).Msg("Failed to load runtimes registry")
-		}
+		// Use downloader to resolve "latest" from GitHub and ensure SIF exists
+		downloader := runtime.NewDownloader(
+			s.config.Runtime.SIFBaseURL,
+			s.config.Runtime.RuntimeRunnerImage,
+			runtimesDir,
+			s.logger,
+		)
 
-		availableVersions := runtimeRegistry.List()
-		resolver := runtime.NewResolver(availableVersions, runtimesDir)
-
-		resolvedVersion, err := resolver.Resolve(formationConfig.MuxiRuntime)
+		sifPath, _, _, err := downloader.EnsureSIF(formationConfig.MuxiRuntime)
 		if err != nil {
-			return err
-		}
-
-		sifPath := resolver.GetSIFPath(resolvedVersion)
-		if _, err := os.Stat(sifPath); os.IsNotExist(err) {
-			return err
+			return fmt.Errorf("failed to ensure runtime SIF: %w", err)
 		}
 
 		spawnConfig.RuntimeType = "singularity"
