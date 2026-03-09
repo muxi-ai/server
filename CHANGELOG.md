@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.20260309.1
+
+### Fixes
+
+- **Runtime resolution**: always resolve `latest` runtime from GitHub instead of using stale locally-cached version
+- **Host tools**: add `npm`, `npx`, `bun`, and `uv` to tools bind-mounted into SIF containers
+
+---
+
 ## 0.20260309.0
 
 ### Skills RCE Integration
