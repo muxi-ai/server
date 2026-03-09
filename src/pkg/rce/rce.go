@@ -85,7 +85,6 @@ func (m *Manager) Start() error {
 		spawnCfg = process.SpawnConfig{
 			ID:          "muxi-rce",
 			Command:     "skills-rce",
-			Port:        m.port,
 			WorkDir:     filepath.Join(m.dataDir, "rce"),
 			Env:         env,
 			AutoRestart: true,
