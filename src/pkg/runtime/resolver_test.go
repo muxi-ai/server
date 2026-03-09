@@ -30,14 +30,14 @@ func TestResolver_Resolve(t *testing.T) {
 			name:       "latest",
 			available:  []string{"1.0.0", "1.1.0", "2.0.0"},
 			constraint: "latest",
-			want:       "2.0.0",
+			want:       "latest",
 			wantErr:    false,
 		},
 		{
 			name:       "empty constraint",
 			available:  []string{"1.0.0", "1.1.0", "2.0.0"},
 			constraint: "",
-			want:       "2.0.0",
+			want:       "latest",
 			wantErr:    false,
 		},
 		{

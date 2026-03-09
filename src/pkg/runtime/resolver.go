@@ -49,13 +49,10 @@ func (r *Resolver) GetSIFPath(version string) string {
 //   - "latest" or "" → absolute latest version (or "latest" if no local versions)
 func (r *Resolver) Resolve(constraint string) (string, error) {
 	if constraint == "" || constraint == "latest" {
-		latest := r.latest()
-		if latest == "" {
-			// No local versions available - return "latest" to trigger download
-			// The download URL will be muxi-runtime-latest-linux-{arch}.sif
-			return "latest", nil
-		}
-		return latest, nil
+		// Always return "latest" to let the downloader resolve the actual version
+		// from GitHub. This ensures we always get the newest release, not a stale
+		// locally-cached version.
+		return "latest", nil
 	}
 
 	parts := strings.Split(constraint, ".")
