@@ -12,6 +12,8 @@ MUXI Server is a single-binary orchestration platform for deploying and managing
 
 This repo is part of the [MUXI ecosystem](https://github.com/muxi-ai/muxi/blob/main/ARCHITECTURE.md).
 
+> **Before making changes**, read [`mental-model.md`](mental-model.md) for a living document covering architecture details, data flows, platform differences, and known gotchas not captured here.
+
 ---
 
 ## Repository Structure
