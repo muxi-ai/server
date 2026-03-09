@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.20260309.0
+
+### Skills RCE Integration
+
+- **New `pkg/rce` package**: full lifecycle management for the Skills RCE code execution service
+- **`muxi-server init`**: downloads RCE automatically (SIF on Linux, Docker image on macOS/Windows)
+- **`muxi-server start`**: launches RCE as a managed process, injects `MUXI_RCE_URL` and `MUXI_RCE_TOKEN` into all formation environment variables
+- **Auto port discovery**: if default port 7891 is occupied, scans upward for an available port
+- RCE env vars injected in all spawn points (deploy, dev, restore, restart, rollback, start, update)
+
+### Upgrade Command
+
+- **`muxi-server upgrade`**: new command to self-update the server binary, pull latest RCE, and migrate config
+- Downloads latest server binary from GitHub releases (atomic swap with rollback)
+- Adds missing config fields (e.g. RCE auth token) to existing configurations
+
+---
+
 ## 0.20260305.0
 
 ### MCP Proxy
