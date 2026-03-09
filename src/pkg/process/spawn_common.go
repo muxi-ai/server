@@ -294,28 +294,22 @@ func bindHostToolsArgs(logger *zerolog.Logger) []string {
 	var args []string
 	found := 0
 
-	// Additional search paths for tools installed in user-local directories.
-	// When running as a systemd service, $PATH is minimal and won't include these.
-	extraSearchPaths := []string{
-		"/root/.local/bin",
-		"/usr/local/bin",
-		"/snap/bin",
-	}
-	// Add home-relative paths for the running user
-	if home, err := os.UserHomeDir(); err == nil && home != "/root" {
-		extraSearchPaths = append(extraSearchPaths, filepath.Join(home, ".local", "bin"))
-	}
-
-	// lookupTool searches $PATH first, then falls back to extra search paths
+	// lookupTool finds a tool's absolute path using a login shell, which sources
+	// /etc/profile, ~/.bashrc, ~/.profile etc. and gives the full PATH including
+	// user-local directories like ~/.local/bin. This works even when muxi-server
+	// runs under systemd with a minimal PATH.
 	lookupTool := func(name string) string {
-		if p, err := exec.LookPath(name); err == nil {
-			return p
-		}
-		for _, dir := range extraSearchPaths {
-			p := filepath.Join(dir, name)
-			if _, err := os.Stat(p); err == nil {
+		// Try login shell first (gets full user PATH)
+		out, err := exec.Command("bash", "-lc", "which "+name).Output()
+		if err == nil {
+			p := strings.TrimSpace(string(out))
+			if p != "" {
 				return p
 			}
+		}
+		// Fallback to current process PATH
+		if p, err := exec.LookPath(name); err == nil {
+			return p
 		}
 		return ""
 	}
