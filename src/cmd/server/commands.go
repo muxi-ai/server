@@ -20,7 +20,6 @@ import (
 	"github.com/muxi-ai/server/pkg/config"
 	"github.com/muxi-ai/server/pkg/rce"
 	"github.com/muxi-ai/server/pkg/registry"
-	"github.com/rs/zerolog"
 	"gopkg.in/yaml.v3"
 )
 
@@ -107,7 +106,6 @@ func cmdUpgrade() error {
 	fmt.Println(strings.Repeat(boxH, 40))
 	fmt.Printf("  Current version: %s\n\n", Version)
 
-	logger := zerolog.New(os.Stderr).With().Timestamp().Logger()
 	upgraded := false
 
 	// Load config
@@ -143,14 +141,14 @@ func cmdUpgrade() error {
 	if err != nil {
 		fmt.Printf("  %s Could not get data dir: %v\n", crossMark, err)
 	} else if runtime.GOOS == "linux" {
-		if _, err := rce.EnsureSIF(dataDir, &logger); err != nil {
+		if _, err := rce.EnsureSIF(dataDir); err != nil {
 			fmt.Printf("  %s Failed to update RCE SIF: %v\n", crossMark, err)
 		} else {
 			fmt.Printf("  %s Skills RCE SIF is up to date\n", checkMark)
 			upgraded = true
 		}
 	} else {
-		if err := rce.EnsureDocker(&logger); err != nil {
+		if err := rce.EnsureDocker(); err != nil {
 			fmt.Printf("  %s Failed to pull RCE image: %v\n", crossMark, err)
 		} else {
 			fmt.Printf("  %s Skills RCE Docker image updated\n", checkMark)
@@ -577,16 +575,15 @@ func cmdInit() error {
 	// Download Skills RCE
 	fmt.Printf("\n%s Setting up Skills RCE...\n", bullet)
 	dataDir, _ := config.GetDataDir()
-	initLogger := zerolog.New(os.Stderr).With().Timestamp().Logger()
 	if runtime.GOOS == "linux" {
-		if _, err := rce.EnsureSIF(dataDir, &initLogger); err != nil {
+		if _, err := rce.EnsureSIF(dataDir); err != nil {
 			fmt.Printf("%s Failed to download RCE SIF: %v\n", crossMark, err)
 			fmt.Println("  Skills RCE can be downloaded later. Formations will start without code execution.")
 		} else {
 			fmt.Printf("%s Skills RCE downloaded\n", checkMark)
 		}
 	} else {
-		if err := rce.EnsureDocker(&initLogger); err != nil {
+		if err := rce.EnsureDocker(); err != nil {
 			fmt.Printf("%s Failed to pull RCE Docker image: %v\n", crossMark, err)
 			fmt.Println("  Skills RCE can be pulled later. Formations will start without code execution.")
 		} else {

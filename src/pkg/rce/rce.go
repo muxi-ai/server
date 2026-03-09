@@ -237,7 +237,7 @@ func (m *Manager) findSIF() (string, error) {
 
 // EnsureSIF downloads the latest RCE SIF if not present or outdated.
 // Always fetches the latest version.
-func EnsureSIF(dataDir string, logger *zerolog.Logger) (string, error) {
+func EnsureSIF(dataDir string) (string, error) {
 	rceDir := filepath.Join(dataDir, "rce")
 	os.MkdirAll(rceDir, 0755)
 
@@ -259,7 +259,7 @@ func EnsureSIF(dataDir string, logger *zerolog.Logger) (string, error) {
 	// Download
 	url := fmt.Sprintf("%s/download/v%s/%s", GitHubReleasesURL, latestVersion, filename)
 
-	if err := downloadFile(url, sifPath, logger); err != nil {
+	if err := downloadFile(url, sifPath); err != nil {
 		return "", fmt.Errorf("failed to download RCE SIF: %w", err)
 	}
 
@@ -267,7 +267,7 @@ func EnsureSIF(dataDir string, logger *zerolog.Logger) (string, error) {
 }
 
 // EnsureDocker pulls the latest RCE Docker image (macOS/Windows)
-func EnsureDocker(logger *zerolog.Logger) error {
+func EnsureDocker() error {
 	cmd := exec.Command("docker", "pull", "-q", DockerImage)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to pull RCE image: %w", err)
@@ -322,7 +322,7 @@ func getPlatform() string {
 	return "linux-arm64"
 }
 
-func downloadFile(url, destination string, logger *zerolog.Logger) error {
+func downloadFile(url, destination string) error {
 	resp, err := http.Get(url)
 	if err != nil {
 		return fmt.Errorf("HTTP request failed: %w", err)
@@ -333,18 +333,13 @@ func downloadFile(url, destination string, logger *zerolog.Logger) error {
 		return fmt.Errorf("download failed with status %d", resp.StatusCode)
 	}
 
-	size := resp.ContentLength
-	if size > 0 {
-		logger.Info().Str("size", fmt.Sprintf("%d MB", size/1024/1024)).Msg("RCE SIF file size")
-	}
-
 	tmpPath := destination + ".tmp"
 	out, err := os.Create(tmpPath)
 	if err != nil {
 		return fmt.Errorf("failed to create temp file: %w", err)
 	}
 
-	written, err := io.Copy(out, resp.Body)
+	_, err = io.Copy(out, resp.Body)
 	out.Close()
 	if err != nil {
 		os.Remove(tmpPath)
@@ -357,6 +352,5 @@ func downloadFile(url, destination string, logger *zerolog.Logger) error {
 		return fmt.Errorf("failed to move file: %w", err)
 	}
 
-	logger.Info().Str("size", fmt.Sprintf("%d MB", written/1024/1024)).Msg("RCE SIF download complete")
 	return nil
 }
