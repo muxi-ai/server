@@ -314,8 +314,47 @@ func bindHostToolsArgs(logger *zerolog.Logger) []string {
 		return ""
 	}
 
+	// Node-based tools (npm, npx) need special handling: they're symlinks into
+	// /usr/lib/node_modules/npm/bin/ and use require('../lib/cli.js') relative
+	// to themselves. Bind-mounting the resolved real path breaks the relative
+	// require. Instead, we create wrapper scripts that invoke node directly.
+	nodeToolScripts := map[string]string{
+		"npm": "npm-cli.js",
+		"npx": "npx-cli.js",
+	}
+
+	// Find node path first (needed for wrappers)
+	nodePath := lookupTool("node")
+
 	// Bind each host binary to /opt/muxi-tools/bin/<name>
 	for _, tool := range hostToolBinaries {
+		// Handle npm/npx with wrapper scripts
+		if script, isNodeTool := nodeToolScripts[tool]; isNodeTool && nodePath != "" {
+			// Find the actual npm module directory
+			npmDir := ""
+			for _, candidate := range []string{
+				"/usr/lib/node_modules/npm",
+				"/usr/local/lib/node_modules/npm",
+			} {
+				if _, err := os.Stat(filepath.Join(candidate, "bin", script)); err == nil {
+					npmDir = candidate
+					break
+				}
+			}
+			if npmDir != "" {
+				// Create a wrapper script in a temp directory
+				wrapperDir := filepath.Join(os.TempDir(), "muxi-tool-wrappers")
+				os.MkdirAll(wrapperDir, 0755)
+				wrapperPath := filepath.Join(wrapperDir, tool)
+				wrapperContent := fmt.Sprintf("#!/bin/sh\nexec /opt/muxi-tools/bin/node /opt/muxi-tools/lib/node_modules/npm/bin/%s \"$@\"\n", script)
+				if err := os.WriteFile(wrapperPath, []byte(wrapperContent), 0755); err == nil {
+					args = append(args, "--bind", fmt.Sprintf("%s:/opt/muxi-tools/bin/%s", wrapperPath, tool))
+					found++
+					continue
+				}
+			}
+		}
+
 		if toolPath := lookupTool(tool); toolPath != "" {
 			realPath, _ := filepath.EvalSymlinks(toolPath)
 			if realPath == "" {

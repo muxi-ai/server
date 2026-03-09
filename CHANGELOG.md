@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.20260309.2 - 0.20260309.5
+
+### Fixes
+
+- **npm/npx in SIF containers**: npm and npx are symlinks that use relative `require('../lib/cli.js')`; bind-mounting the resolved path broke the import. Now creates wrapper scripts that invoke node with the full path to the npm module.
+- **Exact runtime version pinning**: versions like `muxi_runtime: "0.20260220.0"` were rejected by the resolver if not in the local registry. Now passes exact versions through to the downloader, which checks disk and downloads if needed.
+- **Restore path**: use downloader in the restore path to resolve `latest` runtime from GitHub instead of building a literal `muxi-runtime-latest-*.sif` filename.
+
+---
+
 ## 0.20260309.1
 
 ### Fixes

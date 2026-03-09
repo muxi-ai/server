@@ -59,11 +59,9 @@ func (r *Resolver) Resolve(constraint string) (string, error) {
 
 	switch len(parts) {
 	case 3:
-		// Exact version: "1.2.3"
-		if r.exists(constraint) {
-			return constraint, nil
-		}
-		return "", fmt.Errorf("runtime version %s not available", constraint)
+		// Exact version: "1.2.3" - pass through to downloader which will
+		// check if the SIF exists on disk and download it if needed
+		return constraint, nil
 
 	case 2:
 		// Minor constraint: "1.2" → latest "1.2.x"
