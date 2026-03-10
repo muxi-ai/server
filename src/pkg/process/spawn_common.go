@@ -284,6 +284,7 @@ func muxiToolsEnvVars() []string {
 		"FONTCONFIG_PATH=/opt/muxi-tools/share/fonts",
 		"SSL_CERT_FILE=/opt/muxi-tools/share/certs/ca-certificates.crt",
 		"NODE_PATH=/opt/muxi-tools/lib/node_modules",
+		"HF_HOME=/opt/hf-cache",
 	}
 }
 
