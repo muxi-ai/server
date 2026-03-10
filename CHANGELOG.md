@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.20260310.0
+
+### Fixes
+
+- **HuggingFace model cache**: pass `HF_HOME=/opt/hf-cache` to SIF containers so the pre-cached embedding model is used instead of re-downloading on every startup (~80s), which caused health check timeouts.
+
+---
+
 ## 0.20260309.2 - 0.20260309.5
 
 ### Fixes
