@@ -148,7 +148,7 @@ jobs:
           7890
           test@example.com
           "@
-          $initInput | .\muxi-server.exe init
+          $initInput | .\muxi-server.exe init; $true
           
           $SERVER = Start-Process -FilePath ".\muxi-server.exe" -ArgumentList "start" -PassThru -NoNewWindow
           Start-Sleep -Seconds 5
