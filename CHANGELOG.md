@@ -2,46 +2,27 @@
 
 ## 0.20260310.0
 
-### Fixes
-
-- **HuggingFace model cache**: pass `HF_HOME=/opt/hf-cache` to SIF containers so the pre-cached embedding model is used instead of re-downloading on every startup (~80s), which caused health check timeouts.
-
----
-
-## 0.20260309.2 - 0.20260309.5
-
-### Fixes
-
-- **npm/npx in SIF containers**: npm and npx are symlinks that use relative `require('../lib/cli.js')`; bind-mounting the resolved path broke the import. Now creates wrapper scripts that invoke node with the full path to the npm module.
-- **Exact runtime version pinning**: versions like `muxi_runtime: "0.20260220.0"` were rejected by the resolver if not in the local registry. Now passes exact versions through to the downloader, which checks disk and downloads if needed.
-- **Restore path**: use downloader in the restore path to resolve `latest` runtime from GitHub instead of building a literal `muxi-runtime-latest-*.sif` filename.
-
----
-
-## 0.20260309.1
-
-### Fixes
-
-- **Runtime resolution**: always resolve `latest` runtime from GitHub instead of using stale locally-cached version
-- **Host tools**: add `npm`, `npx`, `bun`, `uv`, and `uvx` to tools bind-mounted into SIF containers
-
----
-
-## 0.20260309.0
-
 ### Skills RCE Integration
 
-- **New `pkg/rce` package**: full lifecycle management for the Skills RCE code execution service
+- **Built-in code execution**: formations now ship with a managed RCE (Remote Code Execution) service for Skills
 - **`muxi-server init`**: downloads RCE automatically (SIF on Linux, Docker image on macOS/Windows)
-- **`muxi-server start`**: launches RCE as a managed process, injects `MUXI_RCE_URL` and `MUXI_RCE_TOKEN` into formations that don't specify their own RCE configuration
+- **`muxi-server start`**: launches RCE as a managed process, injects `MUXI_RCE_URL` and `MUXI_RCE_TOKEN` into all formations
 - **Auto port discovery**: if default port 7891 is occupied, scans upward for an available port
-- RCE env vars injected in all spawn points (deploy, dev, restore, restart, rollback, start, update)
 
 ### Upgrade Command
 
-- **`muxi-server upgrade`**: new command to self-update the server binary, pull latest RCE, and migrate config
+- **`muxi-server upgrade`**: self-update the server binary, pull latest RCE, and migrate config
 - Downloads latest server binary from GitHub releases (atomic swap with rollback)
 - Adds missing config fields (e.g. RCE auth token) to existing configurations
+
+### Fixes
+
+- **HuggingFace model cache**: pass `HF_HOME=/opt/hf-cache` to SIF containers so the pre-cached embedding model is used instead of re-downloading on every startup (~80s), which caused health check timeouts
+- **npm/npx in SIF containers**: npm and npx are symlinks that use relative `require('../lib/cli.js')`; bind-mounting the resolved path broke the import. Now creates wrapper scripts that invoke node with the full path to the npm module
+- **Exact runtime version pinning**: versions like `muxi_runtime: "0.20260220.0"` were rejected by the resolver if not in the local registry. Now passes exact versions through to the downloader, which checks disk and downloads if needed
+- **Restore path**: use downloader in the restore path to resolve `latest` runtime from GitHub instead of building a literal `muxi-runtime-latest-*.sif` filename
+- **Runtime resolution**: always resolve `latest` runtime from GitHub instead of using stale locally-cached version
+- **Host tools**: add `npm`, `npx`, `bun`, `uv`, `uvx`, `tar`, and `gzip` to tools bind-mounted into SIF containers
 
 ---
 
