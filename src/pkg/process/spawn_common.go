@@ -505,6 +505,13 @@ func buildDockerSingularityCommand(config SpawnConfig, logger *zerolog.Logger) *
 		"--name", containerName, // Named container for cleanup
 		"--privileged", // Required for Singularity user namespaces
 
+		// Route localhost/127.0.0.1 inside the container to the host machine so
+		// formations can reach host-local services (e.g. PostgreSQL) without
+		// changing connection strings. This preserves pg_hba.conf trust rules
+		// since PostgreSQL still sees the connection as coming from "localhost".
+		"--add-host", "localhost:host-gateway",
+		"--add-host", "host.docker.internal:host-gateway",
+
 		// Mount SIF file from host into Docker container
 		"-v", fmt.Sprintf("%s:/sif/runtime.sif:ro", config.SIFPath),
 
