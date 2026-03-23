@@ -81,12 +81,12 @@ This document describes the auto-download flow for when these are missing.
 
 **Production:**
 ```
-https://github.com/muxi-ai/runtime/releases/download/v{VERSION}/muxi-runtime-{VERSION}-linux-{ARCH}.sif
+https://releases.muxi.org/runtime/releases/download/v{VERSION}/muxi-runtime-{VERSION}-linux-{ARCH}.sif
 ```
 
 **Examples:**
-- `https://github.com/muxi-ai/runtime/releases/download/v0.2025.0/muxi-runtime-0.2025.0-linux-amd64.sif`
-- `https://github.com/muxi-ai/runtime/releases/download/v0.2025.0/muxi-runtime-0.2025.0-linux-arm64.sif`
+- `https://releases.muxi.org/runtime/releases/download/v0.2025.0/muxi-runtime-0.2025.0-linux-amd64.sif`
+- `https://releases.muxi.org/runtime/releases/download/v0.2025.0/muxi-runtime-0.2025.0-linux-arm64.sif`
 
 **Local Development (configurable):**
 ```

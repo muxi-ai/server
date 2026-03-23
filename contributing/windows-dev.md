@@ -22,7 +22,7 @@ $version = "v0.20251024.0"  # Or check releases page
 $arch = "amd64"  # Or "arm64" for ARM64 Windows
 
 Invoke-WebRequest `
-  -Uri "https://github.com/muxi-ai/server/releases/download/$version/muxi-server-windows-$arch.exe" `
+  -Uri "https://releases.muxi.org/server/releases/download/$version/muxi-server-windows-$arch.exe" `
   -OutFile "muxi-server.exe"
 
 # Move to installation directory
