@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.20260323.0
+
+### Fixes
+
+- **Docker networking for host services**: added `--add-host localhost:host-gateway` and `--add-host host.docker.internal:host-gateway` to runtime-runner Docker commands so formations can reach host-local services (e.g. PostgreSQL) via `localhost` without changing connection strings
+- **Release downloads via CDN**: switched `github.com/muxi-ai/*/releases/download/*` URLs to `releases.muxi.org/*/releases/download/*` for server/runtime download paths.
+
 ## 0.20260310.0
 
 ### Skills RCE Integration
