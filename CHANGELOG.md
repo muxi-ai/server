@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.20260401.1
+
+### Fixes
+
+- **Auto-install Apptainer on server start**: if `apptainer`/`singularity` is not found on Linux, `muxi-server start` now automatically installs Apptainer before proceeding. Solves the issue where Apptainer was lost on Docker container restarts.
+- **Apptainer/Singularity lookup fix**: runtime validation and binary lookup now prefer `apptainer` over `singularity`, matching what the installer actually installs. Previously the server only looked for `singularity`, which doesn't exist after a standard Apptainer install.
+
 ## 0.20260401.0
 
 ### Fixes
