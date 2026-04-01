@@ -18,24 +18,35 @@ func ValidateRuntimeAvailable() error {
 	return validateDocker()
 }
 
-// validateSingularity checks if Singularity is installed on Linux
+func getSingularityPath() (string, error) {
+	if path, err := exec.LookPath("apptainer"); err == nil {
+		return path, nil
+	}
+	if path, err := exec.LookPath("singularity"); err == nil {
+		return path, nil
+	}
+	return "", fmt.Errorf("neither apptainer nor singularity found")
+}
+
+// validateSingularity checks if Singularity or Apptainer is installed on Linux
 func validateSingularity() error {
-	if _, err := exec.LookPath("singularity"); err != nil {
-		return fmt.Errorf(`Singularity not found. 
+	singularityPath, err := getSingularityPath()
+	if err != nil {
+		return fmt.Errorf(`Singularity/Apptainer not found.
 
 To install on Ubuntu/Debian:
-  sudo apt update
-  sudo apt install -y singularity-container
+  sudo apt update && sudo apt install -y apptainer
 
 To install on other Linux distributions:
-  https://sylabs.io/guides/latest/admin-guide/installation.html
+  https://apptainer.org/docs/admin/main/installation.html
 
 Error: %w`, err)
 	}
 
 	log.Debug().
 		Str("platform", "linux").
-		Msg("✓ Singularity available for native execution")
+		Str("binary", singularityPath).
+		Msg("✓ Singularity/Apptainer available for native execution")
 
 	return nil
 }
@@ -121,7 +132,7 @@ Output: %s`, err, string(output))
 // GetRuntimeInfo returns information about the available runtime
 func GetRuntimeInfo() RuntimeEnvironment {
 	if runtime.GOOS == "linux" {
-		singularityPath, _ := exec.LookPath("singularity")
+		singularityPath, _ := getSingularityPath()
 		return RuntimeEnvironment{
 			Platform:    "linux",
 			RuntimeType: "singularity",
@@ -152,7 +163,7 @@ type RuntimeEnvironment struct {
 // String returns a human-readable description
 func (r RuntimeEnvironment) String() string {
 	if r.Native {
-		return fmt.Sprintf("Native Singularity on %s (%s)", r.Platform, r.RuntimePath)
+		return fmt.Sprintf("Native Singularity/Apptainer on %s (%s)", r.Platform, r.RuntimePath)
 	}
 	return fmt.Sprintf("Docker-wrapped Singularity on %s (via %s)", r.Platform, r.WrapperImage)
 }

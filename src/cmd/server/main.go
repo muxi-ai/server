@@ -152,6 +152,16 @@ func cmdStart() error {
 	logger.Info().Msgf("Configuration loaded (%s)", configPath)
 	logger.Info().Msgf("Server ID: %s", cfg.ServerID)
 
+	// Ensure Apptainer/Singularity is available on Linux
+	if goruntime.GOOS == "linux" && !checkSingularityAvailable() {
+		logger.Info().Msg("Apptainer not found, installing...")
+		if err := installApptainer(); err != nil {
+			logger.Error().Err(err).Msg("Failed to install Apptainer (SIF formations will not work)")
+		} else {
+			logger.Info().Msg("Apptainer installed successfully")
+		}
+	}
+
 	// Initialize telemetry
 	runtimeType := "singularity"
 	if goruntime.GOOS != "linux" {
