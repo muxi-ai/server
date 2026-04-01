@@ -38,7 +38,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo \
 RUN test -f muxi-server && echo "✓ Build successful"
 
 # Runtime stage
-FROM alpine:latest
+FROM ubuntu:24.04
 
 LABEL maintainer="MUXI AI <hello@muxi.org>"
 LABEL org.opencontainers.image.source="https://github.com/muxi-ai/server"
@@ -46,10 +46,11 @@ LABEL description="MUXI Server - AI Formation Orchestrator"
 LABEL version="1.0.0"
 
 # Install runtime dependencies
-RUN apk add --no-cache \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
-    docker-cli \
-    && rm -rf /var/cache/apk/*
+    docker.io \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user (optional - comment out if issues with Docker socket)
 # RUN addgroup -g 1000 muxi && \

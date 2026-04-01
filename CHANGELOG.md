@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.20260401.0
+
+### Fixes
+
+- **Ubuntu-based Docker runtime image**: switched the runtime image from Alpine to Ubuntu so `muxi-server init` works in-container on Linux without failing distro detection for Apptainer installation.
+- **Container runtime deps update**: replaced `apk`-based runtime dependencies with `apt` packages (`ca-certificates`, `docker.io`, `wget`) to match the Ubuntu base image.
+
 ## 0.20260323.0
 
 ### Fixes
