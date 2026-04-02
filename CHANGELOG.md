@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.20260402.0
+
+### Fixes
+
+- **Create tmp directory on startup**: `EnsureDirectories` now creates `{dataDir}/tmp` so `TMPDIR=/var/lib/muxi/tmp` works out of the box when deploying formations via Docker.
+- **Default health check endpoint**: changed from `/health` to `/v1/health` to match the MUXI runtime API. Fixes formations failing health checks on first deploy.
+
 ## 0.20260401.1
 
 ### Fixes

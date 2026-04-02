@@ -139,7 +139,7 @@ func DefaultConfig() *Config {
 			Deployment: DeploymentConfig{
 				HealthCheck: HealthCheckConfig{
 					Enabled:    true,
-					Endpoint:   "/health",
+					Endpoint:   "/v1/health",
 					Timeout:    30,
 					Interval:   1,
 					MaxRetries: 30,
@@ -454,6 +454,7 @@ func EnsureDirectories(baseDir string, config *Config) error {
 		config.Formations.LogsDir,
 		config.Formations.PIDsDir,
 		config.Formations.FormationsDir,
+		filepath.Join(baseDir, "tmp"),
 	}
 
 	for _, dir := range dirs {
