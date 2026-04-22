@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/muxi-ai/server/pkg/config"
+	"github.com/muxi-ai/server/pkg/dockerutil"
 	"github.com/muxi-ai/server/pkg/process"
 	"github.com/rs/zerolog"
 )
@@ -265,21 +266,46 @@ func EnsureSIF(dataDir string) (string, error) {
 	return sifPath, nil
 }
 
-// EnsureDocker pulls the latest RCE Docker image (macOS/Windows).
+// EnsureDocker pulls the latest RCE Docker image (macOS/Windows) and
+// renders a single collapsed progress line (with spinner) instead of
+// Docker's native per-layer output. Same rendering as
+// cmd/server/commands.go's pullRuntimeRunner — routed through the
+// shared pkg/dockerutil.RenderPullProgress so any future tweak to the
+// format lands in both pulls at once.
 //
-// Stdout/stderr are wired to the user's terminal so Docker's native
-// per-layer progress is visible. The previous implementation used -q,
-// which silenced the entire transfer — on a multi-hundred-megabyte
-// image that made init look frozen for minutes with no feedback. The
-// same change landed on pullRuntimeRunner (cmd/server/commands.go);
-// keeping the two pull paths consistent means "Setting up Skills RCE"
-// and "Downloading runtime-runner" behave the same way.
+// DOCKER_CLI_HINTS=false suppresses Docker Desktop's "What's next:"
+// promotional footer (docker scout quickview…) that's pure noise in a
+// bootstrap flow.
+//
+// Stderr stays wired to the terminal so real Docker errors (auth,
+// network, daemon down) remain visible at full fidelity.
 func EnsureDocker() error {
 	cmd := exec.Command("docker", "pull", DockerImage)
-	cmd.Stdout = os.Stdout
+	cmd.Env = append(os.Environ(), "DOCKER_CLI_HINTS=false")
 	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to pull RCE image: %w", err)
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("create stdout pipe: %w", err)
+	}
+
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("start docker pull: %w", err)
+	}
+
+	// Render progress on a background goroutine so cmd.Wait doesn't
+	// block on an un-drained pipe; signal completion via `done` so we
+	// don't return before the final line is painted.
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		dockerutil.RenderPullProgress(stdout, os.Stdout)
+	}()
+
+	waitErr := cmd.Wait()
+	<-done
+	if waitErr != nil {
+		return fmt.Errorf("failed to pull RCE image: %w", waitErr)
 	}
 	return nil
 }

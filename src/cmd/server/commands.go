@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/muxi-ai/server/pkg/config"
+	"github.com/muxi-ai/server/pkg/dockerutil"
 	"github.com/muxi-ai/server/pkg/hfcache"
 	"github.com/muxi-ai/server/pkg/rce"
 	"github.com/muxi-ai/server/pkg/registry"
@@ -874,106 +875,12 @@ func pullRuntimeRunner() error {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		renderPullProgress(stdout, os.Stdout)
+		dockerutil.RenderPullProgress(stdout, os.Stdout)
 	}()
 
 	waitErr := cmd.Wait()
 	<-done
 	return waitErr
-}
-
-// spinnerFrames is a braille-dot spinner rotated by renderPullProgress
-// and downloadReporter to signal "still working" during long silent
-// phases of a download. Braille dots are monospace and render crisply
-// in every modern terminal muxi-server targets (Terminal.app, iTerm2,
-// Windows Terminal, VS Code, etc.); we don't fall back to ASCII "/-\|"
-// because every platform we support has had Unicode-capable defaults
-// since long before the oldest supported macOS/Windows version.
-var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
-
-// spinnerTick is the repaint interval. 100 ms is fast enough for the
-// dot sequence to look alive, slow enough to not flood a serial tty.
-const spinnerTick = 100 * time.Millisecond
-
-// renderPullProgress collapses Docker's verbose non-TTY pull output
-// (one line per layer × five events per layer = a wall of text) into a
-// single in-place progress line with an animated spinner:
-//
-//	⠙ Layers 5/8 (62%)
-//
-// The spinner ticks independently of event arrival so the line keeps
-// animating during a large silent layer download — the exact moment
-// the user wonders "is this hung?".
-//
-// Event parsing:
-//
-//	"Pulling fs layer"   increments the total layer count
-//	"Pull complete"      increments the completed count
-//
-// The running total adapts as new layers are announced; when Docker
-// staggers announcements the display may briefly show e.g. 3/5 then
-// 3/8, which is honest reporting of what's actually known at each
-// moment rather than a falsified precomputed total.
-//
-// If the transcript yields zero "Pulling fs layer" lines (image was
-// already up to date — rare because cmdInit guards with
-// checkRuntimeRunnerExists), the function prints nothing and the
-// caller's success message takes over the line.
-func renderPullProgress(in io.Reader, out io.Writer) {
-	// Producer goroutine: drain the scanner into a buffered channel so
-	// the ticker-driven renderer can select between new events and
-	// spinner ticks without blocking.
-	events := make(chan string, 128)
-	go func() {
-		defer close(events)
-		scanner := bufio.NewScanner(in)
-		// Docker can emit long lines on some statuses; bump the buffer
-		// from the default 64 KiB to 1 MiB to be safe.
-		scanner.Buffer(make([]byte, 1<<16), 1<<20)
-		for scanner.Scan() {
-			events <- scanner.Text()
-		}
-	}()
-
-	ticker := time.NewTicker(spinnerTick)
-	defer ticker.Stop()
-
-	var total, pulled, frame int
-	repaint := func() {
-		if total == 0 {
-			return
-		}
-		pct := 100 * pulled / total
-		// Trailing spaces clear any leftover characters from a longer
-		// previous line (single-digit → double-digit count transitions).
-		fmt.Fprintf(out, "\r  %s Layers %d/%d (%d%%)   ",
-			spinnerFrames[frame%len(spinnerFrames)], pulled, total, pct)
-	}
-
-	for {
-		select {
-		case line, ok := <-events:
-			if !ok {
-				if total > 0 {
-					// Close out the in-place line with a real newline
-					// so whatever prints next doesn't overwrite our
-					// final status.
-					fmt.Fprintln(out)
-				}
-				return
-			}
-			switch {
-			case strings.Contains(line, "Pulling fs layer"):
-				total++
-			case strings.Contains(line, "Pull complete"):
-				pulled++
-			}
-			repaint()
-		case <-ticker.C:
-			frame++
-			repaint()
-		}
-	}
 }
 
 // downloadReporter is an io.Writer that accumulates bytes written to it
@@ -1017,7 +924,7 @@ func (r *downloadReporter) Write(b []byte) (int, error) {
 
 func (r *downloadReporter) run() {
 	defer close(r.done)
-	ticker := time.NewTicker(spinnerTick)
+	ticker := time.NewTicker(dockerutil.SpinnerTick)
 	defer ticker.Stop()
 
 	frame := 0
@@ -1034,7 +941,7 @@ func (r *downloadReporter) run() {
 			}
 			r.render = true
 			fmt.Fprintf(r.out, "\r  %s %.1f MiB downloaded   ",
-				spinnerFrames[frame%len(spinnerFrames)],
+				dockerutil.SpinnerFrames[frame%len(dockerutil.SpinnerFrames)],
 				float64(n)/1024/1024)
 			frame++
 		}
