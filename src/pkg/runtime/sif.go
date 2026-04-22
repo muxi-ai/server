@@ -11,7 +11,7 @@ import "fmt"
 //
 //	(version, "lean")         -> muxi-runtime-<version>-linux-<arch>.sif
 //	(version, "pytorch")      -> muxi-runtime-<version>-pytorch-linux-<arch>.sif
-//	(version, "gpu")          -> muxi-runtime-<version>-gpu-linux-<arch>.sif         (future)
+//	(version, "cuda")         -> muxi-runtime-<version>-cuda-linux-<arch>.sif
 //	(version, "pytorch-gpu")  -> muxi-runtime-<version>-pytorch-gpu-linux-<arch>.sif (future)
 //
 // The default (lean) is intentionally suffix-free so existing release

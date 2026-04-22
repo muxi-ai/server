@@ -37,35 +37,48 @@ func TestSIFFilename_EmptyVariantEqualsLean(t *testing.T) {
 	}
 }
 
-func TestSIFFilename_PytorchPrecedesPlatform(t *testing.T) {
+func TestSIFFilename_NonDefaultVariantsPrecedePlatform(t *testing.T) {
 	// Variant-before-platform is the naming convention decided in the
 	// interface contract — it groups variants together alphabetically on
 	// disk and reads naturally (version, then build variant, then target).
-	got := sifFilename("0.20260422.0", "pytorch")
+	// Every live non-default variant must honor this ordering, otherwise
+	// mirror URLs and on-disk layout drift between variants.
+	cases := []struct {
+		variant     string
+		mustContain string
+	}{
+		{variant: "pytorch", mustContain: "-pytorch-"},
+		{variant: "cuda", mustContain: "-cuda-"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.variant, func(t *testing.T) {
+			got := sifFilename("0.20260422.0", tc.variant)
 
-	pyIdx := strings.Index(got, "-pytorch-")
-	linuxIdx := strings.Index(got, "-linux-")
-	if pyIdx < 0 {
-		t.Fatalf("missing -pytorch- segment in %q", got)
-	}
-	if linuxIdx < 0 {
-		t.Fatalf("missing -linux- segment in %q", got)
-	}
-	if pyIdx > linuxIdx {
-		t.Errorf("variant must precede platform, got %q", got)
+			vIdx := strings.Index(got, tc.mustContain)
+			linuxIdx := strings.Index(got, "-linux-")
+			if vIdx < 0 {
+				t.Fatalf("missing %s segment in %q", tc.mustContain, got)
+			}
+			if linuxIdx < 0 {
+				t.Fatalf("missing -linux- segment in %q", got)
+			}
+			if vIdx > linuxIdx {
+				t.Errorf("variant must precede platform, got %q", got)
+			}
+		})
 	}
 }
 
 func TestSIFFilename_FutureVariantsFollowSameShape(t *testing.T) {
-	// Future variants (reserved but not yet in the allowlist) must format
-	// with the same convention so that when they DO ship, the artifact
-	// naming is already consistent — no special-casing later.
+	// Reserved-but-not-yet-shipped variants (NOT in the allowlist, so
+	// ParseMuxiRuntime rejects them at the edge). The filename helper is
+	// still checked here so that when these variants DO ship, the naming
+	// convention is already correct — no special-casing needed later.
 	cases := []struct {
 		variant        string
 		mustContain    string
 		mustNotContain string
 	}{
-		{variant: "gpu", mustContain: "-gpu-", mustNotContain: "-lean-"},
 		{variant: "pytorch-gpu", mustContain: "-pytorch-gpu-", mustNotContain: "-lean-"},
 	}
 	for _, tc := range cases {

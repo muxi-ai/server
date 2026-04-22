@@ -40,11 +40,13 @@ const DefaultVariant = "lean"
 // selection (S2). The set grows when new variants are actually built and
 // shipped from the runtime repo.
 //
-// Reserved-but-not-yet-built: "gpu", "pytorch-gpu". They are intentionally
-// NOT in this map so a formation requesting them today gets a clear error.
+// Reserved-but-not-yet-built: "pytorch-gpu". Intentionally NOT in this map
+// so a formation requesting it today gets a clear error instead of a
+// confusing missing-SIF failure later in the deploy path.
 var ValidVariants = map[string]struct{}{
 	"lean":    {},
 	"pytorch": {},
+	"cuda":    {},
 }
 
 // ParseMuxiRuntime splits a muxi_runtime field value into (version, variant).

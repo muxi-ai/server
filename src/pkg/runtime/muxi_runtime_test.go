@@ -46,6 +46,24 @@ func TestParseMuxiRuntime(t *testing.T) {
 			wantVariant: "pytorch",
 		},
 		{
+			name:        "latest with cuda variant",
+			input:       "latest:cuda",
+			wantVersion: "latest",
+			wantVariant: "cuda",
+		},
+		{
+			name:        "calver with cuda variant",
+			input:       "0.20260422.0:cuda",
+			wantVersion: "0.20260422.0",
+			wantVariant: "cuda",
+		},
+		{
+			name:        "semver with cuda variant",
+			input:       "1.2.3:cuda",
+			wantVersion: "1.2.3",
+			wantVariant: "cuda",
+		},
+		{
 			name:        "latest with unknown variant rejected with allowlist",
 			input:       "latest:unknown",
 			wantErr:     true,
@@ -232,10 +250,11 @@ func TestParseMuxiRuntime_DefaultVariantInAllowlist(t *testing.T) {
 // TestAllowedVariantsList_Stable locks in the error-message format so that
 // adding a variant to the allowlist in the future forces an explicit update
 // to this test — catches accidental vs intentional changes to user-facing
-// error text.
+// error text. The expected value is alphabetically sorted, matching the
+// deterministic output contract of allowedVariantsList.
 func TestAllowedVariantsList_Stable(t *testing.T) {
 	got := allowedVariantsList()
-	want := `"lean", "pytorch"`
+	want := `"cuda", "lean", "pytorch"`
 	if got != want {
 		t.Errorf("allowedVariantsList() = %q, want %q", got, want)
 	}
