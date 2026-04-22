@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/muxi-ai/server/pkg/config"
+	"github.com/muxi-ai/server/pkg/hfcache"
 	"github.com/muxi-ai/server/pkg/rce"
 	"github.com/muxi-ai/server/pkg/registry"
 	"gopkg.in/yaml.v3"
@@ -600,6 +601,24 @@ func cmdInit() error {
 		}
 	}
 
+	// Pre-download the default embedding model into the HF cache so the first
+	// formation deploy doesn't stall on a ~300MB download. Platform-agnostic:
+	// pure HTTP, works the same on Linux (apptainer path) and macOS/Windows
+	// (docker-wrapper path). Best-effort — if HF is unreachable or the
+	// network is flaky, we print a warning and let the runtime inside the
+	// SIF fetch the model on first use.
+	fmt.Printf("\n%s Pre-downloading default embedding model (%s)...\n",
+		bullet, hfcache.LeanEmbeddingModel)
+	progress := newProgressPrinter(os.Stdout)
+	if err := hfcache.EnsureLeanModel(cacheDir, progress); err != nil {
+		progress.finish()
+		fmt.Printf("%s Could not pre-download embedding model: %v\n", crossMark, err)
+		fmt.Println("  The model will be downloaded on first formation deploy.")
+	} else {
+		progress.finish()
+		fmt.Printf("%s Embedding model cached at %s\n", checkMark, cacheDir)
+	}
+
 	// Success message
 	fmt.Print("\n")
 	fmt.Println(strings.Repeat(boxH, 60))
@@ -741,6 +760,48 @@ func cmdHelp() {
 }
 
 // Helper functions
+
+// progressPrinter is a minimal io.Writer that reprints the running
+// download total on a single line every 4 MiB so init doesn't look
+// frozen during a multi-hundred-megabyte model download. 4 MiB is a
+// reasonable middle ground — small enough that fast connections see
+// continuous motion, large enough that slow terminals aren't flooded
+// with redraws.
+//
+// Intentionally simple: no ETA, no bar, no throughput math. A dependency
+// on github.com/schollz/progressbar would be proportionate for a full
+// CLI, not for a single once-per-install download that's already
+// best-effort.
+type progressPrinter struct {
+	out    io.Writer
+	total  int64
+	nextAt int64
+}
+
+const progressTick = 4 * 1024 * 1024 // 4 MiB
+
+func newProgressPrinter(out io.Writer) *progressPrinter {
+	return &progressPrinter{out: out, nextAt: progressTick}
+}
+
+func (p *progressPrinter) Write(b []byte) (int, error) {
+	n := len(b)
+	p.total += int64(n)
+	if p.total >= p.nextAt {
+		fmt.Fprintf(p.out, "\r  %.1f MiB downloaded", float64(p.total)/1024/1024)
+		p.nextAt = p.total + progressTick
+	}
+	return n, nil
+}
+
+// finish terminates the in-place progress line so subsequent output
+// doesn't overwrite the trailing status. Safe to call even if Write
+// was never invoked (empty cache skip path).
+func (p *progressPrinter) finish() {
+	if p.total > 0 {
+		fmt.Fprintf(p.out, "\r  %.1f MiB downloaded\n", float64(p.total)/1024/1024)
+	}
+}
 
 // findAvailableRCEPort finds an available port for the RCE service,
 // starting from the default (7891) and scanning upward if occupied.
