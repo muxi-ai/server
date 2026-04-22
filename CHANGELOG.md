@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.20260423.0
+
+### Embedding model pre-download
+
+- **`muxi-server init` pre-downloads the default embedding model** (`nomic-ai/nomic-embed-text-v1.5`, ~524 MiB) into the cache dir so the first formation deploy doesn't stall on a multi-hundred-MB fetch. Pure HTTP — works identically on Linux, macOS, and Windows.
+- **Fast-path on re-init / upgrade**: if every model file is already present and non-zero size, init skips the HTTP download entirely and converges on the same `✓ Embeddings ready` confirmation. Safe to run `init` or `upgrade` repeatedly.
+- **Atomic writes**: each file is written to `<file>.tmp` and atomically renamed. A killed process can't poison the cache with partial files — a subsequent init re-fetches cleanly.
+- **Cache directory**: new `MUXI_CACHE_DIR` env var overrides the default `<data_dir>/cache` location. Self-healed on startup so the bind-mount into formation containers always has a writable target.
+
+### Runtime variants (CPU / GPU / CUDA)
+
+- **`muxi_runtime.variant`**: formations can now opt into GPU or CUDA runtime SIFs. Variant names enter the SIF filename as a suffix — `muxi-runtime-{version}-{variant}-linux-{arch}.sif` — so CPU, GPU, and CUDA builds coexist on the same host.
+- **Variant validation** across 7 API handlers (deploy, update, restore, dev, start, restart, rollback) rejects unknown variants with a clear error instead of downloading a nonexistent SIF.
+- **HF cache bind-mount** (`<cacheDir>` → `/opt/hf-cache`) wired on both native (Apptainer) and Docker-wrapper paths with `HF_HOME=/opt/hf-cache`. Any runtime variant can now reuse the pre-downloaded embedding model without re-fetching.
+
+### Init UX polish
+
+- **Single-line progress for Docker pulls**: runtime-runner and Skills RCE pulls now collapse Docker's 50+ lines of per-layer output into one animated line — `⠙ Layers 5/8 (62%)`. The braille spinner ticks every 100 ms so the line keeps animating during silent layer downloads.
+- **Spinner for embedding download**: the HTTP download paints `⠙ 524 MiB downloaded` with the same spinner style, so all three setup sections feel consistent.
+- **Dropped `--quiet`** on both Docker pulls. The old silent mode made init look frozen for minutes on multi-hundred-MB transfers; explicit progress is better.
+- **`DOCKER_CLI_HINTS=false`** suppresses Docker Desktop's "What's next: docker scout quickview…" promotional footer that cluttered every pull.
+- **Terser messaging**: all three setup sections use the same `* Setting up X... / ✓ X ready` pattern. Embedding model name and cache path are no longer printed — they're noise in an init transcript users read once.
+
+Final init transcript on macOS (fresh machine):
+
+```
+* Setting up runtime-runner...
+  ⠹ Layers 5/8 (62%)
+✓ Runtime-runner ready
+
+* Setting up Skills RCE...
+  ⠹ Layers 3/4 (75%)
+✓ Skills RCE ready
+
+* Setting up embeddings...
+  ⠙ 524 MiB downloaded
+✓ Embeddings ready
+```
+
+---
+
 ## 0.20260402.0
 
 ### Fixes
