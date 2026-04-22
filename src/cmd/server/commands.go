@@ -15,6 +15,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/muxi-ai/server/pkg/config"
@@ -474,21 +475,21 @@ func cmdInit() error {
 			return fmt.Errorf("Docker not found")
 		}
 
-		// Pull runtime-runner with progress. End the header line with a
-		// newline so Docker's per-layer progress renders cleanly below —
-		// the old trailing "..." relied on --quiet and broke once we
-		// started streaming Docker output.
+		// Header ends with a newline so the spinner-driven progress
+		// line renders cleanly on the next row. No size hint in the
+		// header — the spinner conveys "working, be patient" better
+		// than a static "may take a few minutes".
 		if !checkRuntimeRunnerExists() {
-			fmt.Printf("%s Downloading runtime-runner image (~280 MB, may take a few minutes)...\n", bullet)
+			fmt.Printf("%s Setting up runtime-runner...\n", bullet)
 			if err := pullRuntimeRunner(); err != nil {
 				fmt.Printf("%s Failed to download runtime-runner: %v\n", crossMark, err)
 				fmt.Println("   You can pull it manually later:")
 				fmt.Println("   docker pull --platform linux/amd64 ghcr.io/muxi-ai/runtime-runner:latest")
 			} else {
-				fmt.Printf("%s Runtime-runner image ready\n", checkMark)
+				fmt.Printf("%s Runtime-runner ready\n", checkMark)
 			}
 		} else {
-			fmt.Printf("%s Runtime-runner image already available\n", checkMark)
+			fmt.Printf("%s Runtime-runner ready\n", checkMark)
 		}
 	} else if osName == "linux" {
 		// Check for Singularity or Apptainer
@@ -592,41 +593,46 @@ func cmdInit() error {
 			fmt.Printf("%s Failed to download RCE SIF: %v\n", crossMark, err)
 			fmt.Println("  Skills RCE can be downloaded later. Formations will start without code execution.")
 		} else {
-			fmt.Printf("%s Skills RCE downloaded\n", checkMark)
+			fmt.Printf("%s Skills RCE ready\n", checkMark)
 		}
 	} else {
 		if err := rce.EnsureDocker(); err != nil {
 			fmt.Printf("%s Failed to pull RCE Docker image: %v\n", crossMark, err)
 			fmt.Println("  Skills RCE can be pulled later. Formations will start without code execution.")
 		} else {
-			fmt.Printf("%s Skills RCE Docker image pulled\n", checkMark)
+			fmt.Printf("%s Skills RCE ready\n", checkMark)
 		}
 	}
 
-	// Pre-download the default embedding model into the HF cache so the first
-	// formation deploy doesn't stall on a ~300MB download. Platform-agnostic:
-	// pure HTTP, works the same on Linux (apptainer path) and macOS/Windows
-	// (docker-wrapper path). Best-effort — if HF is unreachable or the
-	// network is flaky, we print a warning and let the runtime inside the
-	// SIF fetch the model on first use.
+	// Pre-download the default embedding model into the HF cache so the
+	// first formation deploy doesn't stall on a ~300MB download.
+	// Platform-agnostic (pure HTTP — works the same on apptainer and
+	// docker-wrapper paths). Best-effort — if HF is unreachable we
+	// print a warning and let the runtime inside the SIF fetch the
+	// model on first use.
 	//
-	// The fast-path (alreadyCached=true) matters for re-init / upgrade:
-	// once the model is on disk we must NOT re-download it, and we must
-	// NOT print "Pre-downloading..." — that's misleading to users who
-	// just ran upgrade and weren't expecting a 300 MB fetch.
-	fmt.Printf("\n%s Checking embedding model cache (%s)...\n",
-		bullet, hfcache.LeanEmbeddingModel)
-	progress := newProgressPrinter(os.Stdout)
-	alreadyCached, err := hfcache.EnsureLeanModel(cacheDir, progress)
+	// UX note: we deliberately say "Setting up embeddings..." rather
+	// than "Checking embedding model cache (nomic-ai/…)" because:
+	//   1. Users don't care about the model name at init-time; they
+	//      care that something named "embeddings" is being arranged.
+	//   2. On a cache-hit re-init the old wording printed the full
+	//      model URL and a "(skipping download)" parenthetical —
+	//      mechanical status updates without useful user signal.
+	//   3. The downloadReporter's ticker-driven spinner handles the
+	//      "still alive" job; no need for text hints like "may take a
+	//      few minutes".
+	// Both cached and fresh-download paths converge on the same
+	// "Embeddings ready" confirmation; the only difference the user
+	// sees is whether a spinner+bytes line appeared in between.
+	fmt.Printf("\n%s Setting up embeddings...\n", bullet)
+	progress := startDownloadReporter(os.Stdout)
+	_, err = hfcache.EnsureLeanModel(cacheDir, progress)
 	progress.finish()
-	switch {
-	case err != nil:
-		fmt.Printf("%s Could not pre-download embedding model: %v\n", crossMark, err)
+	if err != nil {
+		fmt.Printf("%s Could not prepare embedding model: %v\n", crossMark, err)
 		fmt.Println("  The model will be downloaded on first formation deploy.")
-	case alreadyCached:
-		fmt.Printf("%s Embedding model already cached (skipping download)\n", checkMark)
-	default:
-		fmt.Printf("%s Embedding model cached at %s\n", checkMark, cacheDir)
+	} else {
+		fmt.Printf("%s Embeddings ready\n", checkMark)
 	}
 
 	// Success message
@@ -771,48 +777,6 @@ func cmdHelp() {
 
 // Helper functions
 
-// progressPrinter is a minimal io.Writer that reprints the running
-// download total on a single line every 4 MiB so init doesn't look
-// frozen during a multi-hundred-megabyte model download. 4 MiB is a
-// reasonable middle ground — small enough that fast connections see
-// continuous motion, large enough that slow terminals aren't flooded
-// with redraws.
-//
-// Intentionally simple: no ETA, no bar, no throughput math. A dependency
-// on github.com/schollz/progressbar would be proportionate for a full
-// CLI, not for a single once-per-install download that's already
-// best-effort.
-type progressPrinter struct {
-	out    io.Writer
-	total  int64
-	nextAt int64
-}
-
-const progressTick = 4 * 1024 * 1024 // 4 MiB
-
-func newProgressPrinter(out io.Writer) *progressPrinter {
-	return &progressPrinter{out: out, nextAt: progressTick}
-}
-
-func (p *progressPrinter) Write(b []byte) (int, error) {
-	n := len(b)
-	p.total += int64(n)
-	if p.total >= p.nextAt {
-		fmt.Fprintf(p.out, "\r  %.1f MiB downloaded", float64(p.total)/1024/1024)
-		p.nextAt = p.total + progressTick
-	}
-	return n, nil
-}
-
-// finish terminates the in-place progress line so subsequent output
-// doesn't overwrite the trailing status. Safe to call even if Write
-// was never invoked (empty cache skip path).
-func (p *progressPrinter) finish() {
-	if p.total > 0 {
-		fmt.Fprintf(p.out, "\r  %.1f MiB downloaded\n", float64(p.total)/1024/1024)
-	}
-}
-
 // findAvailableRCEPort finds an available port for the RCE service,
 // starting from the default (7891) and scanning upward if occupied.
 func findAvailableRCEPort() int {
@@ -918,51 +882,173 @@ func pullRuntimeRunner() error {
 	return waitErr
 }
 
+// spinnerFrames is a braille-dot spinner rotated by renderPullProgress
+// and downloadReporter to signal "still working" during long silent
+// phases of a download. Braille dots are monospace and render crisply
+// in every modern terminal muxi-server targets (Terminal.app, iTerm2,
+// Windows Terminal, VS Code, etc.); we don't fall back to ASCII "/-\|"
+// because every platform we support has had Unicode-capable defaults
+// since long before the oldest supported macOS/Windows version.
+var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+
+// spinnerTick is the repaint interval. 100 ms is fast enough for the
+// dot sequence to look alive, slow enough to not flood a serial tty.
+const spinnerTick = 100 * time.Millisecond
+
 // renderPullProgress collapses Docker's verbose non-TTY pull output
 // (one line per layer × five events per layer = a wall of text) into a
-// single in-place progress line: "  Layers: 5/8 (62%)".
+// single in-place progress line with an animated spinner:
 //
-// It reads line-by-line from `in`, counts two event types that together
-// form Docker's layer-lifecycle checkpoints:
+//	⠙ Layers 5/8 (62%)
+//
+// The spinner ticks independently of event arrival so the line keeps
+// animating during a large silent layer download — the exact moment
+// the user wonders "is this hung?".
+//
+// Event parsing:
 //
 //	"Pulling fs layer"   increments the total layer count
 //	"Pull complete"      increments the completed count
 //
 // The running total adapts as new layers are announced; when Docker
-// staggers the announcements the display may briefly show e.g. 3/5 then
+// staggers announcements the display may briefly show e.g. 3/5 then
 // 3/8, which is honest reporting of what's actually known at each
 // moment rather than a falsified precomputed total.
 //
-// If `in` never yields any "Pulling fs layer" lines (image already up
-// to date on disk — rare in init because we guard with
-// checkRuntimeRunnerExists, but possible after a cache eviction), we
-// print nothing and the caller's success message takes over.
+// If the transcript yields zero "Pulling fs layer" lines (image was
+// already up to date — rare because cmdInit guards with
+// checkRuntimeRunnerExists), the function prints nothing and the
+// caller's success message takes over the line.
 func renderPullProgress(in io.Reader, out io.Writer) {
-	scanner := bufio.NewScanner(in)
-	// Docker can emit long lines on some statuses; bump the buffer from
-	// the default 64 KiB to 1 MiB to be safe.
-	scanner.Buffer(make([]byte, 1<<16), 1<<20)
-
-	total, pulled := 0, 0
-	for scanner.Scan() {
-		line := scanner.Text()
-		switch {
-		case strings.Contains(line, "Pulling fs layer"):
-			total++
-		case strings.Contains(line, "Pull complete"):
-			pulled++
+	// Producer goroutine: drain the scanner into a buffered channel so
+	// the ticker-driven renderer can select between new events and
+	// spinner ticks without blocking.
+	events := make(chan string, 128)
+	go func() {
+		defer close(events)
+		scanner := bufio.NewScanner(in)
+		// Docker can emit long lines on some statuses; bump the buffer
+		// from the default 64 KiB to 1 MiB to be safe.
+		scanner.Buffer(make([]byte, 1<<16), 1<<20)
+		for scanner.Scan() {
+			events <- scanner.Text()
 		}
-		if total > 0 {
-			pct := 100 * pulled / total
-			// Trailing spaces clear any leftover characters from a
-			// longer previous line (single-digit → double-digit count).
-			fmt.Fprintf(out, "\r  Layers: %d/%d (%d%%)   ", pulled, total, pct)
+	}()
+
+	ticker := time.NewTicker(spinnerTick)
+	defer ticker.Stop()
+
+	var total, pulled, frame int
+	repaint := func() {
+		if total == 0 {
+			return
+		}
+		pct := 100 * pulled / total
+		// Trailing spaces clear any leftover characters from a longer
+		// previous line (single-digit → double-digit count transitions).
+		fmt.Fprintf(out, "\r  %s Layers %d/%d (%d%%)   ",
+			spinnerFrames[frame%len(spinnerFrames)], pulled, total, pct)
+	}
+
+	for {
+		select {
+		case line, ok := <-events:
+			if !ok {
+				if total > 0 {
+					// Close out the in-place line with a real newline
+					// so whatever prints next doesn't overwrite our
+					// final status.
+					fmt.Fprintln(out)
+				}
+				return
+			}
+			switch {
+			case strings.Contains(line, "Pulling fs layer"):
+				total++
+			case strings.Contains(line, "Pull complete"):
+				pulled++
+			}
+			repaint()
+		case <-ticker.C:
+			frame++
+			repaint()
 		}
 	}
-	if total > 0 {
-		// Close out the in-place line with a real newline so whatever
-		// prints next doesn't overwrite our final status.
-		fmt.Fprintln(out)
+}
+
+// downloadReporter is an io.Writer that accumulates bytes written to it
+// and renders a single in-place spinner + MiB-downloaded line via a
+// ticker goroutine. Replaces the older progressPrinter which only
+// printed every 4 MiB threshold and therefore appeared frozen during
+// slow transfers.
+//
+// Lifecycle:
+//
+//	r := startDownloadReporter(os.Stdout)
+//	// pass r.Writer() somewhere that reads into it
+//	r.finish()
+//
+// Concurrency: Write is called from the HTTP-read goroutine; render is
+// called from an internal ticker goroutine. The total byte count is
+// atomic-protected; we don't guard the final newline because finish()
+// synchronizes via a done-channel before returning.
+type downloadReporter struct {
+	out    io.Writer
+	bytes  atomic.Int64
+	stop   chan struct{}
+	done   chan struct{}
+	render bool // true once at least one repaint has happened; guards final newline
+}
+
+func startDownloadReporter(out io.Writer) *downloadReporter {
+	r := &downloadReporter{
+		out:  out,
+		stop: make(chan struct{}),
+		done: make(chan struct{}),
+	}
+	go r.run()
+	return r
+}
+
+func (r *downloadReporter) Write(b []byte) (int, error) {
+	r.bytes.Add(int64(len(b)))
+	return len(b), nil
+}
+
+func (r *downloadReporter) run() {
+	defer close(r.done)
+	ticker := time.NewTicker(spinnerTick)
+	defer ticker.Stop()
+
+	frame := 0
+	for {
+		select {
+		case <-r.stop:
+			return
+		case <-ticker.C:
+			n := r.bytes.Load()
+			if n == 0 {
+				// Nothing has flowed yet; don't paint a "0 MiB" line
+				// that would just confuse during the HTTP connect phase.
+				continue
+			}
+			r.render = true
+			fmt.Fprintf(r.out, "\r  %s %.1f MiB downloaded   ",
+				spinnerFrames[frame%len(spinnerFrames)],
+				float64(n)/1024/1024)
+			frame++
+		}
+	}
+}
+
+// finish signals the ticker to stop, waits for it to exit, and writes
+// a terminating newline if any progress was actually painted. Safe to
+// call even if no bytes flowed (empty cache-skip path).
+func (r *downloadReporter) finish() {
+	close(r.stop)
+	<-r.done
+	if r.render {
+		fmt.Fprintln(r.out)
 	}
 }
 

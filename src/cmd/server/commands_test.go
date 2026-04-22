@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/rs/zerolog"
 )
@@ -415,9 +416,14 @@ VERSION_ID="9.1"`,
 
 // TestRenderPullProgress_CollapsesLayerLifecycleToSingleLine is the
 // happy-path guard: given a transcript with N "Pulling fs layer" events
-// and N "Pull complete" events, the final output must end with a
-// "Layers: N/N (100%)" line regardless of the verbose noise in between
-// (Verifying Checksum, Download complete, Extracting…).
+// and N "Pull complete" events, the output must contain a progress line
+// ending in "Layers N/N (100%)" regardless of the verbose noise in
+// between (Verifying Checksum, Download complete, Extracting…).
+//
+// The renderer prefixes each progress line with a spinner frame from
+// spinnerFrames. The specific frame at any point is
+// scheduling-dependent (the ticker fires independently of event
+// arrival), so we assert on substrings rather than exact equality.
 func TestRenderPullProgress_CollapsesLayerLifecycleToSingleLine(t *testing.T) {
 	transcript := strings.Join([]string{
 		"latest: Pulling from muxi-ai/runtime-runner",
@@ -443,15 +449,14 @@ func TestRenderPullProgress_CollapsesLayerLifecycleToSingleLine(t *testing.T) {
 	renderPullProgress(strings.NewReader(transcript), &out)
 
 	got := out.String()
-	// Final line should report 3/3 (100%). Intermediate redraws are
-	// carriage-return separated, so we split on \r to grab the last one.
-	segments := strings.Split(strings.TrimRight(got, "\n"), "\r")
-	last := strings.TrimSpace(segments[len(segments)-1])
-	if last != "Layers: 3/3 (100%)" {
-		t.Errorf("final progress line = %q, want \"Layers: 3/3 (100%%)\"", last)
+	if !strings.Contains(got, "Layers 3/3 (100%)") {
+		t.Errorf("expected final 3/3 reading in output, got %q", got)
 	}
 	if !strings.HasSuffix(got, "\n") {
 		t.Errorf("output must terminate with newline; got %q", got)
+	}
+	if !containsAnySpinnerFrame(got) {
+		t.Errorf("expected at least one spinner frame in output, got %q", got)
 	}
 }
 
@@ -473,17 +478,28 @@ func TestRenderPullProgress_StaggeredLayerAnnouncements(t *testing.T) {
 	renderPullProgress(strings.NewReader(transcript), &out)
 
 	got := out.String()
-	if !strings.Contains(got, "Layers: 1/1 (100%)") {
+	if !strings.Contains(got, "Layers 1/1 (100%)") {
 		t.Errorf("expected interim 1/1 reading, got %q", got)
 	}
-	if !strings.Contains(got, "Layers: 1/3 (33%)") {
+	if !strings.Contains(got, "Layers 1/3 (33%)") {
 		t.Errorf("expected interim 1/3 reading after third layer announced, got %q", got)
 	}
-	segments := strings.Split(strings.TrimRight(got, "\n"), "\r")
-	last := strings.TrimSpace(segments[len(segments)-1])
-	if last != "Layers: 3/3 (100%)" {
-		t.Errorf("final line = %q, want \"Layers: 3/3 (100%%)\"", last)
+	if !strings.Contains(got, "Layers 3/3 (100%)") {
+		t.Errorf("expected final 3/3 reading, got %q", got)
 	}
+}
+
+// containsAnySpinnerFrame returns true if any of the defined spinner
+// frames appears anywhere in s. Used to verify the renderer prefixes
+// its progress line with a spinner character without pinning the test
+// to a specific frame (which depends on ticker scheduling).
+func containsAnySpinnerFrame(s string) bool {
+	for _, f := range spinnerFrames {
+		if strings.Contains(s, f) {
+			return true
+		}
+	}
+	return false
 }
 
 // TestRenderPullProgress_ImageUpToDatePrintsNothing — when Docker finds
@@ -504,5 +520,53 @@ func TestRenderPullProgress_ImageUpToDatePrintsNothing(t *testing.T) {
 
 	if out.Len() != 0 {
 		t.Errorf("expected empty output for cached image, got %q", out.String())
+	}
+}
+
+// TestDownloadReporter_NoBytesNoOutput: the fast-path (model already
+// cached, EnsureLeanModel returns without writing) must produce zero
+// output. Any newline or stray character would corrupt the caller's
+// bullet/check-mark layout.
+func TestDownloadReporter_NoBytesNoOutput(t *testing.T) {
+	var out bytes.Buffer
+	r := startDownloadReporter(&out)
+	// Give the ticker goroutine enough time to fire at least twice so
+	// we're sure a zero-byte-tick would have had its chance to paint.
+	time.Sleep(250 * time.Millisecond)
+	r.finish()
+	if out.Len() != 0 {
+		t.Errorf("expected empty output on zero-byte path, got %q", out.String())
+	}
+}
+
+// TestDownloadReporter_BytesProduceProgress: when bytes do flow, we
+// expect (1) at least one spinner-framed "N.N MiB downloaded" line to
+// have been painted and (2) the output to terminate with a newline so
+// subsequent prints don't overwrite the progress line.
+func TestDownloadReporter_BytesProduceProgress(t *testing.T) {
+	var out bytes.Buffer
+	r := startDownloadReporter(&out)
+	// 8 MiB of dummy bytes — enough to cross the first MiB threshold
+	// regardless of how the ticker schedules its first paint.
+	blob := make([]byte, 1024*1024)
+	for i := 0; i < 8; i++ {
+		if _, err := r.Write(blob); err != nil {
+			t.Fatalf("Write: %v", err)
+		}
+	}
+	// Give the ticker at least a couple of cycles to observe the
+	// accumulated bytes. Tight: 250 ms is 2.5× the 100 ms spinnerTick.
+	time.Sleep(250 * time.Millisecond)
+	r.finish()
+
+	got := out.String()
+	if !strings.Contains(got, "MiB downloaded") {
+		t.Errorf("expected MiB-downloaded progress line, got %q", got)
+	}
+	if !containsAnySpinnerFrame(got) {
+		t.Errorf("expected at least one spinner frame, got %q", got)
+	}
+	if !strings.HasSuffix(got, "\n") {
+		t.Errorf("output must terminate with newline, got %q", got)
 	}
 }
