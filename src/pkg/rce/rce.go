@@ -265,9 +265,19 @@ func EnsureSIF(dataDir string) (string, error) {
 	return sifPath, nil
 }
 
-// EnsureDocker pulls the latest RCE Docker image (macOS/Windows)
+// EnsureDocker pulls the latest RCE Docker image (macOS/Windows).
+//
+// Stdout/stderr are wired to the user's terminal so Docker's native
+// per-layer progress is visible. The previous implementation used -q,
+// which silenced the entire transfer — on a multi-hundred-megabyte
+// image that made init look frozen for minutes with no feedback. The
+// same change landed on pullRuntimeRunner (cmd/server/commands.go);
+// keeping the two pull paths consistent means "Setting up Skills RCE"
+// and "Downloading runtime-runner" behave the same way.
 func EnsureDocker() error {
-	cmd := exec.Command("docker", "pull", "-q", DockerImage)
+	cmd := exec.Command("docker", "pull", DockerImage)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to pull RCE image: %w", err)
 	}

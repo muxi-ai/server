@@ -479,7 +479,7 @@ func cmdInit() error {
 		// the old trailing "..." relied on --quiet and broke once we
 		// started streaming Docker output.
 		if !checkRuntimeRunnerExists() {
-			fmt.Printf("%s Downloading runtime-runner image (~600 MB, may take several minutes)...\n", bullet)
+			fmt.Printf("%s Downloading runtime-runner image (~280 MB, may take a few minutes)...\n", bullet)
 			if err := pullRuntimeRunner(); err != nil {
 				fmt.Printf("%s Failed to download runtime-runner: %v\n", crossMark, err)
 				fmt.Println("   You can pull it manually later:")
@@ -874,22 +874,96 @@ func checkRuntimeRunnerExists() bool {
 	return err == nil && len(output) > 0
 }
 
-// pullRuntimeRunner pulls the runtime-runner image from GHCR.
+// pullRuntimeRunner pulls the runtime-runner image from GHCR and renders
+// a single collapsed progress line instead of Docker's native per-layer
+// output (50+ lines for a typical multi-layer pull).
 //
-// Stdout is wired straight through to the user's terminal so Docker's
-// native per-layer progress is visible. The previous implementation used
-// --quiet, which for a ~600 MB image made init look completely frozen
-// for minutes on anything slower than a fast wired connection — the
-// download WAS progressing, Docker just had no channel to tell anyone.
-// Showing raw Docker progress is imperfect (multi-line, redraws), but
-// it's vastly better than silence for an unattended multi-minute pull.
+// Design: stdout is piped into renderPullProgress which watches for
+// "Pulling fs layer" (increments the total) and "Pull complete"
+// (increments the done-count) events and repaints a single in-place
+// line via \r. Stderr stays wired to the terminal so real Docker
+// errors (auth, network, daemon down) remain visible at full fidelity.
+//
+// DOCKER_CLI_HINTS=false suppresses the "What's next:" promotional
+// footer Docker Desktop appends after every pull (docker scout
+// quickview…). It's noise during a bootstrap flow where we're already
+// managing user attention carefully.
 func pullRuntimeRunner() error {
 	// Always pull linux/amd64 since Singularity only runs on Linux x86_64;
 	// Docker on ARM64 (Apple Silicon) will run it through emulation.
 	cmd := exec.Command("docker", "pull", "--platform", "linux/amd64", "ghcr.io/muxi-ai/runtime-runner:latest")
-	cmd.Stdout = os.Stdout
+	cmd.Env = append(os.Environ(), "DOCKER_CLI_HINTS=false")
 	cmd.Stderr = os.Stderr
-	return cmd.Run()
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("create stdout pipe: %w", err)
+	}
+
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("start docker pull: %w", err)
+	}
+
+	// Render progress on a background goroutine so cmd.Wait doesn't
+	// block on an un-drained pipe; signal completion via `done` so we
+	// don't return before the final line is painted.
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		renderPullProgress(stdout, os.Stdout)
+	}()
+
+	waitErr := cmd.Wait()
+	<-done
+	return waitErr
+}
+
+// renderPullProgress collapses Docker's verbose non-TTY pull output
+// (one line per layer × five events per layer = a wall of text) into a
+// single in-place progress line: "  Layers: 5/8 (62%)".
+//
+// It reads line-by-line from `in`, counts two event types that together
+// form Docker's layer-lifecycle checkpoints:
+//
+//	"Pulling fs layer"   increments the total layer count
+//	"Pull complete"      increments the completed count
+//
+// The running total adapts as new layers are announced; when Docker
+// staggers the announcements the display may briefly show e.g. 3/5 then
+// 3/8, which is honest reporting of what's actually known at each
+// moment rather than a falsified precomputed total.
+//
+// If `in` never yields any "Pulling fs layer" lines (image already up
+// to date on disk — rare in init because we guard with
+// checkRuntimeRunnerExists, but possible after a cache eviction), we
+// print nothing and the caller's success message takes over.
+func renderPullProgress(in io.Reader, out io.Writer) {
+	scanner := bufio.NewScanner(in)
+	// Docker can emit long lines on some statuses; bump the buffer from
+	// the default 64 KiB to 1 MiB to be safe.
+	scanner.Buffer(make([]byte, 1<<16), 1<<20)
+
+	total, pulled := 0, 0
+	for scanner.Scan() {
+		line := scanner.Text()
+		switch {
+		case strings.Contains(line, "Pulling fs layer"):
+			total++
+		case strings.Contains(line, "Pull complete"):
+			pulled++
+		}
+		if total > 0 {
+			pct := 100 * pulled / total
+			// Trailing spaces clear any leftover characters from a
+			// longer previous line (single-digit → double-digit count).
+			fmt.Fprintf(out, "\r  Layers: %d/%d (%d%%)   ", pulled, total, pct)
+		}
+	}
+	if total > 0 {
+		// Close out the in-place line with a real newline so whatever
+		// prints next doesn't overwrite our final status.
+		fmt.Fprintln(out)
+	}
 }
 
 // checkSingularityAvailable checks if Singularity or Apptainer is installed
