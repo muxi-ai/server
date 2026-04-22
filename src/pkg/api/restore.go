@@ -94,6 +94,14 @@ func (s *Server) restoreFormation(formationID string, port int) error {
 			return err
 		}
 
+		// Parse "<version>[:<variant>]" — restore path runs during server
+		// startup for previously-deployed formations, so this must honor
+		// variants already persisted in their formation configs.
+		parsedVersion, variant, err := runtime.ParseMuxiRuntime(formationConfig.MuxiRuntime)
+		if err != nil {
+			return fmt.Errorf("invalid muxi_runtime in restored formation: %w", err)
+		}
+
 		// Use downloader to resolve "latest" from GitHub and ensure SIF exists
 		downloader := runtime.NewDownloader(
 			s.config.Runtime.SIFBaseURL,
@@ -102,13 +110,19 @@ func (s *Server) restoreFormation(formationID string, port int) error {
 			s.logger,
 		)
 
-		sifPath, _, _, err := downloader.EnsureSIF(formationConfig.MuxiRuntime)
+		sifPath, _, _, err := downloader.EnsureSIFForVariant(parsedVersion, variant)
 		if err != nil {
 			return fmt.Errorf("failed to ensure runtime SIF: %w", err)
 		}
 
+		cacheDir, err := getCacheDir()
+		if err != nil {
+			return fmt.Errorf("failed to resolve cache directory: %w", err)
+		}
+
 		spawnConfig.RuntimeType = "singularity"
 		spawnConfig.SIFPath = sifPath
+		spawnConfig.HFCacheDir = cacheDir
 		spawnConfig.Command = "python"
 		spawnConfig.Args = []string{
 			"-m", "muxi.runtime.utils.run_formation",

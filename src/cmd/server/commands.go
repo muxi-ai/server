@@ -566,7 +566,16 @@ func cmdInit() error {
 	logsDir := filepath.Join(muxiDir, "logs")
 	formationsDir := filepath.Join(muxiDir, "formations")
 
-	for _, dir := range []string{logsDir, formationsDir} {
+	// Cache dir lives under the data dir (GetDataDir() + /cache) so it is
+	// co-located with other per-install state, bind-mounted into every SIF
+	// at /opt/hf-cache at formation-start time. Created empty here; the
+	// runtime inside the SIF handles populating it on first formation run.
+	cacheDir, err := config.GetCacheDir()
+	if err != nil {
+		return fmt.Errorf("failed to resolve cache directory: %w", err)
+	}
+
+	for _, dir := range []string{logsDir, formationsDir, cacheDir} {
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			return fmt.Errorf("failed to create directory %s: %w", dir, err)
 		}

@@ -28,15 +28,15 @@ const (
 
 // Manager handles the lifecycle of the Skills RCE service
 type Manager struct {
-	port       int
-	authToken  string
-	sifPath    string
-	dataDir    string
-	logsDir    string
-	pidsDir    string
-	logger     *zerolog.Logger
-	process    *process.Process
-	procMgr    *process.Manager
+	port      int
+	authToken string
+	sifPath   string
+	dataDir   string
+	logsDir   string
+	pidsDir   string
+	logger    *zerolog.Logger
+	process   *process.Process
+	procMgr   *process.Manager
 }
 
 // NewManager creates a new RCE manager
@@ -65,8 +65,8 @@ func (m *Manager) Start() error {
 
 	env := map[string]string{
 		"RCE_PORT":       strconv.Itoa(m.port),
-		"RCE_AUTH_TOKEN":  m.authToken,
-		"RCE_CACHE_DIR":   filepath.Join(m.dataDir, "rce", "cache"),
+		"RCE_AUTH_TOKEN": m.authToken,
+		"RCE_CACHE_DIR":  filepath.Join(m.dataDir, "rce", "cache"),
 	}
 
 	// Ensure cache dir exists

@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"path/filepath"
 	"testing"
 )
 
@@ -85,6 +86,37 @@ func TestResolver_GetSIFPath(t *testing.T) {
 	// Should contain the version and platform
 	if path == "" {
 		t.Error("GetSIFPath() returned empty string")
+	}
+}
+
+func TestResolver_SIFPathForVariant_LeanMatchesGetSIFPath(t *testing.T) {
+	// Back-compat contract: the new variant-aware method, when called with
+	// DefaultVariant, must produce a path byte-identical to the legacy
+	// GetSIFPath. Any divergence here would silently break every deploy
+	// script or registry entry that pins the historical filename.
+	r := NewResolver([]string{}, "/tmp/runtimes")
+
+	legacy := r.GetSIFPath("1.0.0")
+	variantAware := r.SIFPathForVariant("1.0.0", DefaultVariant)
+	if legacy != variantAware {
+		t.Errorf("lean drift: GetSIFPath=%q SIFPathForVariant(..., lean)=%q",
+			legacy, variantAware)
+	}
+}
+
+func TestResolver_SIFPathForVariant_PytorchInsertsVariant(t *testing.T) {
+	r := NewResolver([]string{}, "/tmp/runtimes")
+	lean := r.SIFPathForVariant("1.0.0", "lean")
+	pytorch := r.SIFPathForVariant("1.0.0", "pytorch")
+
+	if lean == pytorch {
+		t.Errorf("lean and pytorch paths must differ, both = %q", lean)
+	}
+	// Variant-aware path must live under the same runtimesDir — only the
+	// filename differs, so callers can still rely on directory layout.
+	if filepath.Dir(lean) != filepath.Dir(pytorch) {
+		t.Errorf("variant paths diverged from runtimesDir: lean=%q pytorch=%q",
+			lean, pytorch)
 	}
 }
 

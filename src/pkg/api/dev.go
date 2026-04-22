@@ -192,7 +192,18 @@ func (s *Server) HandleDevRun(w http.ResponseWriter, r *http.Request) {
 		availableVersions := runtimeRegistry.List()
 		resolver := runtime.NewResolver(availableVersions, runtimesDir)
 
-		resolvedVersion, err := resolver.Resolve(formationConfig.MuxiRuntime)
+		// Parse muxi_runtime as "<version>[:<variant>]". Variant is an
+		// independent axis (lean vs pytorch) that selects the SIF artifact;
+		// version is still what the resolver consumes. A parse error here
+		// is a 400: the formation's YAML is malformed.
+		parsedVersion, variant, err := runtime.ParseMuxiRuntime(formationConfig.MuxiRuntime)
+		if err != nil {
+			s.registry.UnregisterDraft(formationID)
+			respondDevError(w, http.StatusBadRequest, formationID, fmt.Sprintf("Invalid muxi_runtime: %v", err))
+			return
+		}
+
+		resolvedVersion, err := resolver.Resolve(parsedVersion)
 		if err != nil {
 			s.registry.UnregisterDraft(formationID)
 			respondDevError(w, http.StatusInternalServerError, formationID, fmt.Sprintf("Failed to resolve runtime: %v", err))
@@ -207,8 +218,10 @@ func (s *Server) HandleDevRun(w http.ResponseWriter, r *http.Request) {
 			s.logger,
 		)
 
-		// Ensure SIF exists (download if missing)
-		sifPath, _, _, err := downloader.EnsureSIF(resolvedVersion)
+		// Ensure SIF exists (download if missing). Variant flows here: a
+		// "pytorch" formation gets the pytorch SIF; a bare version (or
+		// explicit ":lean") gets the lean SIF whose filename has no suffix.
+		sifPath, _, _, err := downloader.EnsureSIFForVariant(resolvedVersion, variant)
 		if err != nil {
 			s.registry.UnregisterDraft(formationID)
 			respondDevError(w, http.StatusInternalServerError, formationID, fmt.Sprintf("Failed to download runtime: %v", err))
@@ -222,8 +235,20 @@ func (s *Server) HandleDevRun(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Resolve the host cache dir to bind-mount into the SIF at
+		// /opt/hf-cache. The runtime inside the SIF reads HF_HOME
+		// (baked into the image) pointing there, so populated weights
+		// flow through without any further wiring on the server.
+		cacheDir, err := getCacheDir()
+		if err != nil {
+			s.registry.UnregisterDraft(formationID)
+			respondDevError(w, http.StatusInternalServerError, formationID, fmt.Sprintf("Failed to resolve cache directory: %v", err))
+			return
+		}
+
 		spawnConfig.RuntimeType = "singularity"
 		spawnConfig.SIFPath = sifPath
+		spawnConfig.HFCacheDir = cacheDir
 		spawnConfig.Command = "python"
 		spawnConfig.Args = []string{
 			"-m", "muxi.runtime.utils.run_formation",

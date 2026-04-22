@@ -345,9 +345,9 @@ func TestGetLinuxDistro_MockOSRelease(t *testing.T) {
 	osRelease := filepath.Join(tmpDir, "os-release")
 
 	testCases := []struct {
-		name     string
-		content  string
-		wantID   string
+		name    string
+		content string
+		wantID  string
 	}{
 		{
 			name: "Ubuntu",

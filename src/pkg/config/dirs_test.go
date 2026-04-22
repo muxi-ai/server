@@ -74,6 +74,62 @@ func TestGetLogDir_EnvOverride(t *testing.T) {
 	}
 }
 
+func TestGetCacheDir(t *testing.T) {
+	dir, err := GetCacheDir()
+	if err != nil {
+		t.Fatalf("GetCacheDir() error = %v", err)
+	}
+	if dir == "" {
+		t.Error("expected non-empty cache dir")
+	}
+	// Sanity check: cache dir must be a child of data dir by default
+	// (unless MUXI_CACHE_DIR is set, which this test does not set).
+	// This pins the "<data-dir>/cache" contract.
+	dataDir, err := GetDataDir()
+	if err != nil {
+		t.Fatalf("GetDataDir() error = %v", err)
+	}
+	want := dataDir + "/cache"
+	// On Windows the separator differs; guard the assertion.
+	if os.PathSeparator == '/' && dir != want {
+		t.Errorf("GetCacheDir() = %q, want %q", dir, want)
+	}
+}
+
+func TestGetCacheDir_EnvOverride(t *testing.T) {
+	os.Setenv("MUXI_CACHE_DIR", "/tmp/muxi-test-cache")
+	defer os.Unsetenv("MUXI_CACHE_DIR")
+
+	dir, err := GetCacheDir()
+	if err != nil {
+		t.Fatalf("GetCacheDir() error = %v", err)
+	}
+	if dir != "/tmp/muxi-test-cache" {
+		t.Errorf("expected env override, got %s", dir)
+	}
+}
+
+// TestGetCacheDir_EnvOverrideIsolatedFromDataDir guards the independence
+// contract: MUXI_CACHE_DIR must only affect the cache dir, NOT leak into
+// GetDataDir(). A regression here would mean operators who relocate their
+// cache inadvertently relocate the rest of their data dir too.
+func TestGetCacheDir_EnvOverrideIsolatedFromDataDir(t *testing.T) {
+	os.Setenv("MUXI_CACHE_DIR", "/tmp/muxi-cache-only")
+	defer os.Unsetenv("MUXI_CACHE_DIR")
+
+	cacheDir, err := GetCacheDir()
+	if err != nil {
+		t.Fatalf("GetCacheDir() error = %v", err)
+	}
+	dataDir, err := GetDataDir()
+	if err != nil {
+		t.Fatalf("GetDataDir() error = %v", err)
+	}
+	if dataDir == cacheDir {
+		t.Errorf("MUXI_CACHE_DIR leaked into data dir: both = %q", dataDir)
+	}
+}
+
 func TestGetInstallType(t *testing.T) {
 	installType := GetInstallType()
 	if installType == "" {

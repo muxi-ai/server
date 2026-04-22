@@ -31,6 +31,16 @@ type SpawnConfig struct {
 	RuntimeType string // "native" or "singularity"
 	SIFPath     string // Path to SIF file (if RuntimeType is "singularity")
 
+	// HFCacheDir is the host path to the HuggingFace model-weights cache.
+	// When set and RuntimeType == "singularity", it is bind-mounted into the
+	// SIF at /opt/hf-cache (writable). The runtime's baked-in HF_HOME and
+	// HF_HUB_CACHE env vars point at that container path, so the runtime's
+	// embedding code finds the weights without any further env plumbing.
+	//
+	// Empty means "no cache mount" — used by tests and native (non-SIF)
+	// formations that don't need embeddings.
+	HFCacheDir string
+
 	// Skip initial health check in monitor (used when deploy does its own health check)
 	SkipInitialHealthCheck bool
 
@@ -465,6 +475,15 @@ func buildNativeSingularityCommand(config SpawnConfig, logger *zerolog.Logger) *
 	// Add bind mount for /tmp (allows formations to write temporary files)
 	args = append(args, "--bind", "/tmp")
 
+	// Add bind mount for the HuggingFace model-weights cache at /opt/hf-cache.
+	// The runtime's HF_HOME and HF_HUB_CACHE env vars point there by default,
+	// so embedding code inside the SIF finds weights without any host-side
+	// env plumbing. Writable because HF client writes lock files even in
+	// offline mode.
+	if config.HFCacheDir != "" {
+		args = append(args, "--bind", fmt.Sprintf("%s:/opt/hf-cache", config.HFCacheDir))
+	}
+
 	// Bind host tools into the SIF via /opt/muxi-tools (required for npx-based MCP servers).
 	// On native Linux, Apptainer can bind-mount host binaries and libraries directly.
 	args = append(args, bindHostToolsArgs(logger)...)
@@ -526,6 +545,15 @@ func buildDockerSingularityCommand(config SpawnConfig, logger *zerolog.Logger) *
 		"-p", fmt.Sprintf("%d:%d", config.Port, config.Port),
 	}
 
+	// Mount the HuggingFace model-weights cache at /opt/hf-cache for the
+	// runtime's embedding path to find weights. This is the Docker hop
+	// (host -> container); the Singularity hop (container -> SIF) is
+	// appended below alongside the other --bind flags, following the same
+	// two-hop pattern already used for /formation.
+	if config.HFCacheDir != "" {
+		args = append(args, "-v", fmt.Sprintf("%s:/opt/hf-cache", config.HFCacheDir))
+	}
+
 	// Pass environment variables to Docker container
 	// These will be inherited by Singularity inside the container
 	for key, value := range config.Env {
@@ -544,6 +572,14 @@ func buildDockerSingularityCommand(config SpawnConfig, logger *zerolog.Logger) *
 
 	// Bind /tmp for temporary files
 	args = append(args, "--bind", "/tmp")
+
+	// Bind /opt/hf-cache inside the SIF so the runtime's embedding code
+	// finds model weights at the path HF_HOME already points at. This is
+	// the Singularity hop completing the two-hop chain that started with
+	// the Docker -v above.
+	if config.HFCacheDir != "" {
+		args = append(args, "--bind", "/opt/hf-cache")
+	}
 
 	// Bind host tools into the SIF via /opt/muxi-tools (required for npx-based MCP servers)
 	// In runtime-runner, tools are pre-staged at /opt/muxi-tools/bin and /opt/muxi-tools/lib.

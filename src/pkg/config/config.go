@@ -386,6 +386,35 @@ func GetLogDir() (string, error) {
 	return filepath.Join(home, ".muxi", "server", "logs"), nil
 }
 
+// GetCacheDir returns the HuggingFace cache directory.
+//
+// The cache holds model weights bind-mounted into SIF containers at
+// /opt/hf-cache. It lives under the data dir (one per install, not per
+// formation) so a single populated cache is shared across every formation
+// on the host. The runtime inside the SIF populates it via its own
+// download path; the server only needs the directory to exist and be
+// bind-mountable.
+//
+// Priority: MUXI_CACHE_DIR env var > <GetDataDir()>/cache.
+//
+// The env override exists so operators with unusual disk layouts (e.g.,
+// cache on a large NVMe volume separate from /var/lib) can relocate it
+// without moving the rest of the data dir. Everything else stays co-located.
+func GetCacheDir() (string, error) {
+	// 1. Environment override (highest priority)
+	if dir := os.Getenv("MUXI_CACHE_DIR"); dir != "" {
+		return dir, nil
+	}
+
+	// 2. Derive from data dir — the cache is conceptually part of the
+	// server's persistent data, just separated for bind-mount purposes.
+	dataDir, err := GetDataDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dataDir, "cache"), nil
+}
+
 // GetInstallType returns the installation type for display purposes
 // Returns: "System", "User", or "Custom"
 func GetInstallType() string {

@@ -104,10 +104,31 @@ func (d *Downloader) fetchLatestVersion() (string, error) {
 	return version, nil
 }
 
-// EnsureSIF checks if the SIF file exists, downloads if missing
-// Returns the path to the SIF file, the resolved version, and whether it was downloaded (vs already existed)
+// EnsureSIF checks if the SIF file exists, downloads if missing.
+// Returns the path to the SIF file, the resolved version, and whether it was
+// downloaded (vs already existed).
+//
+// Equivalent to EnsureSIFForVariant(version, DefaultVariant). Kept as a
+// variant-less convenience for callers that pre-date the variant system;
+// new call sites should use EnsureSIFForVariant to carry the operator's
+// variant choice through the deploy pipeline.
 func (d *Downloader) EnsureSIF(version string) (string, string, bool, error) {
-	// Resolve "latest" to actual version
+	return d.EnsureSIFForVariant(version, DefaultVariant)
+}
+
+// EnsureSIFForVariant checks if the SIF file for a (version, variant) pair
+// exists on disk, downloads from the release mirror if missing. Returns the
+// on-disk path, the resolved version (meaningful when the caller passed
+// "latest"), and whether a download actually happened.
+//
+// Variant threads through filename construction (via sifFilename) so the
+// same GitHub release can host lean and pytorch SIFs side by side without
+// any change to URL-building logic — the variant lives in the filename
+// segment, and the release directory stays shared.
+func (d *Downloader) EnsureSIFForVariant(version, variant string) (string, string, bool, error) {
+	// Resolve "latest" to actual version. This is variant-independent —
+	// a release publishes all variants together, so the version redirect
+	// on the mirror points at the same release for all variants.
 	if version == "latest" {
 		resolved, err := d.fetchLatestVersion()
 		if err != nil {
@@ -116,14 +137,14 @@ func (d *Downloader) EnsureSIF(version string) (string, string, bool, error) {
 		version = resolved
 	}
 
-	arch := getPlatform()
-	filename := fmt.Sprintf("muxi-runtime-%s-%s.sif", version, arch)
+	filename := sifFilename(version, variant)
 	sifPath := filepath.Join(d.runtimesDir, filename)
 
 	// Check if SIF already exists
 	if _, err := os.Stat(sifPath); err == nil {
 		d.logger.Debug().
 			Str("path", sifPath).
+			Str("variant", variant).
 			Msg("SIF file already exists")
 		return sifPath, version, false, nil
 	}
@@ -151,6 +172,7 @@ func (d *Downloader) EnsureSIF(version string) (string, string, bool, error) {
 	d.logger.Info().
 		Str("url", url).
 		Str("destination", sifPath).
+		Str("variant", variant).
 		Msg("Downloading SIF file (this may take a few minutes)...")
 
 	// Download the file with progress logging
@@ -160,6 +182,7 @@ func (d *Downloader) EnsureSIF(version string) (string, string, bool, error) {
 
 	d.logger.Info().
 		Str("path", sifPath).
+		Str("variant", variant).
 		Msg("SIF file downloaded successfully")
 
 	return sifPath, version, true, nil

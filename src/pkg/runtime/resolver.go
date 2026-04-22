@@ -32,13 +32,30 @@ func NewResolver(available []string, runtimesDir string) *Resolver {
 	}
 }
 
-// GetSIFPath returns the full path to the SIF file for a given version
-// Format: ~/.muxi/server/runtimes/muxi-runtime-{version}-linux-{arch}.sif
+// GetSIFPath returns the full path to the SIF file for a given version,
+// selecting the default (lean) variant.
+//
+// Equivalent to SIFPathForVariant(version, DefaultVariant). Kept as a
+// variant-less convenience for callers that pre-date the variant system
+// and for back-compat with the historical naming convention.
+//
+// Format: <runtimesDir>/muxi-runtime-<version>-linux-<arch>.sif
 // Example: ~/.muxi/server/runtimes/muxi-runtime-0.2025.0-linux-arm64.sif
 func (r *Resolver) GetSIFPath(version string) string {
-	platform := getPlatform()
-	filename := fmt.Sprintf("muxi-runtime-%s-%s.sif", version, platform)
-	return filepath.Join(r.runtimesDir, filename)
+	return r.SIFPathForVariant(version, DefaultVariant)
+}
+
+// SIFPathForVariant returns the full path to the SIF file for a given
+// (version, variant) pair. This is the variant-aware form consumed by the
+// deploy/apply/start flow once the muxi_runtime field has been parsed
+// via ParseMuxiRuntime.
+//
+// For variant == DefaultVariant ("lean"), the returned path matches exactly
+// what GetSIFPath produces — the historical, variant-less naming.
+// For non-default variants, the variant is inserted before the platform
+// segment (e.g. muxi-runtime-<version>-pytorch-linux-<arch>.sif).
+func (r *Resolver) SIFPathForVariant(version, variant string) string {
+	return filepath.Join(r.runtimesDir, sifFilename(version, variant))
 }
 
 // Resolve resolves a version constraint to an exact version
