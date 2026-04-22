@@ -474,16 +474,18 @@ func cmdInit() error {
 			return fmt.Errorf("Docker not found")
 		}
 
-		// Pull runtime-runner with progress
+		// Pull runtime-runner with progress. End the header line with a
+		// newline so Docker's per-layer progress renders cleanly below —
+		// the old trailing "..." relied on --quiet and broke once we
+		// started streaming Docker output.
 		if !checkRuntimeRunnerExists() {
-			fmt.Printf("%s Downloading runtime-runner image...", bullet)
+			fmt.Printf("%s Downloading runtime-runner image (~600 MB, may take several minutes)...\n", bullet)
 			if err := pullRuntimeRunner(); err != nil {
-				fmt.Printf(" %s\n", crossMark)
-				fmt.Printf("   Failed: %v\n", err)
+				fmt.Printf("%s Failed to download runtime-runner: %v\n", crossMark, err)
 				fmt.Println("   You can pull it manually later:")
 				fmt.Println("   docker pull --platform linux/amd64 ghcr.io/muxi-ai/runtime-runner:latest")
 			} else {
-				fmt.Printf(" %s\n", checkMark)
+				fmt.Printf("%s Runtime-runner image ready\n", checkMark)
 			}
 		} else {
 			fmt.Printf("%s Runtime-runner image already available\n", checkMark)
@@ -864,12 +866,20 @@ func checkRuntimeRunnerExists() bool {
 	return err == nil && len(output) > 0
 }
 
-// pullRuntimeRunner pulls the runtime-runner image from GHCR
+// pullRuntimeRunner pulls the runtime-runner image from GHCR.
+//
+// Stdout is wired straight through to the user's terminal so Docker's
+// native per-layer progress is visible. The previous implementation used
+// --quiet, which for a ~600 MB image made init look completely frozen
+// for minutes on anything slower than a fast wired connection — the
+// download WAS progressing, Docker just had no channel to tell anyone.
+// Showing raw Docker progress is imperfect (multi-line, redraws), but
+// it's vastly better than silence for an unattended multi-minute pull.
 func pullRuntimeRunner() error {
-	// Always pull linux/amd64 since Singularity only runs on Linux x86_64
-	// Docker on ARM64 (Apple Silicon) will run it through emulation
-	cmd := exec.Command("docker", "pull", "--platform", "linux/amd64", "--quiet", "ghcr.io/muxi-ai/runtime-runner:latest")
-	// Suppress stdout (digest output), only show errors
+	// Always pull linux/amd64 since Singularity only runs on Linux x86_64;
+	// Docker on ARM64 (Apple Silicon) will run it through emulation.
+	cmd := exec.Command("docker", "pull", "--platform", "linux/amd64", "ghcr.io/muxi-ai/runtime-runner:latest")
+	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
 }
