@@ -89,12 +89,41 @@ const defaultTimeout = 10 * time.Minute
 // Wraps EnsureModel with the baked-in repoID + file list so callers
 // (currently just cmdInit) don't need to know HuggingFace specifics.
 //
+// Returns alreadyCached=true when every required file is already present
+// with non-zero size, in which case NO HTTP calls are made. The caller
+// should switch UX messaging off the flag ("already cached" vs "cached
+// after download") so users upgrading a working install don't see a
+// misleading "Pre-downloading..." line when nothing is actually fetched.
+//
 // Best-effort by contract: the caller is expected to log the error and
 // continue — the runtime inside the SIF still downloads the model on
 // first use if the cache is empty, so a failure here is a slow first
 // deploy, not a broken install.
-func EnsureLeanModel(cacheDir string, progress io.Writer) error {
+func EnsureLeanModel(cacheDir string, progress io.Writer) (alreadyCached bool, err error) {
 	return EnsureModel(cacheDir, LeanEmbeddingModel, leanModelFiles, progress)
+}
+
+// IsModelCached reports whether every file in `files` already exists under
+// <cacheDir>/<org>--<model>/ with non-zero size. Used as the fast-path
+// check inside EnsureModel, and exported so callers that want to render
+// a custom "skipping download, model present" UX can check without going
+// through the full EnsureModel codepath.
+//
+// Non-zero size (rather than exact size match) is deliberate: a strict
+// match would require a HEAD request per file, which adds network
+// dependency to a check that's supposed to be fast and offline-safe.
+// Partial files from a killed init would be left on disk looking
+// "cached" under this scheme, but `.tmp` sibling writes + atomic renames
+// in downloadFileIfMissing make that effectively unreachable in practice.
+func IsModelCached(cacheDir, repoID string, files []string) bool {
+	modelDir := filepath.Join(cacheDir, safeModelName(repoID))
+	for _, rel := range files {
+		stat, err := os.Stat(filepath.Join(modelDir, rel))
+		if err != nil || stat.Size() == 0 {
+			return false
+		}
+	}
+	return true
 }
 
 // EnsureModel is the generic downloader. Every file in `files` is fetched
@@ -102,19 +131,27 @@ func EnsureLeanModel(cacheDir string, progress io.Writer) error {
 // <cacheDir>/<org>--<model>/<file>, preserving subdirectories (so
 // "onnx/model.onnx" lands at <modelDir>/onnx/model.onnx).
 //
-// Idempotent: existing files with non-zero size are trusted and skipped.
-// Corruption-recovery is the operator's responsibility (delete the dir
-// and re-run init); implementing full checksum verification here would
-// require an extra HEAD request per file and would complicate init for
-// a cold path.
+// Returns alreadyCached=true when the fast-path check passes — i.e. no
+// HTTP work was needed. When false, at least one file was fetched (this
+// includes the partial-cache case where some files existed and others
+// didn't). Corruption-recovery is still the operator's responsibility
+// (delete the dir and re-run); full checksum verification would require
+// an extra HEAD per file and is disproportionate for the cold path.
 //
 // Progress: if `progress` is non-nil, each file's transfer is tee'd to
 // it via io.MultiWriter so callers can show a progress bar. Nil is
 // silent, which the tests rely on to stay quiet.
-func EnsureModel(cacheDir, repoID string, files []string, progress io.Writer) error {
+func EnsureModel(cacheDir, repoID string, files []string, progress io.Writer) (alreadyCached bool, err error) {
+	// Fast path: skip the entire download machinery if every file is
+	// already on disk. Critical for the re-init / upgrade path — no
+	// point stat-ing then opening HTTP clients then stat-ing again.
+	if IsModelCached(cacheDir, repoID, files) {
+		return true, nil
+	}
+
 	modelDir := filepath.Join(cacheDir, safeModelName(repoID))
 	if err := os.MkdirAll(modelDir, 0755); err != nil {
-		return fmt.Errorf("create model dir %q: %w", modelDir, err)
+		return false, fmt.Errorf("create model dir %q: %w", modelDir, err)
 	}
 
 	for _, rel := range files {
@@ -123,15 +160,15 @@ func EnsureModel(cacheDir, repoID string, files []string, progress io.Writer) er
 		// Create subdirectories lazily so entries like "onnx/model.onnx"
 		// or "1_Pooling/config.json" don't fail on a missing parent.
 		if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
-			return fmt.Errorf("create subdir for %q: %w", rel, err)
+			return false, fmt.Errorf("create subdir for %q: %w", rel, err)
 		}
 
 		url := fmt.Sprintf("%s/%s/resolve/main/%s", HFBaseURL, repoID, rel)
 		if err := downloadFileIfMissing(url, dest, progress); err != nil {
-			return fmt.Errorf("download %q: %w", rel, err)
+			return false, fmt.Errorf("download %q: %w", rel, err)
 		}
 	}
-	return nil
+	return false, nil
 }
 
 // safeModelName converts "nomic-ai/nomic-embed-text-v1.5" to

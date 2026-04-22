@@ -69,8 +69,12 @@ func TestEnsureModel_DownloadsEveryRequestedFile(t *testing.T) {
 	files := []string{
 		"config.json", "tokenizer.json", "onnx/model.onnx", "1_Pooling/config.json",
 	}
-	if err := EnsureModel(cacheDir, "nomic-ai/nomic-embed-text-v1.5", files, nil); err != nil {
+	alreadyCached, err := EnsureModel(cacheDir, "nomic-ai/nomic-embed-text-v1.5", files, nil)
+	if err != nil {
 		t.Fatalf("EnsureModel() error = %v", err)
+	}
+	if alreadyCached {
+		t.Errorf("alreadyCached = true on a cold cache; want false")
 	}
 
 	// Assert directory shape: <cache>/<org>--<model>/<file-preserving-subdirs>.
@@ -104,20 +108,108 @@ func TestEnsureModel_IsIdempotent_SkipsExistingFiles(t *testing.T) {
 	files := []string{"config.json", "tokenizer.json"}
 	repo := "nomic-ai/nomic-embed-text-v1.5"
 
-	if err := EnsureModel(cacheDir, repo, files, nil); err != nil {
+	firstCached, err := EnsureModel(cacheDir, repo, files, nil)
+	if err != nil {
 		t.Fatalf("first run: %v", err)
+	}
+	if firstCached {
+		t.Errorf("first run reported alreadyCached=true on cold cache")
 	}
 	firstRunHits := hits.Load()
 	if firstRunHits != 2 {
 		t.Fatalf("first run expected 2 fetches, got %d", firstRunHits)
 	}
 
-	if err := EnsureModel(cacheDir, repo, files, nil); err != nil {
+	secondCached, err := EnsureModel(cacheDir, repo, files, nil)
+	if err != nil {
 		t.Fatalf("second run: %v", err)
+	}
+	if !secondCached {
+		t.Errorf("second run reported alreadyCached=false when all files present")
 	}
 	if hits.Load() != firstRunHits {
 		t.Errorf("second run made %d new requests, want 0 (idempotency broken)",
 			hits.Load()-firstRunHits)
+	}
+}
+
+// TestEnsureModel_FullyCachedSkipsAllHTTP is the explicit guard on the
+// re-init / upgrade scenario the user flagged: when every file is
+// already on disk, no HTTP client should be spun up, no connection
+// attempted, no stat-races run. The httptest stub's hit counter stays
+// at zero across the call.
+func TestEnsureModel_FullyCachedSkipsAllHTTP(t *testing.T) {
+	cacheDir := t.TempDir()
+	repo := "nomic-ai/nomic-embed-text-v1.5"
+	files := []string{"config.json", "tokenizer.json", "onnx/model.onnx"}
+
+	// Pre-populate the cache as if a previous init had succeeded.
+	modelDir := filepath.Join(cacheDir, "nomic-ai--nomic-embed-text-v1.5")
+	for _, f := range files {
+		dest := filepath.Join(modelDir, f)
+		if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(dest, []byte("pretend-cached"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	srv, hits := newHFStub(t, map[string]string{})
+	withBaseURL(t, srv.URL)
+
+	cached, err := EnsureModel(cacheDir, repo, files, nil)
+	if err != nil {
+		t.Fatalf("EnsureModel() error = %v", err)
+	}
+	if !cached {
+		t.Errorf("alreadyCached = false when every file was pre-populated")
+	}
+	if got := hits.Load(); got != 0 {
+		t.Errorf("made %d HTTP requests on fully-cached path, want 0", got)
+	}
+}
+
+// TestIsModelCached_SignalsMissingAndPresent covers the exported helper
+// directly — useful for callers that want to render their own "already
+// present" UX without invoking the downloader codepath.
+func TestIsModelCached_SignalsMissingAndPresent(t *testing.T) {
+	cacheDir := t.TempDir()
+	repo := "o/m"
+	files := []string{"config.json", "tokenizer.json"}
+
+	// Nothing on disk → not cached.
+	if IsModelCached(cacheDir, repo, files) {
+		t.Errorf("IsModelCached() = true on empty cache; want false")
+	}
+
+	// One of two present → not cached.
+	modelDir := filepath.Join(cacheDir, "o--m")
+	if err := os.MkdirAll(modelDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(modelDir, "config.json"), []byte("x"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if IsModelCached(cacheDir, repo, files) {
+		t.Errorf("IsModelCached() = true with only 1/2 files present; want false")
+	}
+
+	// Both present → cached.
+	if err := os.WriteFile(filepath.Join(modelDir, "tokenizer.json"), []byte("y"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if !IsModelCached(cacheDir, repo, files) {
+		t.Errorf("IsModelCached() = false with all files present; want true")
+	}
+
+	// Zero-byte file → treated as not cached (guards the partial-write
+	// edge case).
+	if err := os.WriteFile(filepath.Join(modelDir, "tokenizer.json"), []byte{}, 0644); err != nil {
+		t.Fatal(err)
+	}
+	if IsModelCached(cacheDir, repo, files) {
+		t.Errorf("IsModelCached() = true with a 0-byte file; want false")
 	}
 }
 
@@ -144,8 +236,13 @@ func TestEnsureModel_PartialCacheResumesMissingOnly(t *testing.T) {
 	}
 
 	files := []string{"config.json", "tokenizer.json", "onnx/model.onnx"}
-	if err := EnsureModel(cacheDir, "nomic-ai/nomic-embed-text-v1.5", files, nil); err != nil {
+	alreadyCached, err := EnsureModel(cacheDir, "nomic-ai/nomic-embed-text-v1.5", files, nil)
+	if err != nil {
 		t.Fatalf("EnsureModel() error = %v", err)
+	}
+	// Partial cache still requires work → alreadyCached must be false.
+	if alreadyCached {
+		t.Errorf("alreadyCached = true on partial cache; want false")
 	}
 
 	// Only 2 requests expected — config.json was already cached.
@@ -166,7 +263,7 @@ func TestEnsureModel_PropagatesHTTPFailure(t *testing.T) {
 	t.Cleanup(srv.Close)
 	withBaseURL(t, srv.URL)
 
-	err := EnsureModel(cacheDir, "nonexistent/model", []string{"config.json"}, nil)
+	_, err := EnsureModel(cacheDir, "nonexistent/model", []string{"config.json"}, nil)
 	if err == nil {
 		t.Fatal("expected error for 404, got nil")
 	}
@@ -194,7 +291,7 @@ func TestEnsureModel_ProgressWriterReceivesBytes(t *testing.T) {
 	withBaseURL(t, srv.URL)
 
 	var progress bytes.Buffer
-	if err := EnsureModel(cacheDir, "o/m", []string{"config.json"}, &progress); err != nil {
+	if _, err := EnsureModel(cacheDir, "o/m", []string{"config.json"}, &progress); err != nil {
 		t.Fatalf("EnsureModel() error = %v", err)
 	}
 	if progress.Len() != len(body) {
@@ -244,7 +341,7 @@ func TestEnsureLeanModel_WiresDefaultRepoAndFiles(t *testing.T) {
 	srv, _ := newHFStub(t, fixtures)
 	withBaseURL(t, srv.URL)
 
-	if err := EnsureLeanModel(cacheDir, nil); err != nil {
+	if _, err := EnsureLeanModel(cacheDir, nil); err != nil {
 		t.Fatalf("EnsureLeanModel() error = %v", err)
 	}
 

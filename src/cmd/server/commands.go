@@ -609,15 +609,23 @@ func cmdInit() error {
 	// (docker-wrapper path). Best-effort — if HF is unreachable or the
 	// network is flaky, we print a warning and let the runtime inside the
 	// SIF fetch the model on first use.
-	fmt.Printf("\n%s Pre-downloading default embedding model (%s)...\n",
+	//
+	// The fast-path (alreadyCached=true) matters for re-init / upgrade:
+	// once the model is on disk we must NOT re-download it, and we must
+	// NOT print "Pre-downloading..." — that's misleading to users who
+	// just ran upgrade and weren't expecting a 300 MB fetch.
+	fmt.Printf("\n%s Checking embedding model cache (%s)...\n",
 		bullet, hfcache.LeanEmbeddingModel)
 	progress := newProgressPrinter(os.Stdout)
-	if err := hfcache.EnsureLeanModel(cacheDir, progress); err != nil {
-		progress.finish()
+	alreadyCached, err := hfcache.EnsureLeanModel(cacheDir, progress)
+	progress.finish()
+	switch {
+	case err != nil:
 		fmt.Printf("%s Could not pre-download embedding model: %v\n", crossMark, err)
 		fmt.Println("  The model will be downloaded on first formation deploy.")
-	} else {
-		progress.finish()
+	case alreadyCached:
+		fmt.Printf("%s Embedding model already cached (skipping download)\n", checkMark)
+	default:
 		fmt.Printf("%s Embedding model cached at %s\n", checkMark, cacheDir)
 	}
 
