@@ -1,6 +1,6 @@
 # MUXI Server — Mental Model
 
-> **Last updated:** 2026-03-09
+> **Last updated:** 2026-04-22
 > **Repo:** `/Users/ran/Projects/muxi/code/server`
 > **Language:** Go 1.26 | **License:** Elastic License 2.0
 
@@ -161,7 +161,42 @@ MUXI Server is a **single-binary orchestration platform** for deploying and mana
 ### `pkg/rce/` — Skills RCE Service
 | File | Purpose |
 |------|---------|
-| `rce.go` | Manages Skills RCE sidecar (code execution for formations). Linux: SIF via Apptainer. macOS/Windows: Docker container. Health check, env var injection (`MUXI_RCE_URL`, `MUXI_RCE_TOKEN`) |
+| `rce.go` | Manages Skills RCE sidecar (code execution for formations). Linux: SIF via Apptainer. macOS/Windows: Docker container. Health check, env var injection (`MUXI_RCE_URL`, `MUXI_RCE_TOKEN`). `EnsureDocker()` pulls the image via `dockerutil.RenderPullProgress` for consistent UX with runtime-runner. |
+
+### `pkg/hfcache/` — Embedding Model Pre-Download
+| File | Purpose |
+|------|---------|
+| `hfcache.go` | Pre-downloads the default lean embedding model (`nomic-ai/nomic-embed-text-v1.5`, ~524 MiB) into `<cacheDir>/<org>--<model>/`. Pure HTTP (no `huggingface_hub` library) so it works identically on Linux/macOS/Windows. Exports `EnsureLeanModel`, `EnsureModel`, `IsModelCached`. Returns `(alreadyCached bool, err error)` so callers can skip any "downloading…" UX when the fast-path applies. |
+
+**Fast-path invariant:** `IsModelCached` checks every expected file in `leanModelFiles` exists with non-zero size. If all present, `EnsureModel` returns `(true, nil)` WITHOUT any HTTP call — critical for re-init / upgrade flows that would otherwise re-fetch 524 MiB on every run.
+
+**File writes:** `downloadFileIfMissing` writes to `<file>.tmp` then atomic-renames to `<file>`. Prevents partial-file poisoning if the process is killed mid-download; a subsequent init sees the `.tmp` orphan, ignores it, and re-fetches cleanly.
+
+**Cache layout** (chosen to be minimal, not full HF hub format):
+```
+<cacheDir>/
+  nomic-ai--nomic-embed-text-v1.5/
+    config.json
+    tokenizer.json
+    onnx/model.onnx         (~270 MiB)
+    onnx/model_quantized.onnx
+    ... (10 files total)
+```
+
+The runtime SIF is expected to bind-mount `<cacheDir>` at `/opt/hf-cache` and set `HF_HOME=/opt/hf-cache` so HuggingFace's own cache resolver finds the files.
+
+### `pkg/dockerutil/` — Shared Docker CLI Output Rendering
+| File | Purpose |
+|------|---------|
+| `progress.go` | `RenderPullProgress(io.Reader, io.Writer)` — collapses Docker's verbose non-TTY pull output (5 events × N layers) into a single in-place progress line with an animated braille spinner. Used by both `cmd/server/commands.go::pullRuntimeRunner` and `pkg/rce/rce.go::EnsureDocker`. Exports `SpinnerFrames` and `SpinnerTick` for callers that paint their own progress lines (e.g. `downloadReporter`). |
+
+**Why a shared package** — previously `renderPullProgress` lived in `cmd/server/commands.go` only, and `pkg/rce/EnsureDocker` shipped raw Docker output. After extraction, both Docker pulls in `init` render identically; any future tweak (ETA, throughput, color) lands in both places from a single edit.
+
+**Design of the renderer:**
+- Producer goroutine drains the scanner into a buffered channel
+- Consumer `select`s between new events and ticker fires, repainting on either
+- Ticker independent of events so the spinner keeps animating during silent layer downloads (the exact moment users wonder "is this hung?")
+- All writes to `out` happen from the consumer goroutine — race-free by construction
 
 ### `pkg/telemetry/` — Anonymous Usage Telemetry
 | File | Purpose |
@@ -361,7 +396,9 @@ Otherwise → User install:
   Windows:    %APPDATA%\muxi\server\
 ```
 
-`EnsureDirectories()` normalizes relative config paths (logs/, pids/, formations/) to absolute by joining with data dir.
+`EnsureDirectories()` normalizes relative config paths (logs/, pids/, formations/) to absolute by joining with data dir. Also self-heals the HF cache dir (`<data_dir>/cache` or `MUXI_CACHE_DIR`) so the embedding pre-download has a guaranteed writable location regardless of umask or earlier partial installs.
+
+**Cache directory (`GetCacheDir`):** priority `MUXI_CACHE_DIR` env > `<data_dir>/cache`. On macOS this resolves to `/Users/<user>/.muxi/server/cache`. Holds the embedding model files (see `pkg/hfcache`). Separate from the runtime SIF directory (`<data_dir>/runtimes`) because cache content is expendable — wiping it only costs a re-download, whereas wiping runtimes costs a several-hundred-MB SIF pull.
 
 ---
 
@@ -451,3 +488,58 @@ Skills RCE runs as a separate managed process (or Docker container on macOS). It
 
 ### Server ID Generation
 Server ID format: `server-{hostname}-{random_hex}`. Generated on first `init`, stored in config. Re-generated if missing on `start` (backward compatibility).
+
+### Init UX — Three Setup Sections
+`cmdInit` walks three dependency-setup sections in order, each using the same `* Setting up X... / ✓ X ready` pattern:
+
+1. **Runtime-runner** (macOS/Windows only) — `docker pull ghcr.io/muxi-ai/runtime-runner:latest` via `pullRuntimeRunner()` → `dockerutil.RenderPullProgress` renders `⠋ Layers 5/8 (62%)`
+2. **Skills RCE** — Linux: SIF download from GitHub releases. macOS/Windows: `docker pull ghcr.io/muxi-ai/skills-rce:latest` via `rce.EnsureDocker()` → also `dockerutil.RenderPullProgress`
+3. **Embeddings** — `hfcache.EnsureLeanModel` into the cache dir, progress painted by `downloadReporter` (`⠙ 524 MiB downloaded`)
+
+All three sections are best-effort; a failure prints a cross-mark and continues so the user isn't blocked on a transient network hiccup. The formation runtime will fetch any missing artifact on first deploy.
+
+**Progress primitives** (all in `cmd/server/commands.go` except the renderer itself):
+- `downloadReporter` — `io.Writer` that accumulates bytes via `atomic.Int64`; a ticker goroutine paints `spinner + MiB` every 100 ms. `finish()` stops the ticker and prints a terminating newline if any progress was painted (no-op on cached fast-path).
+- `dockerutil.RenderPullProgress` — see package description above.
+
+Both share `dockerutil.SpinnerFrames` + `dockerutil.SpinnerTick` so a single edit changes the spinner appearance everywhere.
+
+### Docker `--quiet` Kills Progress Visibility
+Early versions of `pullRuntimeRunner` and `rce.EnsureDocker` used `docker pull -q`, which silences the entire transfer. On a multi-hundred-megabyte image that made `init` look frozen for minutes with no output — users would kill the process thinking it hung. **Fix:** drop `-q` on both pulls, pipe stdout into `dockerutil.RenderPullProgress` for a clean collapsed line.
+
+### `DOCKER_CLI_HINTS=false` Suppresses "What's Next"
+Docker Desktop appends a promotional footer after every successful pull:
+```
+What's next:
+    View a summary of image vulnerabilities and recommendations →
+    docker scout quickview ghcr.io/muxi-ai/runtime-runner:latest
+```
+Pure noise in a bootstrap flow. Set `DOCKER_CLI_HINTS=false` on the `exec.Command` env and it disappears. Applied to both `pullRuntimeRunner` and `rce.EnsureDocker`.
+
+### Docker Non-TTY vs TTY Output Formats
+When `docker pull` runs with stdout attached to a TTY, it uses in-place line updates with per-byte progress:
+```
+abc123: Downloading [===>       ] 12MB/120MB
+```
+When stdout is a pipe (our case — we capture it for `RenderPullProgress`), Docker switches to line-per-event format without byte counters:
+```
+abc123: Pulling fs layer
+abc123: Verifying Checksum
+abc123: Pull complete
+```
+That's why `RenderPullProgress` parses layer-lifecycle events only (`Pulling fs layer` / `Pull complete`) and doesn't attempt to show per-byte progress — the source data isn't there. Layer-count progress is good enough UX and survives any future Docker output format changes as long as those two strings remain.
+
+### Spinner Ticker Decoupled From Events
+`RenderPullProgress` uses `select` over both events AND a 100 ms ticker. If we only repainted on events, the spinner would freeze during a large silent layer download (the exact moment users worry init is hung). The ticker guarantees ≥10 FPS animation regardless of event cadence. Same pattern in `downloadReporter`.
+
+### HF Cache Fast-Path — No HTTP When Cached
+`hfcache.EnsureLeanModel` returns `(alreadyCached bool, err error)`. On re-init or upgrade, `IsModelCached` sees all expected files with non-zero size, returns true, and `EnsureModel` returns `(true, nil)` without any HTTP call. The calling UX (`cmdInit`) converges cached and fresh paths on the same `✓ Embeddings ready` message — the user sees a progress line only when a download actually happened.
+
+### Runtime Variants (cpu / gpu / cuda)
+`runtime.ValidVariants` = `{"cpu", "gpu", "cuda"}`. Variant names enter the SIF filename as a suffix:
+```
+muxi-runtime-{version}-{variant}-linux-{arch}.sif
+```
+CPU is the default when unspecified. GPU/CUDA variants are opt-in and larger (cuDNN libraries bundled). The resolver passes the variant through untouched; the downloader maps it to the filename and checks disk before fetching.
+
+**Where variants flow:** 7 API handlers (deploy, update, restore, dev, start, restart, rollback) parse the formation's `muxi_runtime.variant` field, validate against the allowlist, route to the variant-aware SIF, and set `HFCacheDir` on the spawn config so the embedding cache bind-mount is wired regardless of variant.
