@@ -470,6 +470,13 @@ func GetRegistryPath() (string, error) {
 
 // EnsureDirectories creates all necessary directories and normalizes config paths to absolute.
 // After this call, config.Formations.LogsDir, PIDsDir, and FormationsDir will be absolute paths.
+//
+// Called from cmdStart at every server startup, so the server self-heals
+// any missing directories. This matters for upgrades: when the server
+// binary is replaced in-place without re-running `muxi-server init`, new
+// directories introduced in the upgraded version (e.g. the HF cache dir
+// added for variant-aware SIF embeddings) still get created here instead
+// of failing the first formation start with a bind-mount error.
 func EnsureDirectories(baseDir string, config *Config) error {
 	// Normalize relative paths to absolute FIRST (before creating directories)
 	// This ensures all code using config paths gets absolute paths
@@ -485,6 +492,16 @@ func EnsureDirectories(baseDir string, config *Config) error {
 		config.Formations.FormationsDir,
 		filepath.Join(baseDir, "tmp"),
 	}
+
+	// HuggingFace cache dir — bind-mounted into every SIF at /opt/hf-cache.
+	// Computed via GetCacheDir so the MUXI_CACHE_DIR env override is honored
+	// here too; falling back to naive <baseDir>/cache would silently ignore
+	// the override and leave the overridden location uncreated.
+	cacheDir, err := GetCacheDir()
+	if err != nil {
+		return fmt.Errorf("failed to resolve cache directory: %w", err)
+	}
+	dirs = append(dirs, cacheDir)
 
 	for _, dir := range dirs {
 		if err := os.MkdirAll(dir, 0755); err != nil {

@@ -452,6 +452,12 @@ func TestGetRegistryPath_Format(t *testing.T) {
 func TestEnsureDirectories_AllCreated(t *testing.T) {
 	tmpBase := t.TempDir()
 
+	// Redirect the data dir to our temp base so GetCacheDir (called inside
+	// EnsureDirectories) lands under tmpBase, not the real user home.
+	// Without this, the test would create a real ~/.muxi/server/cache on
+	// the developer's machine — harmless but unhygienic.
+	t.Setenv("MUXI_DATA_DIR", tmpBase)
+
 	cfg := DefaultConfig()
 
 	err := EnsureDirectories(tmpBase, cfg)
@@ -479,10 +485,78 @@ func TestEnsureDirectories_AllCreated(t *testing.T) {
 	if _, err := os.Stat(cfg.Formations.FormationsDir); err != nil {
 		t.Errorf("Formations dir not created: %v", err)
 	}
+
+	// Verify cache dir (added alongside the other persistent dirs for the
+	// HF model-weights bind-mount path).
+	cacheDir := filepath.Join(tmpBase, "cache")
+	if _, err := os.Stat(cacheDir); err != nil {
+		t.Errorf("Cache dir not created: %v", err)
+	}
+}
+
+// TestEnsureDirectories_CacheDirEnvOverride guards the self-heal promise
+// for operators with a relocated HF cache (e.g., a large volume mounted
+// outside the data dir). The MUXI_CACHE_DIR override must still get
+// created on startup; otherwise formation start would fail at the
+// bind-mount with "source does not exist" for an operator who explicitly
+// told us where their cache lives.
+func TestEnsureDirectories_CacheDirEnvOverride(t *testing.T) {
+	tmpBase := t.TempDir()
+	cacheBase := filepath.Join(t.TempDir(), "relocated-cache")
+
+	t.Setenv("MUXI_CACHE_DIR", cacheBase)
+
+	cfg := DefaultConfig()
+
+	if err := EnsureDirectories(tmpBase, cfg); err != nil {
+		t.Fatalf("EnsureDirectories() error = %v", err)
+	}
+
+	// The override path must have been created, not the default <base>/cache.
+	if _, err := os.Stat(cacheBase); err != nil {
+		t.Errorf("Overridden cache dir %q not created: %v", cacheBase, err)
+	}
+}
+
+// TestEnsureDirectories_SelfHealsCacheAfterUpgrade simulates the upgrade
+// path: imagine an install that was initialized before the cache dir
+// existed as a concept. EnsureDirectories should create it on the next
+// server start without any operator intervention (no re-run of
+// muxi-server init required).
+func TestEnsureDirectories_SelfHealsCacheAfterUpgrade(t *testing.T) {
+	tmpBase := t.TempDir()
+	t.Setenv("MUXI_DATA_DIR", tmpBase)
+
+	cfg := DefaultConfig()
+
+	// Precondition: the legacy dirs exist (simulating a pre-upgrade install),
+	// but the new cache dir does NOT.
+	if err := os.MkdirAll(filepath.Join(tmpBase, cfg.Formations.LogsDir), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(tmpBase, cfg.Formations.FormationsDir), 0755); err != nil {
+		t.Fatal(err)
+	}
+	cacheDir := filepath.Join(tmpBase, "cache")
+	if _, err := os.Stat(cacheDir); err == nil {
+		t.Fatal("test precondition broken: cache dir already exists")
+	}
+
+	if err := EnsureDirectories(tmpBase, cfg); err != nil {
+		t.Fatalf("EnsureDirectories() error = %v", err)
+	}
+
+	if _, err := os.Stat(cacheDir); err != nil {
+		t.Errorf("cache dir not self-healed on upgrade-style startup: %v", err)
+	}
 }
 
 func TestEnsureDirectories_AlreadyExist(t *testing.T) {
 	tmpBase := t.TempDir()
+	// Isolate GetCacheDir (called inside EnsureDirectories) from the real
+	// user home so this test doesn't leave ~/.muxi/server/cache behind.
+	t.Setenv("MUXI_DATA_DIR", tmpBase)
+
 	cfg := DefaultConfig()
 
 	// Create dirs first
@@ -498,6 +572,8 @@ func TestEnsureDirectories_AlreadyExist(t *testing.T) {
 
 func TestEnsureDirectories_NestedPaths(t *testing.T) {
 	tmpBase := t.TempDir()
+	// See TestEnsureDirectories_AlreadyExist for the MUXI_DATA_DIR rationale.
+	t.Setenv("MUXI_DATA_DIR", tmpBase)
 
 	cfg := DefaultConfig()
 	cfg.Formations.LogsDir = "nested/deep/logs"

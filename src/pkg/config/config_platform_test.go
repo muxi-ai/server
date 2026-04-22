@@ -346,6 +346,9 @@ func TestWindowsConfigCreation(t *testing.T) {
 	t.Run("EnsureDirectories with Windows-style paths", func(t *testing.T) {
 		// Create temp base directory
 		tempDir := t.TempDir()
+		// Isolate GetCacheDir (called inside EnsureDirectories) from the
+		// real user home so this subtest doesn't touch ~/.muxi/server/cache.
+		t.Setenv("MUXI_DATA_DIR", tempDir)
 
 		cfg := DefaultConfig()
 
