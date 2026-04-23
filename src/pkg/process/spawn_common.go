@@ -460,12 +460,14 @@ func getSingularityBinary() string {
 // passthrough is required at runtime. Kept in one place so the
 // Apptainer and Docker build paths stay in sync — a new GPU variant
 // added to runtime.ValidVariants only needs one edit here.
+//
+// Currently only "cuda" qualifies. "pytorch" and "lean" are CPU-only
+// variants per runtime.ValidVariants; adding them here would enable
+// GPU flags that their SIFs don't need and the host may not have.
+// Add a new case iff ValidVariants gains another GPU-targeting name
+// (e.g. a future "pytorch-gpu").
 func isGPUVariant(variant string) bool {
-	switch variant {
-	case "gpu", "cuda":
-		return true
-	}
-	return false
+	return variant == "cuda"
 }
 
 func ensureLocaltime() {
@@ -605,6 +607,17 @@ func buildDockerSingularityCommand(config SpawnConfig, logger *zerolog.Logger) *
 
 	// runtime-runner's ENTRYPOINT is "singularity", so we append the exec command
 	args = append(args, "exec")
+
+	// GPU passthrough — inner Singularity hop. Docker's --gpus all
+	// makes the GPU visible to the container, but it's Apptainer's
+	// --nv that actually injects libcuda.so / libcudart.so and the
+	// device files into the SIF namespace. Without this, Python code
+	// inside the SIF fails to initialize CUDA even though the outer
+	// Docker container sees the device. Must match the --nv we added
+	// on the native Apptainer path (buildNativeSingularityCommand).
+	if isGPUVariant(config.Variant) {
+		args = append(args, "--nv")
+	}
 
 	// Bind /formation inside the SIF (Singularity needs explicit bind)
 	// Not read-only because runtime may need to write .key file for secrets
