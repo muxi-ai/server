@@ -8,11 +8,24 @@ import (
 	"strings"
 )
 
-// getPlatform returns the platform string for SIF filenames (linux-amd64 or linux-arm64)
+// getPlatform returns the platform string for SIF filenames (linux-amd64 or linux-arm64).
+//
+// On native Linux the SIF runs directly under the host's Apptainer, so the
+// SIF arch must match GOARCH. On macOS / Windows the SIF runs inside the
+// runtime-runner Docker image — and runtime-runner is only published for
+// linux/amd64 (cmd/server/commands.go pullRuntimeRunner forces that
+// platform because Singularity ships x86_64 only). Downloading an arm64
+// SIF on Apple Silicon therefore fails at startup with:
+//
+//	FATAL: ... image's architecture (arm64) could not run on the host's (amd64)
+//
+// Pin to linux-amd64 on non-Linux hosts so the SIF matches the x86_64
+// runtime-runner Apple Silicon runs under Docker's emulation layer.
 func getPlatform() string {
-	// SIF files are always Linux containers
-	arch := goruntime.GOARCH
-	if arch == "amd64" {
+	if goruntime.GOOS != "linux" {
+		return "linux-amd64"
+	}
+	if goruntime.GOARCH == "amd64" {
 		return "linux-amd64"
 	}
 	return "linux-arm64"
