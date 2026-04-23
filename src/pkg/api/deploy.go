@@ -502,6 +502,7 @@ func (s *Server) deployNewFromDirectory(
 		spawnConfig.RuntimeType = "singularity"
 		spawnConfig.SIFPath = sifPath
 		spawnConfig.HFCacheDir = cacheDir
+		spawnConfig.Variant = variant
 
 		// For Singularity/Docker, we run: python -m muxi.runtime.utils.run_formation /formation --port PORT --host HOST
 		// The formation directory is mounted as /formation inside the container

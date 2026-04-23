@@ -232,6 +232,7 @@ func (s *Server) HandleRestart(w http.ResponseWriter, r *http.Request) {
 		spawnConfig.RuntimeType = "singularity"
 		spawnConfig.SIFPath = sifPath
 		spawnConfig.HFCacheDir = cacheDir
+		spawnConfig.Variant = variant
 		spawnConfig.Command = "python"
 		spawnConfig.Args = []string{
 			"-m", "muxi.runtime.utils.run_formation",

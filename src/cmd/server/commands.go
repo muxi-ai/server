@@ -151,7 +151,7 @@ func cmdUpgrade() error {
 			upgraded = true
 		}
 	} else {
-		if err := rce.EnsureDocker(); err != nil {
+		if err := rce.EnsureDocker(os.Stdout); err != nil {
 			fmt.Printf("  %s Failed to pull RCE image: %v\n", crossMark, err)
 		} else {
 			fmt.Printf("  %s Skills RCE Docker image updated\n", checkMark)
@@ -597,7 +597,7 @@ func cmdInit() error {
 			fmt.Printf("%s Skills RCE ready\n", checkMark)
 		}
 	} else {
-		if err := rce.EnsureDocker(); err != nil {
+		if err := rce.EnsureDocker(os.Stdout); err != nil {
 			fmt.Printf("%s Failed to pull RCE Docker image: %v\n", crossMark, err)
 			fmt.Println("  Skills RCE can be pulled later. Formations will start without code execution.")
 		} else {

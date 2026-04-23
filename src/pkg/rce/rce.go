@@ -279,7 +279,12 @@ func EnsureSIF(dataDir string) (string, error) {
 //
 // Stderr stays wired to the terminal so real Docker errors (auth,
 // network, daemon down) remain visible at full fidelity.
-func EnsureDocker() error {
+//
+// out is the progress destination — typically os.Stdout from cmdInit,
+// but accepting an io.Writer keeps EnsureDocker usable from daemon /
+// test / JSON-API contexts that shouldn't touch stdout. Pass io.Discard
+// to silence progress entirely.
+func EnsureDocker(out io.Writer) error {
 	cmd := exec.Command("docker", "pull", DockerImage)
 	cmd.Env = append(os.Environ(), "DOCKER_CLI_HINTS=false")
 	cmd.Stderr = os.Stderr
@@ -299,7 +304,7 @@ func EnsureDocker() error {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		dockerutil.RenderPullProgress(stdout, os.Stdout)
+		dockerutil.RenderPullProgress(stdout, out)
 	}()
 
 	waitErr := cmd.Wait()

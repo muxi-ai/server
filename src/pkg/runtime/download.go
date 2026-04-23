@@ -326,15 +326,22 @@ func (d *Downloader) EnsureRuntimeRunner() (bool, error) {
 	return true, nil
 }
 
-// EnsureRuntime ensures both SIF and runtime-runner are available
-func (d *Downloader) EnsureRuntime(version string) (string, error) {
-	// Download SIF if needed
-	sifPath, _, _, err := d.EnsureSIF(version)
+// EnsureRuntime ensures both SIF (for the requested variant) and the
+// runtime-runner image are available. An empty variant defaults to
+// DefaultVariant via EnsureSIFForVariant's own handling, matching the
+// behavior of the per-variant API handlers.
+//
+// This function isn't called from the live deploy pipeline (which uses
+// EnsureSIFForVariant directly so it can capture the resolved version
+// and downloaded-flag), but keeping it variant-aware prevents a future
+// caller from silently getting the lean SIF when the operator asked
+// for gpu or cuda.
+func (d *Downloader) EnsureRuntime(version, variant string) (string, error) {
+	sifPath, _, _, err := d.EnsureSIFForVariant(version, variant)
 	if err != nil {
 		return "", err
 	}
 
-	// Pull runtime-runner if needed (macOS/Windows only)
 	if _, err := d.EnsureRuntimeRunner(); err != nil {
 		return "", err
 	}

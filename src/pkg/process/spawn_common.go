@@ -41,6 +41,14 @@ type SpawnConfig struct {
 	// formations that don't need embeddings.
 	HFCacheDir string
 
+	// Variant is the runtime SIF variant the operator requested ("cpu",
+	// "gpu", "cuda"). Used by the spawn builders to decide whether to
+	// enable GPU passthrough — Apptainer's --nv on native Linux, Docker's
+	// --gpus all in the runtime-runner path. Without this, a cuda SIF
+	// runs on CPU silently because libcuda.so can't find a device.
+	// Empty defaults to CPU (no GPU flags).
+	Variant string
+
 	// Skip initial health check in monitor (used when deploy does its own health check)
 	SkipInitialHealthCheck bool
 
@@ -448,6 +456,18 @@ func getSingularityBinary() string {
 }
 
 // ensureLocaltime creates /etc/localtime if it doesn't exist (needed for Apptainer)
+// isGPUVariant reports whether a SIF variant name implies GPU
+// passthrough is required at runtime. Kept in one place so the
+// Apptainer and Docker build paths stay in sync — a new GPU variant
+// added to runtime.ValidVariants only needs one edit here.
+func isGPUVariant(variant string) bool {
+	switch variant {
+	case "gpu", "cuda":
+		return true
+	}
+	return false
+}
+
 func ensureLocaltime() {
 	if _, err := os.Stat("/etc/localtime"); os.IsNotExist(err) {
 		// Try to symlink to UTC timezone
@@ -463,6 +483,14 @@ func buildNativeSingularityCommand(config SpawnConfig, logger *zerolog.Logger) *
 	ensureLocaltime()
 
 	args := []string{"exec"}
+
+	// GPU passthrough: --nv binds the host NVIDIA driver stack
+	// (libcuda.so, nvidia-smi, libraries under /usr/lib/x86_64-linux-gnu/)
+	// into the container. Required for any runtime that calls into CUDA —
+	// without it, libcuda.so fails to find a device even on a GPU host.
+	if isGPUVariant(config.Variant) {
+		args = append(args, "--nv")
+	}
 
 	// Add environment variables as --env flags (for inside container)
 	for key, value := range config.Env {
@@ -523,6 +551,18 @@ func buildDockerSingularityCommand(config SpawnConfig, logger *zerolog.Logger) *
 		"--rm",                  // Remove container after exit
 		"--name", containerName, // Named container for cleanup
 		"--privileged", // Required for Singularity user namespaces
+	}
+
+	// GPU passthrough: Docker --gpus all exposes every NVIDIA GPU on the
+	// host to the container via nvidia-container-toolkit. Must precede
+	// the image name in the args list. Same rationale as the --nv flag
+	// on the native Linux path: a cuda SIF without this silently runs
+	// on CPU because libcuda.so can't find a device.
+	if isGPUVariant(config.Variant) {
+		args = append(args, "--gpus", "all")
+	}
+
+	args = append(args,
 
 		// Route localhost/127.0.0.1 inside the container to the host machine so
 		// formations can reach host-local services (e.g. PostgreSQL) without
@@ -543,7 +583,7 @@ func buildDockerSingularityCommand(config SpawnConfig, logger *zerolog.Logger) *
 
 		// Expose formation port
 		"-p", fmt.Sprintf("%d:%d", config.Port, config.Port),
-	}
+	)
 
 	// Mount the HuggingFace model-weights cache at /opt/hf-cache for the
 	// runtime's embedding path to find weights. This is the Docker hop
