@@ -3,6 +3,7 @@ package runtime
 import (
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -220,10 +221,34 @@ func (pr *progressReader) Read(p []byte) (int, error) {
 	return n, err
 }
 
-// downloadFileWithProgress downloads a file from URL to destination with progress logging
+// downloadFileWithProgress downloads a file from URL to destination with progress logging.
+//
+// Uses a client with an explicit 30s connection timeout (http.DefaultClient
+// has no timeout at all; an unreachable mirror would hang the caller
+// indefinitely). Transport-level idle and response-header timeouts are set
+// separately so a stalled CDN mid-stream eventually fails instead of
+// blocking a spawn-and-wait handler forever — previously this hung the api
+// test suite for minutes when test config pointed at an unreachable URL.
+// The overall Timeout is intentionally omitted so a genuinely large SIF on
+// a slow connection can still complete.
 func (d *Downloader) downloadFileWithProgress(url, destination string) error {
-	// Create HTTP request
-	resp, err := http.Get(url)
+	client := &http.Client{
+		Transport: &http.Transport{
+			// DialContext covers DNS resolution + TCP connect —
+			// ResponseHeaderTimeout below only starts counting
+			// after the request is on the wire, so a broken DNS
+			// resolver or an unreachable host would otherwise still
+			// hang indefinitely before any byte is sent.
+			DialContext: (&net.Dialer{
+				Timeout:   30 * time.Second,
+				KeepAlive: 30 * time.Second,
+			}).DialContext,
+			ResponseHeaderTimeout: 30 * time.Second,
+			IdleConnTimeout:       90 * time.Second,
+			TLSHandshakeTimeout:   15 * time.Second,
+		},
+	}
+	resp, err := client.Get(url)
 	if err != nil {
 		return fmt.Errorf("HTTP request failed: %w", err)
 	}

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	cfgpkg "github.com/muxi-ai/server/pkg/config"
 	"github.com/rs/zerolog"
 )
 
@@ -48,6 +49,15 @@ type SpawnConfig struct {
 	// runs on CPU silently because libcuda.so can't find a device.
 	// Empty defaults to CPU (no GPU flags).
 	Variant string
+
+	// RuntimeRunnerImage is the Docker image used to wrap Singularity
+	// on macOS/Windows. Threaded from config.Runtime.RuntimeRunnerImage
+	// so an operator who overrides the default in config.yaml gets the
+	// override honored here — previously this was a hardcoded string
+	// literal that silently ignored the config field. Empty falls back
+	// to config.DefaultRuntimeRunnerImage for defensive correctness
+	// (tests, direct callers).
+	RuntimeRunnerImage string
 
 	// Skip initial health check in monitor (used when deploy does its own health check)
 	SkipInitialHealthCheck bool
@@ -541,9 +551,17 @@ func buildNativeSingularityCommand(config SpawnConfig, logger *zerolog.Logger) *
 // buildDockerSingularityCommand builds a command for Docker-wrapped Singularity on macOS/Windows
 // Uses runtime-runner (Docker image with Singularity) to execute the SIF file
 func buildDockerSingularityCommand(config SpawnConfig, logger *zerolog.Logger) *exec.Cmd {
-	// runtime-runner is a Docker image that contains Singularity
-	// It allows running SIF files on platforms where Singularity isn't available natively
-	runtimeRunnerImage := "ghcr.io/muxi-ai/runtime-runner:latest"
+	// runtime-runner is a Docker image that contains Singularity.
+	// It allows running SIF files on platforms where Singularity isn't
+	// available natively. The image is operator-configurable via
+	// runtime.runtime_runner_image in config.yaml; empty falls back to
+	// the canonical default so direct callers (tests, legacy paths) that
+	// forget to set it still get a working spawn. cfgpkg alias avoids
+	// the collision with the SpawnConfig parameter also named `config`.
+	runtimeRunnerImage := config.RuntimeRunnerImage
+	if runtimeRunnerImage == "" {
+		runtimeRunnerImage = cfgpkg.DefaultRuntimeRunnerImage
+	}
 
 	// Container name for easy cleanup
 	containerName := fmt.Sprintf("muxi-%s", config.ID)

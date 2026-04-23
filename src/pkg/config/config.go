@@ -28,6 +28,16 @@ type RCEConfig struct {
 	DataDir   string `yaml:"data_dir"`   // Data directory for RCE (default: derived from GetDataDir)
 }
 
+// DefaultRuntimeRunnerImage is the canonical runtime-runner image name
+// used when no explicit override is configured. Exported so every
+// hardcode site across the codebase (spawn_common, validator, cmdInit's
+// recovery-hint string) can resolve to the same value — previously a
+// reviewer-flagged bug where an operator's
+// runtime.runtime_runner_image config override was silently ignored
+// by buildDockerSingularityCommand because it fell back to a separate
+// string literal in that file.
+const DefaultRuntimeRunnerImage = "ghcr.io/muxi-ai/runtime-runner:latest"
+
 // RuntimeConfig contains runtime download settings
 type RuntimeConfig struct {
 	// SIF download settings
@@ -153,7 +163,7 @@ func DefaultConfig() *Config {
 		},
 		Runtime: RuntimeConfig{
 			SIFBaseURL:         "https://github.com/muxi-ai/runtime/releases/download",
-			RuntimeRunnerImage: "ghcr.io/muxi-ai/runtime-runner:latest",
+			RuntimeRunnerImage: DefaultRuntimeRunnerImage,
 		},
 		RCE: RCEConfig{
 			Port: 7891,

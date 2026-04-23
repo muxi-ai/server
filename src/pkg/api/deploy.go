@@ -503,6 +503,7 @@ func (s *Server) deployNewFromDirectory(
 		spawnConfig.SIFPath = sifPath
 		spawnConfig.HFCacheDir = cacheDir
 		spawnConfig.Variant = variant
+		spawnConfig.RuntimeRunnerImage = s.config.Runtime.RuntimeRunnerImage
 
 		// For Singularity/Docker, we run: python -m muxi.runtime.utils.run_formation /formation --port PORT --host HOST
 		// The formation directory is mounted as /formation inside the container
@@ -583,10 +584,7 @@ func (s *Server) deployNewFromDirectory(
 	})
 
 	// Wait for formation to become healthy
-	healthTimeout := time.Duration(s.config.Formations.Deployment.HealthCheck.Timeout) * time.Second
-	if healthTimeout == 0 {
-		healthTimeout = 300 * time.Second // 5 minutes default
-	}
+	healthTimeout := resolveHealthTimeout(s.config)
 	healthInterval := time.Duration(s.config.Formations.Deployment.HealthCheck.Interval) * time.Second
 	if healthInterval == 0 {
 		healthInterval = 1 * time.Second

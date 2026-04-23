@@ -250,6 +250,7 @@ func (s *Server) HandleDevRun(w http.ResponseWriter, r *http.Request) {
 		spawnConfig.SIFPath = sifPath
 		spawnConfig.HFCacheDir = cacheDir
 		spawnConfig.Variant = variant
+		spawnConfig.RuntimeRunnerImage = s.config.Runtime.RuntimeRunnerImage
 		spawnConfig.Command = "python"
 		spawnConfig.Args = []string{
 			"-m", "muxi.runtime.utils.run_formation",
@@ -278,7 +279,7 @@ func (s *Server) HandleDevRun(w http.ResponseWriter, r *http.Request) {
 	// Wait for health check
 	time.Sleep(2 * time.Second)
 
-	healthTimeout := 300 * time.Second
+	healthTimeout := resolveHealthTimeout(s.config)
 	healthInterval := 1 * time.Second
 	healthChecker := process.NewHealthChecker(healthTimeout, healthInterval)
 	healthChecker.Endpoint = "/v1/health"
