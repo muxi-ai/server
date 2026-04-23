@@ -3,6 +3,7 @@ package runtime
 import (
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -233,8 +234,17 @@ func (pr *progressReader) Read(p []byte) (int, error) {
 func (d *Downloader) downloadFileWithProgress(url, destination string) error {
 	client := &http.Client{
 		Transport: &http.Transport{
+			// DialContext covers DNS resolution + TCP connect —
+			// ResponseHeaderTimeout below only starts counting
+			// after the request is on the wire, so a broken DNS
+			// resolver or an unreachable host would otherwise still
+			// hang indefinitely before any byte is sent.
+			DialContext: (&net.Dialer{
+				Timeout:   30 * time.Second,
+				KeepAlive: 30 * time.Second,
+			}).DialContext,
 			ResponseHeaderTimeout: 30 * time.Second,
-			IdleConnTimeout:       30 * time.Second,
+			IdleConnTimeout:       90 * time.Second,
 			TLSHandshakeTimeout:   15 * time.Second,
 		},
 	}
