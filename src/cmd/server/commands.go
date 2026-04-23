@@ -480,12 +480,18 @@ func cmdInit() error {
 		// line renders cleanly on the next row. No size hint in the
 		// header — the spinner conveys "working, be patient" better
 		// than a static "may take a few minutes".
-		if !checkRuntimeRunnerExists() {
+		// cmdInit runs before cfg is materialized (see cfg := &config.Config{...}
+		// further down), so we use the canonical default. Operators who later
+		// override runtime.runtime_runner_image in config.yaml will get that
+		// honored by the deploy pipeline via SpawnConfig.RuntimeRunnerImage;
+		// init-time pull is just for the default image.
+		runnerImage := config.DefaultRuntimeRunnerImage
+		if !checkRuntimeRunnerExists(runnerImage) {
 			fmt.Printf("%s Setting up runtime-runner...\n", bullet)
-			if err := pullRuntimeRunner(); err != nil {
+			if err := pullRuntimeRunner(runnerImage); err != nil {
 				fmt.Printf("%s Failed to download runtime-runner: %v\n", crossMark, err)
 				fmt.Println("   You can pull it manually later:")
-				fmt.Println("   docker pull --platform linux/amd64 ghcr.io/muxi-ai/runtime-runner:latest")
+				fmt.Printf("   docker pull --platform linux/amd64 %s\n", runnerImage)
 			} else {
 				fmt.Printf("%s Runtime-runner ready\n", checkMark)
 			}
@@ -544,7 +550,7 @@ func cmdInit() error {
 		},
 		Runtime: config.RuntimeConfig{
 			SIFBaseURL:         "https://github.com/muxi-ai/runtime/releases/download",
-			RuntimeRunnerImage: "ghcr.io/muxi-ai/runtime-runner:latest",
+			RuntimeRunnerImage: config.DefaultRuntimeRunnerImage,
 		},
 		RCE: config.RCEConfig{
 			Port:      findAvailableRCEPort(),
@@ -832,9 +838,12 @@ func checkDockerAvailable() bool {
 	return cmd.Run() == nil
 }
 
-// checkRuntimeRunnerExists checks if the runtime-runner image is already pulled
-func checkRuntimeRunnerExists() bool {
-	cmd := exec.Command("docker", "images", "-q", "ghcr.io/muxi-ai/runtime-runner:latest")
+// checkRuntimeRunnerExists checks if the runtime-runner image is already pulled.
+// Accepts the image name as a parameter so the init flow can honor an
+// operator's config override rather than checking for a stale hardcoded
+// default that may no longer be the one the operator will actually run.
+func checkRuntimeRunnerExists(image string) bool {
+	cmd := exec.Command("docker", "images", "-q", image)
 	output, err := cmd.Output()
 	return err == nil && len(output) > 0
 }
@@ -853,10 +862,10 @@ func checkRuntimeRunnerExists() bool {
 // footer Docker Desktop appends after every pull (docker scout
 // quickview…). It's noise during a bootstrap flow where we're already
 // managing user attention carefully.
-func pullRuntimeRunner() error {
+func pullRuntimeRunner(image string) error {
 	// Always pull linux/amd64 since Singularity only runs on Linux x86_64;
 	// Docker on ARM64 (Apple Silicon) will run it through emulation.
-	cmd := exec.Command("docker", "pull", "--platform", "linux/amd64", "ghcr.io/muxi-ai/runtime-runner:latest")
+	cmd := exec.Command("docker", "pull", "--platform", "linux/amd64", image)
 	cmd.Env = append(os.Environ(), "DOCKER_CLI_HINTS=false")
 	cmd.Stderr = os.Stderr
 

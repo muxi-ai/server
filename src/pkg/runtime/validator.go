@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"runtime"
 
+	"github.com/muxi-ai/server/pkg/config"
 	"github.com/rs/zerolog/log"
 )
 
@@ -87,8 +88,9 @@ Error: %w`, err)
 // ensureRuntimeRunnerImage checks if the runtime-runner Docker image exists
 // If not, it attempts to pull it
 func ensureRuntimeRunnerImage() error {
-	// Using GitHub Container Registry (like faissx)
-	runtimeImage := "ghcr.io/muxi-ai/runtime-runner:latest"
+	// Canonical default. Reads from pkg/config so an operator
+	// changing the default in one place updates every reference.
+	runtimeImage := config.DefaultRuntimeRunnerImage
 
 	// Check if image exists locally
 	cmd := exec.Command("docker", "image", "inspect", runtimeImage)
@@ -147,7 +149,7 @@ func GetRuntimeInfo() RuntimeEnvironment {
 		RuntimeType:  "docker-wrapper",
 		RuntimePath:  dockerPath,
 		Native:       false,
-		WrapperImage: "ghcr.io/muxi-ai/runtime-runner:latest",
+		WrapperImage: config.DefaultRuntimeRunnerImage,
 	}
 }
 

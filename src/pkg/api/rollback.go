@@ -258,6 +258,7 @@ func (s *Server) HandleRollback(w http.ResponseWriter, r *http.Request) {
 		spawnConfig.SIFPath = sifPath
 		spawnConfig.HFCacheDir = cacheDir
 		spawnConfig.Variant = variant
+		spawnConfig.RuntimeRunnerImage = s.config.Runtime.RuntimeRunnerImage
 		spawnConfig.Command = "python"
 		spawnConfig.Args = []string{
 			"-m", "muxi.runtime.utils.run_formation",
@@ -400,8 +401,9 @@ func (s *Server) HandleRollback(w http.ResponseWriter, r *http.Request) {
 		AutoRestart:            s.config.Formations.AutoRestart,
 		RuntimeType:            spawnConfig.RuntimeType,
 		SIFPath:                spawnConfig.SIFPath,
-		HFCacheDir:             spawnConfig.HFCacheDir, // propagate cache mount
-		Variant:                spawnConfig.Variant,    // propagate variant (GPU flags)
+		HFCacheDir:             spawnConfig.HFCacheDir,         // propagate cache mount
+		Variant:                spawnConfig.Variant,            // propagate variant (GPU flags)
+		RuntimeRunnerImage:     spawnConfig.RuntimeRunnerImage, // propagate runner image override
 		SkipInitialHealthCheck: true,
 	}
 

@@ -233,6 +233,7 @@ func (s *Server) HandleRestart(w http.ResponseWriter, r *http.Request) {
 		spawnConfig.SIFPath = sifPath
 		spawnConfig.HFCacheDir = cacheDir
 		spawnConfig.Variant = variant
+		spawnConfig.RuntimeRunnerImage = s.config.Runtime.RuntimeRunnerImage
 		spawnConfig.Command = "python"
 		spawnConfig.Args = []string{
 			"-m", "muxi.runtime.utils.run_formation",

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/muxi-ai/server/pkg/config"
 	"github.com/muxi-ai/server/pkg/dockerutil"
 	"github.com/rs/zerolog"
 )
@@ -315,7 +316,7 @@ func TestCheckDockerAvailable(t *testing.T) {
 }
 
 func TestCheckRuntimeRunnerExists(t *testing.T) {
-	result := checkRuntimeRunnerExists()
+	result := checkRuntimeRunnerExists(config.DefaultRuntimeRunnerImage)
 	t.Logf("checkRuntimeRunnerExists() = %v", result)
 }
 
