@@ -20,6 +20,17 @@ import (
 // but operators who override the field get the override honored — which
 // closes the gap against the Docker spawn path that already reads the
 // configured image.
+//
+// Not yet wired into startup today. cmdInit performs its own
+// Docker-available / runtime-runner-image-present checks inline
+// (cmd/server/commands.go) and cmdStart currently performs no
+// pre-flight runtime validation — an operator with a broken Docker
+// or an absent custom runtime-runner image gets a spawn-time error
+// on first deploy instead of a clean startup error. Keeping this
+// function correctly-shaped (config-aware image parameter, proper
+// fallback) so whichever command wires it next doesn't need to
+// re-design the signature. Intended eventual call site: just after
+// config.Load in cmd/server/commands.go's cmdStart.
 func ValidateRuntimeAvailable(runnerImage string) error {
 	if runtime.GOOS == "linux" {
 		return validateSingularity()
@@ -145,8 +156,23 @@ Output: %s`, err, string(output))
 	return nil
 }
 
-// GetRuntimeInfo returns information about the available runtime
-func GetRuntimeInfo() RuntimeEnvironment {
+// GetRuntimeInfo returns information about the available runtime.
+//
+// wrapperImage is the runtime-runner Docker image name to report in
+// the returned RuntimeEnvironment on non-Linux hosts. Empty falls
+// back to config.DefaultRuntimeRunnerImage so callers that don't
+// have the configured override handy (or are on Linux, where the
+// field is ignored) still get a populated struct. Threading the
+// configured image through prevents the returned value from
+// misreporting the active image when an operator has overridden
+// runtime.runtime_runner_image in config.yaml — a real concern if
+// this struct ever feeds into logs, health endpoints, or a status
+// command.
+//
+// Like ValidateRuntimeAvailable above, this function has no live
+// callers today but is kept correctly shaped for the first consumer
+// that needs it (most likely a /rpc/server/status field).
+func GetRuntimeInfo(wrapperImage string) RuntimeEnvironment {
 	if runtime.GOOS == "linux" {
 		singularityPath, _ := getSingularityPath()
 		return RuntimeEnvironment{
@@ -157,13 +183,16 @@ func GetRuntimeInfo() RuntimeEnvironment {
 		}
 	}
 
+	if wrapperImage == "" {
+		wrapperImage = config.DefaultRuntimeRunnerImage
+	}
 	dockerPath, _ := exec.LookPath("docker")
 	return RuntimeEnvironment{
 		Platform:     runtime.GOOS,
 		RuntimeType:  "docker-wrapper",
 		RuntimePath:  dockerPath,
 		Native:       false,
-		WrapperImage: config.DefaultRuntimeRunnerImage,
+		WrapperImage: wrapperImage,
 	}
 }
 
