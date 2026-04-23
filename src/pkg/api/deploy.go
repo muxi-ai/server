@@ -399,8 +399,22 @@ func (s *Server) deployNewFromDirectory(
 		availableVersions := runtimeRegistry.List()
 		resolver := runtime.NewResolver(availableVersions, runtimesDir)
 
+		// Parse muxi_runtime as "<version>[:<variant>]". Parse failure is
+		// a 400 since the bad data is in the user-supplied formation YAML.
+		parsedVersion, variant, err := runtime.ParseMuxiRuntime(formationConfig.MuxiRuntime)
+		if err != nil {
+			s.logger.Error().
+				Err(err).
+				Str("muxi_runtime", formationConfig.MuxiRuntime).
+				Msg("Invalid muxi_runtime syntax")
+			s.registry.ReleasePort(port)
+			os.RemoveAll(formationBaseDir)
+			respondErr(http.StatusBadRequest, StageResolvingRuntime, "InvalidRuntime", err.Error())
+			return
+		}
+
 		// Resolve version constraint
-		resolvedVersion, err := resolver.Resolve(formationConfig.MuxiRuntime)
+		resolvedVersion, err := resolver.Resolve(parsedVersion)
 		if err != nil {
 			s.logger.Error().
 				Err(err).
@@ -415,6 +429,7 @@ func (s *Server) deployNewFromDirectory(
 		s.logger.Info().
 			Str("constraint", formationConfig.MuxiRuntime).
 			Str("resolved", resolvedVersion).
+			Str("variant", variant).
 			Msg("Resolved runtime version")
 
 		// Emit resolved version progress
@@ -432,9 +447,10 @@ func (s *Server) deployNewFromDirectory(
 			s.logger,
 		)
 
-		// Ensure SIF exists (download if missing)
-		// EnsureSIF returns the actual resolved version (important when input was "latest")
-		sifPath, actualVersion, sifDownloaded, err := downloader.EnsureSIF(resolvedVersion)
+		// Ensure SIF exists (download if missing), routed by variant.
+		// EnsureSIFForVariant returns the actual resolved version (important
+		// when input was "latest").
+		sifPath, actualVersion, sifDownloaded, err := downloader.EnsureSIFForVariant(resolvedVersion, variant)
 		if err != nil {
 			s.logger.Error().
 				Err(err).
@@ -472,9 +488,21 @@ func (s *Server) deployNewFromDirectory(
 			})
 		}
 
+		// Resolve the HuggingFace cache dir for the /opt/hf-cache bind-mount.
+		cacheDir, err := getCacheDir()
+		if err != nil {
+			s.logger.Error().Err(err).Msg("Failed to resolve cache directory")
+			s.registry.ReleasePort(port)
+			os.RemoveAll(formationBaseDir)
+			respondErr(http.StatusInternalServerError, StageResolvingRuntime, "ConfigError", err.Error())
+			return
+		}
+
 		// Update spawn config for Singularity execution
 		spawnConfig.RuntimeType = "singularity"
 		spawnConfig.SIFPath = sifPath
+		spawnConfig.HFCacheDir = cacheDir
+		spawnConfig.Variant = variant
 
 		// For Singularity/Docker, we run: python -m muxi.runtime.utils.run_formation /formation --port PORT --host HOST
 		// The formation directory is mounted as /formation inside the container
@@ -644,4 +672,11 @@ func (s *Server) deployNewFromDirectory(
 // getMuxiDir returns the MUXI data directory path
 func getMuxiDir() (string, error) {
 	return config.GetDataDir()
+}
+
+// getCacheDir returns the HuggingFace model-weights cache directory path.
+// Thin wrapper over config.GetCacheDir so handlers don't each need to
+// import pkg/config directly — mirrors getMuxiDir above.
+func getCacheDir() (string, error) {
+	return config.GetCacheDir()
 }

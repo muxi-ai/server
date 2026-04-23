@@ -511,3 +511,112 @@ func TestBuildDockerSingularityCommand(t *testing.T) {
 		t.Error("Args should contain runtime-runner image")
 	}
 }
+
+// hasBindArg reports whether args contains a "--bind" flag followed by a
+// value equal to want.
+func hasBindArg(args []string, want string) bool {
+	for i := 0; i < len(args)-1; i++ {
+		if args[i] == "--bind" && args[i+1] == want {
+			return true
+		}
+	}
+	return false
+}
+
+// hasDashVArg reports whether args contains a "-v" flag followed by a
+// value equal to want.
+func hasDashVArg(args []string, want string) bool {
+	for i := 0; i < len(args)-1; i++ {
+		if args[i] == "-v" && args[i+1] == want {
+			return true
+		}
+	}
+	return false
+}
+
+func TestBuildNativeSingularityCommand_WithHFCache(t *testing.T) {
+	// HFCacheDir set -> expect --bind <host>:/opt/hf-cache appended.
+	// This is the hinge of the server-side embedding-platform integration:
+	// the runtime's HF_HOME env var points inside the SIF at /opt/hf-cache,
+	// so the host cache MUST land at exactly that mount point.
+	logger := zerolog.Nop()
+	config := SpawnConfig{
+		ID:         "test-formation",
+		WorkDir:    "/path/to/formation",
+		SIFPath:    "/path/to/runtime.sif",
+		HFCacheDir: "/var/lib/muxi/cache",
+		Command:    "python",
+	}
+
+	cmd := buildNativeSingularityCommand(config, &logger)
+	if !hasBindArg(cmd.Args, "/var/lib/muxi/cache:/opt/hf-cache") {
+		t.Errorf("expected --bind /var/lib/muxi/cache:/opt/hf-cache, got args: %v", cmd.Args)
+	}
+}
+
+func TestBuildNativeSingularityCommand_WithoutHFCache(t *testing.T) {
+	// HFCacheDir empty -> expect NO /opt/hf-cache bind. This is the
+	// back-compat contract: existing native formations and tests that
+	// leave HFCacheDir unset must produce the same command as before
+	// this feature existed.
+	logger := zerolog.Nop()
+	config := SpawnConfig{
+		ID:      "test-formation",
+		WorkDir: "/path/to/formation",
+		SIFPath: "/path/to/runtime.sif",
+		Command: "python",
+	}
+
+	cmd := buildNativeSingularityCommand(config, &logger)
+	for i, arg := range cmd.Args {
+		if arg == "--bind" && i+1 < len(cmd.Args) && containsStr(cmd.Args[i+1], "/opt/hf-cache") {
+			t.Errorf("unexpected /opt/hf-cache bind with empty HFCacheDir: %v", cmd.Args)
+		}
+	}
+}
+
+func TestBuildDockerSingularityCommand_WithHFCache(t *testing.T) {
+	// HFCacheDir set -> expect BOTH hops of the two-hop chain:
+	//   Docker hop: -v <host>:/opt/hf-cache
+	//   Singularity hop: --bind /opt/hf-cache
+	// Either one alone is a bug: the Docker hop without the singularity
+	// hop means the mount only reaches the Docker container, not the SIF.
+	logger := zerolog.Nop()
+	config := SpawnConfig{
+		ID:         "test-formation",
+		WorkDir:    "/path/to/formation",
+		SIFPath:    "/path/to/runtime.sif",
+		HFCacheDir: "/Users/me/.muxi/server/cache",
+		Port:       8080,
+	}
+
+	cmd := buildDockerSingularityCommand(config, &logger)
+
+	if !hasDashVArg(cmd.Args, "/Users/me/.muxi/server/cache:/opt/hf-cache") {
+		t.Errorf("missing Docker hop (-v <host>:/opt/hf-cache), got args: %v", cmd.Args)
+	}
+	if !hasBindArg(cmd.Args, "/opt/hf-cache") {
+		t.Errorf("missing Singularity hop (--bind /opt/hf-cache), got args: %v", cmd.Args)
+	}
+}
+
+func TestBuildDockerSingularityCommand_WithoutHFCache(t *testing.T) {
+	// Symmetric back-compat guard for the Docker-wrapped path.
+	logger := zerolog.Nop()
+	config := SpawnConfig{
+		ID:      "test-formation",
+		WorkDir: "/path/to/formation",
+		SIFPath: "/path/to/runtime.sif",
+		Port:    8080,
+	}
+
+	cmd := buildDockerSingularityCommand(config, &logger)
+	for i, arg := range cmd.Args {
+		if arg == "-v" && i+1 < len(cmd.Args) && containsStr(cmd.Args[i+1], "/opt/hf-cache") {
+			t.Errorf("unexpected /opt/hf-cache -v with empty HFCacheDir: %v", cmd.Args)
+		}
+		if arg == "--bind" && i+1 < len(cmd.Args) && cmd.Args[i+1] == "/opt/hf-cache" {
+			t.Errorf("unexpected /opt/hf-cache --bind with empty HFCacheDir: %v", cmd.Args)
+		}
+	}
+}

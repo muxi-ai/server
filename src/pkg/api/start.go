@@ -153,7 +153,16 @@ func (s *Server) HandleStart(w http.ResponseWriter, r *http.Request) {
 		availableVersions := runtimeRegistry.List()
 		resolver := runtime.NewResolver(availableVersions, runtimesDir)
 
-		resolvedVersion, err := resolver.Resolve(formationConfig.MuxiRuntime)
+		// Parse muxi_runtime as "<version>[:<variant>]" — see dev.go for
+		// the full rationale. Parse failure is a 400 since it's a
+		// formation-config-authoring error.
+		parsedVersion, variant, err := runtime.ParseMuxiRuntime(formationConfig.MuxiRuntime)
+		if err != nil {
+			respondErr(http.StatusBadRequest, StageResolvingRuntime, "InvalidRuntime", err.Error())
+			return
+		}
+
+		resolvedVersion, err := resolver.Resolve(parsedVersion)
 		if err != nil {
 			respondErr(http.StatusInternalServerError, StageResolvingRuntime, "RuntimeError", err.Error())
 			return
@@ -173,8 +182,8 @@ func (s *Server) HandleStart(w http.ResponseWriter, r *http.Request) {
 			s.logger,
 		)
 
-		// Ensure SIF exists (download if missing)
-		sifPath, _, sifDownloaded, err := downloader.EnsureSIF(resolvedVersion)
+		// Ensure SIF exists (download if missing), routed by variant.
+		sifPath, _, sifDownloaded, err := downloader.EnsureSIFForVariant(resolvedVersion, variant)
 		if err != nil {
 			respondErr(http.StatusInternalServerError, StageDownloadingSIF, "DownloadError", fmt.Sprintf("Failed to download runtime: %v", err))
 			return
@@ -200,8 +209,17 @@ func (s *Server) HandleStart(w http.ResponseWriter, r *http.Request) {
 			})
 		}
 
+		// Resolve host cache dir for the /opt/hf-cache bind-mount.
+		cacheDir, err := getCacheDir()
+		if err != nil {
+			respondErr(http.StatusInternalServerError, StageResolvingRuntime, "ConfigError", err.Error())
+			return
+		}
+
 		spawnConfig.RuntimeType = "singularity"
 		spawnConfig.SIFPath = sifPath
+		spawnConfig.HFCacheDir = cacheDir
+		spawnConfig.Variant = variant
 		spawnConfig.Command = "python"
 		spawnConfig.Args = []string{
 			"-m", "muxi.runtime.utils.run_formation",

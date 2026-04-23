@@ -31,6 +31,24 @@ type SpawnConfig struct {
 	RuntimeType string // "native" or "singularity"
 	SIFPath     string // Path to SIF file (if RuntimeType is "singularity")
 
+	// HFCacheDir is the host path to the HuggingFace model-weights cache.
+	// When set and RuntimeType == "singularity", it is bind-mounted into the
+	// SIF at /opt/hf-cache (writable). The runtime's baked-in HF_HOME and
+	// HF_HUB_CACHE env vars point at that container path, so the runtime's
+	// embedding code finds the weights without any further env plumbing.
+	//
+	// Empty means "no cache mount" — used by tests and native (non-SIF)
+	// formations that don't need embeddings.
+	HFCacheDir string
+
+	// Variant is the runtime SIF variant the operator requested ("cpu",
+	// "gpu", "cuda"). Used by the spawn builders to decide whether to
+	// enable GPU passthrough — Apptainer's --nv on native Linux, Docker's
+	// --gpus all in the runtime-runner path. Without this, a cuda SIF
+	// runs on CPU silently because libcuda.so can't find a device.
+	// Empty defaults to CPU (no GPU flags).
+	Variant string
+
 	// Skip initial health check in monitor (used when deploy does its own health check)
 	SkipInitialHealthCheck bool
 
@@ -438,6 +456,20 @@ func getSingularityBinary() string {
 }
 
 // ensureLocaltime creates /etc/localtime if it doesn't exist (needed for Apptainer)
+// isGPUVariant reports whether a SIF variant name implies GPU
+// passthrough is required at runtime. Kept in one place so the
+// Apptainer and Docker build paths stay in sync — a new GPU variant
+// added to runtime.ValidVariants only needs one edit here.
+//
+// Currently only "cuda" qualifies. "pytorch" and "lean" are CPU-only
+// variants per runtime.ValidVariants; adding them here would enable
+// GPU flags that their SIFs don't need and the host may not have.
+// Add a new case iff ValidVariants gains another GPU-targeting name
+// (e.g. a future "pytorch-gpu").
+func isGPUVariant(variant string) bool {
+	return variant == "cuda"
+}
+
 func ensureLocaltime() {
 	if _, err := os.Stat("/etc/localtime"); os.IsNotExist(err) {
 		// Try to symlink to UTC timezone
@@ -454,6 +486,14 @@ func buildNativeSingularityCommand(config SpawnConfig, logger *zerolog.Logger) *
 
 	args := []string{"exec"}
 
+	// GPU passthrough: --nv binds the host NVIDIA driver stack
+	// (libcuda.so, nvidia-smi, libraries under /usr/lib/x86_64-linux-gnu/)
+	// into the container. Required for any runtime that calls into CUDA —
+	// without it, libcuda.so fails to find a device even on a GPU host.
+	if isGPUVariant(config.Variant) {
+		args = append(args, "--nv")
+	}
+
 	// Add environment variables as --env flags (for inside container)
 	for key, value := range config.Env {
 		args = append(args, "--env", fmt.Sprintf("%s=%s", key, value))
@@ -464,6 +504,15 @@ func buildNativeSingularityCommand(config SpawnConfig, logger *zerolog.Logger) *
 
 	// Add bind mount for /tmp (allows formations to write temporary files)
 	args = append(args, "--bind", "/tmp")
+
+	// Add bind mount for the HuggingFace model-weights cache at /opt/hf-cache.
+	// The runtime's HF_HOME and HF_HUB_CACHE env vars point there by default,
+	// so embedding code inside the SIF finds weights without any host-side
+	// env plumbing. Writable because HF client writes lock files even in
+	// offline mode.
+	if config.HFCacheDir != "" {
+		args = append(args, "--bind", fmt.Sprintf("%s:/opt/hf-cache", config.HFCacheDir))
+	}
 
 	// Bind host tools into the SIF via /opt/muxi-tools (required for npx-based MCP servers).
 	// On native Linux, Apptainer can bind-mount host binaries and libraries directly.
@@ -504,6 +553,18 @@ func buildDockerSingularityCommand(config SpawnConfig, logger *zerolog.Logger) *
 		"--rm",                  // Remove container after exit
 		"--name", containerName, // Named container for cleanup
 		"--privileged", // Required for Singularity user namespaces
+	}
+
+	// GPU passthrough: Docker --gpus all exposes every NVIDIA GPU on the
+	// host to the container via nvidia-container-toolkit. Must precede
+	// the image name in the args list. Same rationale as the --nv flag
+	// on the native Linux path: a cuda SIF without this silently runs
+	// on CPU because libcuda.so can't find a device.
+	if isGPUVariant(config.Variant) {
+		args = append(args, "--gpus", "all")
+	}
+
+	args = append(args,
 
 		// Route localhost/127.0.0.1 inside the container to the host machine so
 		// formations can reach host-local services (e.g. PostgreSQL) without
@@ -524,6 +585,15 @@ func buildDockerSingularityCommand(config SpawnConfig, logger *zerolog.Logger) *
 
 		// Expose formation port
 		"-p", fmt.Sprintf("%d:%d", config.Port, config.Port),
+	)
+
+	// Mount the HuggingFace model-weights cache at /opt/hf-cache for the
+	// runtime's embedding path to find weights. This is the Docker hop
+	// (host -> container); the Singularity hop (container -> SIF) is
+	// appended below alongside the other --bind flags, following the same
+	// two-hop pattern already used for /formation.
+	if config.HFCacheDir != "" {
+		args = append(args, "-v", fmt.Sprintf("%s:/opt/hf-cache", config.HFCacheDir))
 	}
 
 	// Pass environment variables to Docker container
@@ -538,12 +608,31 @@ func buildDockerSingularityCommand(config SpawnConfig, logger *zerolog.Logger) *
 	// runtime-runner's ENTRYPOINT is "singularity", so we append the exec command
 	args = append(args, "exec")
 
+	// GPU passthrough — inner Singularity hop. Docker's --gpus all
+	// makes the GPU visible to the container, but it's Apptainer's
+	// --nv that actually injects libcuda.so / libcudart.so and the
+	// device files into the SIF namespace. Without this, Python code
+	// inside the SIF fails to initialize CUDA even though the outer
+	// Docker container sees the device. Must match the --nv we added
+	// on the native Apptainer path (buildNativeSingularityCommand).
+	if isGPUVariant(config.Variant) {
+		args = append(args, "--nv")
+	}
+
 	// Bind /formation inside the SIF (Singularity needs explicit bind)
 	// Not read-only because runtime may need to write .key file for secrets
 	args = append(args, "--bind", "/formation")
 
 	// Bind /tmp for temporary files
 	args = append(args, "--bind", "/tmp")
+
+	// Bind /opt/hf-cache inside the SIF so the runtime's embedding code
+	// finds model weights at the path HF_HOME already points at. This is
+	// the Singularity hop completing the two-hop chain that started with
+	// the Docker -v above.
+	if config.HFCacheDir != "" {
+		args = append(args, "--bind", "/opt/hf-cache")
+	}
 
 	// Bind host tools into the SIF via /opt/muxi-tools (required for npx-based MCP servers)
 	// In runtime-runner, tools are pre-staged at /opt/muxi-tools/bin and /opt/muxi-tools/lib.

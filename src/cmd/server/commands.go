@@ -15,9 +15,12 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/muxi-ai/server/pkg/config"
+	"github.com/muxi-ai/server/pkg/dockerutil"
+	"github.com/muxi-ai/server/pkg/hfcache"
 	"github.com/muxi-ai/server/pkg/rce"
 	"github.com/muxi-ai/server/pkg/registry"
 	"gopkg.in/yaml.v3"
@@ -148,7 +151,7 @@ func cmdUpgrade() error {
 			upgraded = true
 		}
 	} else {
-		if err := rce.EnsureDocker(); err != nil {
+		if err := rce.EnsureDocker(os.Stdout); err != nil {
 			fmt.Printf("  %s Failed to pull RCE image: %v\n", crossMark, err)
 		} else {
 			fmt.Printf("  %s Skills RCE Docker image updated\n", checkMark)
@@ -473,19 +476,21 @@ func cmdInit() error {
 			return fmt.Errorf("Docker not found")
 		}
 
-		// Pull runtime-runner with progress
+		// Header ends with a newline so the spinner-driven progress
+		// line renders cleanly on the next row. No size hint in the
+		// header — the spinner conveys "working, be patient" better
+		// than a static "may take a few minutes".
 		if !checkRuntimeRunnerExists() {
-			fmt.Printf("%s Downloading runtime-runner image...", bullet)
+			fmt.Printf("%s Setting up runtime-runner...\n", bullet)
 			if err := pullRuntimeRunner(); err != nil {
-				fmt.Printf(" %s\n", crossMark)
-				fmt.Printf("   Failed: %v\n", err)
+				fmt.Printf("%s Failed to download runtime-runner: %v\n", crossMark, err)
 				fmt.Println("   You can pull it manually later:")
 				fmt.Println("   docker pull --platform linux/amd64 ghcr.io/muxi-ai/runtime-runner:latest")
 			} else {
-				fmt.Printf(" %s\n", checkMark)
+				fmt.Printf("%s Runtime-runner ready\n", checkMark)
 			}
 		} else {
-			fmt.Printf("%s Runtime-runner image already available\n", checkMark)
+			fmt.Printf("%s Runtime-runner ready\n", checkMark)
 		}
 	} else if osName == "linux" {
 		// Check for Singularity or Apptainer
@@ -566,7 +571,16 @@ func cmdInit() error {
 	logsDir := filepath.Join(muxiDir, "logs")
 	formationsDir := filepath.Join(muxiDir, "formations")
 
-	for _, dir := range []string{logsDir, formationsDir} {
+	// Cache dir lives under the data dir (GetDataDir() + /cache) so it is
+	// co-located with other per-install state, bind-mounted into every SIF
+	// at /opt/hf-cache at formation-start time. Created empty here; the
+	// runtime inside the SIF handles populating it on first formation run.
+	cacheDir, err := config.GetCacheDir()
+	if err != nil {
+		return fmt.Errorf("failed to resolve cache directory: %w", err)
+	}
+
+	for _, dir := range []string{logsDir, formationsDir, cacheDir} {
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			return fmt.Errorf("failed to create directory %s: %w", dir, err)
 		}
@@ -580,15 +594,46 @@ func cmdInit() error {
 			fmt.Printf("%s Failed to download RCE SIF: %v\n", crossMark, err)
 			fmt.Println("  Skills RCE can be downloaded later. Formations will start without code execution.")
 		} else {
-			fmt.Printf("%s Skills RCE downloaded\n", checkMark)
+			fmt.Printf("%s Skills RCE ready\n", checkMark)
 		}
 	} else {
-		if err := rce.EnsureDocker(); err != nil {
+		if err := rce.EnsureDocker(os.Stdout); err != nil {
 			fmt.Printf("%s Failed to pull RCE Docker image: %v\n", crossMark, err)
 			fmt.Println("  Skills RCE can be pulled later. Formations will start without code execution.")
 		} else {
-			fmt.Printf("%s Skills RCE Docker image pulled\n", checkMark)
+			fmt.Printf("%s Skills RCE ready\n", checkMark)
 		}
+	}
+
+	// Pre-download the default embedding model into the HF cache so the
+	// first formation deploy doesn't stall on a ~300MB download.
+	// Platform-agnostic (pure HTTP — works the same on apptainer and
+	// docker-wrapper paths). Best-effort — if HF is unreachable we
+	// print a warning and let the runtime inside the SIF fetch the
+	// model on first use.
+	//
+	// UX note: we deliberately say "Setting up embeddings..." rather
+	// than "Checking embedding model cache (nomic-ai/…)" because:
+	//   1. Users don't care about the model name at init-time; they
+	//      care that something named "embeddings" is being arranged.
+	//   2. On a cache-hit re-init the old wording printed the full
+	//      model URL and a "(skipping download)" parenthetical —
+	//      mechanical status updates without useful user signal.
+	//   3. The downloadReporter's ticker-driven spinner handles the
+	//      "still alive" job; no need for text hints like "may take a
+	//      few minutes".
+	// Both cached and fresh-download paths converge on the same
+	// "Embeddings ready" confirmation; the only difference the user
+	// sees is whether a spinner+bytes line appeared in between.
+	fmt.Printf("\n%s Setting up embeddings...\n", bullet)
+	progress := startDownloadReporter(os.Stdout)
+	_, err = hfcache.EnsureLeanModel(cacheDir, progress)
+	progress.finish()
+	if err != nil {
+		fmt.Printf("%s Could not prepare embedding model: %v\n", crossMark, err)
+		fmt.Println("  The model will be downloaded on first formation deploy.")
+	} else {
+		fmt.Printf("%s Embeddings ready\n", checkMark)
 	}
 
 	// Success message
@@ -794,14 +839,135 @@ func checkRuntimeRunnerExists() bool {
 	return err == nil && len(output) > 0
 }
 
-// pullRuntimeRunner pulls the runtime-runner image from GHCR
+// pullRuntimeRunner pulls the runtime-runner image from GHCR and renders
+// a single collapsed progress line instead of Docker's native per-layer
+// output (50+ lines for a typical multi-layer pull).
+//
+// Design: stdout is piped into renderPullProgress which watches for
+// "Pulling fs layer" (increments the total) and "Pull complete"
+// (increments the done-count) events and repaints a single in-place
+// line via \r. Stderr stays wired to the terminal so real Docker
+// errors (auth, network, daemon down) remain visible at full fidelity.
+//
+// DOCKER_CLI_HINTS=false suppresses the "What's next:" promotional
+// footer Docker Desktop appends after every pull (docker scout
+// quickview…). It's noise during a bootstrap flow where we're already
+// managing user attention carefully.
 func pullRuntimeRunner() error {
-	// Always pull linux/amd64 since Singularity only runs on Linux x86_64
-	// Docker on ARM64 (Apple Silicon) will run it through emulation
-	cmd := exec.Command("docker", "pull", "--platform", "linux/amd64", "--quiet", "ghcr.io/muxi-ai/runtime-runner:latest")
-	// Suppress stdout (digest output), only show errors
+	// Always pull linux/amd64 since Singularity only runs on Linux x86_64;
+	// Docker on ARM64 (Apple Silicon) will run it through emulation.
+	cmd := exec.Command("docker", "pull", "--platform", "linux/amd64", "ghcr.io/muxi-ai/runtime-runner:latest")
+	cmd.Env = append(os.Environ(), "DOCKER_CLI_HINTS=false")
 	cmd.Stderr = os.Stderr
-	return cmd.Run()
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("create stdout pipe: %w", err)
+	}
+
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("start docker pull: %w", err)
+	}
+
+	// Render progress on a background goroutine so cmd.Wait doesn't
+	// block on an un-drained pipe; signal completion via `done` so we
+	// don't return before the final line is painted.
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		dockerutil.RenderPullProgress(stdout, os.Stdout)
+	}()
+
+	waitErr := cmd.Wait()
+	<-done
+	return waitErr
+}
+
+// downloadReporter is an io.Writer that accumulates bytes written to it
+// and renders a single in-place spinner + MiB-downloaded line via a
+// ticker goroutine. Replaces the older progressPrinter which only
+// printed every 4 MiB threshold and therefore appeared frozen during
+// slow transfers.
+//
+// Lifecycle:
+//
+//	r := startDownloadReporter(os.Stdout)
+//	// pass r.Writer() somewhere that reads into it
+//	r.finish()
+//
+// Concurrency: Write is called from the HTTP-read goroutine; render is
+// called from an internal ticker goroutine. The total byte count is
+// atomic-protected; we don't guard the final newline because finish()
+// synchronizes via a done-channel before returning.
+type downloadReporter struct {
+	out   io.Writer
+	bytes atomic.Int64
+	stop  chan struct{}
+	done  chan struct{}
+	// firstPaint is closed the first time the ticker actually paints a
+	// progress line (i.e. bytes > 0 at a tick). Exists so tests can
+	// deterministically wait for real progress instead of guessing a
+	// sleep duration; production code ignores it.
+	firstPaint chan struct{}
+	render     bool // true once at least one repaint has happened; guards final newline
+}
+
+func startDownloadReporter(out io.Writer) *downloadReporter {
+	r := &downloadReporter{
+		out:        out,
+		stop:       make(chan struct{}),
+		done:       make(chan struct{}),
+		firstPaint: make(chan struct{}),
+	}
+	go r.run()
+	return r
+}
+
+func (r *downloadReporter) Write(b []byte) (int, error) {
+	r.bytes.Add(int64(len(b)))
+	return len(b), nil
+}
+
+func (r *downloadReporter) run() {
+	defer close(r.done)
+	ticker := time.NewTicker(dockerutil.SpinnerTick)
+	defer ticker.Stop()
+
+	frame := 0
+	painted := false
+	for {
+		select {
+		case <-r.stop:
+			return
+		case <-ticker.C:
+			n := r.bytes.Load()
+			if n == 0 {
+				// Nothing has flowed yet; don't paint a "0 MiB" line
+				// that would just confuse during the HTTP connect phase.
+				continue
+			}
+			r.render = true
+			fmt.Fprintf(r.out, "\r  %s %.1f MiB downloaded   ",
+				dockerutil.SpinnerFrames[frame%len(dockerutil.SpinnerFrames)],
+				float64(n)/1024/1024)
+			frame++
+			if !painted {
+				close(r.firstPaint)
+				painted = true
+			}
+		}
+	}
+}
+
+// finish signals the ticker to stop, waits for it to exit, and writes
+// a terminating newline if any progress was actually painted. Safe to
+// call even if no bytes flowed (empty cache-skip path).
+func (r *downloadReporter) finish() {
+	close(r.stop)
+	<-r.done
+	if r.render {
+		fmt.Fprintln(r.out)
+	}
 }
 
 // checkSingularityAvailable checks if Singularity or Apptainer is installed

@@ -169,3 +169,115 @@ func TestDownloader_InvalidURL(t *testing.T) {
 		t.Error("EnsureSIF() should have failed for invalid URL")
 	}
 }
+
+// TestDownloader_EnsureSIFForVariant_AlreadyExists proves the variant-aware
+// lookup finds a pre-existing SIF named with the variant-before-platform
+// convention (not the lean filename).
+func TestDownloader_EnsureSIFForVariant_AlreadyExists(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "test-runtimes")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	platform := getPlatform()
+	// Pytorch variant filename: variant segment BEFORE platform.
+	sifName := "muxi-runtime-1.0.0-pytorch-" + platform + ".sif"
+	sifPath := filepath.Join(tmpDir, sifName)
+	if err := os.WriteFile(sifPath, []byte("fake sif"), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	logger := zerolog.Nop()
+	d := NewDownloader("https://example.com", "test-image:latest", tmpDir, &logger)
+
+	path, resolvedVer, downloaded, err := d.EnsureSIFForVariant("1.0.0", "pytorch")
+	if err != nil {
+		t.Fatalf("EnsureSIFForVariant() error = %v", err)
+	}
+	if path != sifPath {
+		t.Errorf("path = %q, want %q", path, sifPath)
+	}
+	if resolvedVer != "1.0.0" {
+		t.Errorf("version = %q, want 1.0.0", resolvedVer)
+	}
+	if downloaded {
+		t.Error("downloaded = true, want false (file pre-existed)")
+	}
+}
+
+// TestDownloader_EnsureSIFForVariant_Download proves variant-aware download
+// constructs the correct URL path (variant segment BEFORE platform) and
+// writes to the correct on-disk location.
+func TestDownloader_EnsureSIFForVariant_Download(t *testing.T) {
+	var requestedPath string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestedPath = r.URL.Path
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("fake pytorch sif"))
+	}))
+	defer server.Close()
+
+	tmpDir, err := os.MkdirTemp("", "test-runtimes")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	logger := zerolog.Nop()
+	d := NewDownloader(server.URL, "test-image:latest", tmpDir, &logger)
+
+	path, _, downloaded, err := d.EnsureSIFForVariant("1.0.0", "pytorch")
+	if err != nil {
+		t.Fatalf("EnsureSIFForVariant() error = %v", err)
+	}
+	if !downloaded {
+		t.Error("downloaded = false, want true")
+	}
+
+	platform := getPlatform()
+	wantPath := "/muxi-runtime-1.0.0-pytorch-" + platform + ".sif"
+	if requestedPath != wantPath {
+		t.Errorf("requested URL path = %q, want %q", requestedPath, wantPath)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Errorf("downloaded SIF missing at %q: %v", path, err)
+	}
+}
+
+// TestDownloader_EnsureSIF_DelegatesToLean proves the back-compat shim
+// (variant-less EnsureSIF) produces a result indistinguishable from the
+// variant-aware call with DefaultVariant — any divergence would silently
+// break existing callers once variants land.
+func TestDownloader_EnsureSIF_DelegatesToLean(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "test-runtimes")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Pre-create the lean-flavored SIF so both calls short-circuit on
+	// "already exists" and we only compare path + resolvedVer.
+	platform := getPlatform()
+	sifName := "muxi-runtime-1.0.0-" + platform + ".sif"
+	sifPath := filepath.Join(tmpDir, sifName)
+	if err := os.WriteFile(sifPath, []byte("fake"), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	logger := zerolog.Nop()
+	d := NewDownloader("https://example.com", "test-image:latest", tmpDir, &logger)
+
+	pathOld, verOld, _, err := d.EnsureSIF("1.0.0")
+	if err != nil {
+		t.Fatalf("EnsureSIF() error = %v", err)
+	}
+	pathNew, verNew, _, err := d.EnsureSIFForVariant("1.0.0", DefaultVariant)
+	if err != nil {
+		t.Fatalf("EnsureSIFForVariant() error = %v", err)
+	}
+	if pathOld != pathNew || verOld != verNew {
+		t.Errorf("delegation drift: old=(%q, %q) new=(%q, %q)",
+			pathOld, verOld, pathNew, verNew)
+	}
+}

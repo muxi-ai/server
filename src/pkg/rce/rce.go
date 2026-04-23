@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/muxi-ai/server/pkg/config"
+	"github.com/muxi-ai/server/pkg/dockerutil"
 	"github.com/muxi-ai/server/pkg/process"
 	"github.com/rs/zerolog"
 )
@@ -28,15 +29,15 @@ const (
 
 // Manager handles the lifecycle of the Skills RCE service
 type Manager struct {
-	port       int
-	authToken  string
-	sifPath    string
-	dataDir    string
-	logsDir    string
-	pidsDir    string
-	logger     *zerolog.Logger
-	process    *process.Process
-	procMgr    *process.Manager
+	port      int
+	authToken string
+	sifPath   string
+	dataDir   string
+	logsDir   string
+	pidsDir   string
+	logger    *zerolog.Logger
+	process   *process.Process
+	procMgr   *process.Manager
 }
 
 // NewManager creates a new RCE manager
@@ -65,8 +66,8 @@ func (m *Manager) Start() error {
 
 	env := map[string]string{
 		"RCE_PORT":       strconv.Itoa(m.port),
-		"RCE_AUTH_TOKEN":  m.authToken,
-		"RCE_CACHE_DIR":   filepath.Join(m.dataDir, "rce", "cache"),
+		"RCE_AUTH_TOKEN": m.authToken,
+		"RCE_CACHE_DIR":  filepath.Join(m.dataDir, "rce", "cache"),
 	}
 
 	// Ensure cache dir exists
@@ -265,11 +266,51 @@ func EnsureSIF(dataDir string) (string, error) {
 	return sifPath, nil
 }
 
-// EnsureDocker pulls the latest RCE Docker image (macOS/Windows)
-func EnsureDocker() error {
-	cmd := exec.Command("docker", "pull", "-q", DockerImage)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to pull RCE image: %w", err)
+// EnsureDocker pulls the latest RCE Docker image (macOS/Windows) and
+// renders a single collapsed progress line (with spinner) instead of
+// Docker's native per-layer output. Same rendering as
+// cmd/server/commands.go's pullRuntimeRunner — routed through the
+// shared pkg/dockerutil.RenderPullProgress so any future tweak to the
+// format lands in both pulls at once.
+//
+// DOCKER_CLI_HINTS=false suppresses Docker Desktop's "What's next:"
+// promotional footer (docker scout quickview…) that's pure noise in a
+// bootstrap flow.
+//
+// Stderr stays wired to the terminal so real Docker errors (auth,
+// network, daemon down) remain visible at full fidelity.
+//
+// out is the progress destination — typically os.Stdout from cmdInit,
+// but accepting an io.Writer keeps EnsureDocker usable from daemon /
+// test / JSON-API contexts that shouldn't touch stdout. Pass io.Discard
+// to silence progress entirely.
+func EnsureDocker(out io.Writer) error {
+	cmd := exec.Command("docker", "pull", DockerImage)
+	cmd.Env = append(os.Environ(), "DOCKER_CLI_HINTS=false")
+	cmd.Stderr = os.Stderr
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("create stdout pipe: %w", err)
+	}
+
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("start docker pull: %w", err)
+	}
+
+	// Render progress on a background goroutine so cmd.Wait doesn't
+	// block on an un-drained pipe; signal completion via `done` so we
+	// don't return before the final line is painted.
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		dockerutil.RenderPullProgress(stdout, out)
+	}()
+
+	waitErr := cmd.Wait()
+	<-done
+	if waitErr != nil {
+		return fmt.Errorf("failed to pull RCE image: %w", waitErr)
 	}
 	return nil
 }

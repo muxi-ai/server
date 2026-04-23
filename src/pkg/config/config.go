@@ -386,6 +386,46 @@ func GetLogDir() (string, error) {
 	return filepath.Join(home, ".muxi", "server", "logs"), nil
 }
 
+// GetCacheDir returns the HuggingFace cache directory.
+//
+// The cache holds model weights bind-mounted into SIF containers at
+// /opt/hf-cache. It lives under the data dir (one per install, not per
+// formation) so a single populated cache is shared across every formation
+// on the host. The runtime inside the SIF populates it via its own
+// download path; the server only needs the directory to exist and be
+// bind-mountable.
+//
+// Priority: MUXI_CACHE_DIR env var > <GetDataDir()>/cache.
+//
+// The env override exists so operators with unusual disk layouts (e.g.,
+// cache on a large NVMe volume separate from /var/lib) can relocate it
+// without moving the rest of the data dir. Everything else stays co-located.
+func GetCacheDir() (string, error) {
+	// 1. Environment override (highest priority).
+	//
+	// Absolutized because the returned path is later fed to `apptainer
+	// --bind <dir>:/opt/hf-cache` and `docker -v <dir>:/opt/hf-cache`.
+	// Both tools accept relative paths but interpret them CWD-relative
+	// at exec time, which can differ from the CWD at init time —
+	// fragile across service restarts or supervisor configs that
+	// change working directory. filepath.Abs makes it durable.
+	if dir := os.Getenv("MUXI_CACHE_DIR"); dir != "" {
+		abs, err := filepath.Abs(dir)
+		if err != nil {
+			return "", fmt.Errorf("MUXI_CACHE_DIR %q: %w", dir, err)
+		}
+		return abs, nil
+	}
+
+	// 2. Derive from data dir — the cache is conceptually part of the
+	// server's persistent data, just separated for bind-mount purposes.
+	dataDir, err := GetDataDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dataDir, "cache"), nil
+}
+
 // GetInstallType returns the installation type for display purposes
 // Returns: "System", "User", or "Custom"
 func GetInstallType() string {
@@ -441,6 +481,13 @@ func GetRegistryPath() (string, error) {
 
 // EnsureDirectories creates all necessary directories and normalizes config paths to absolute.
 // After this call, config.Formations.LogsDir, PIDsDir, and FormationsDir will be absolute paths.
+//
+// Called from cmdStart at every server startup, so the server self-heals
+// any missing directories. This matters for upgrades: when the server
+// binary is replaced in-place without re-running `muxi-server init`, new
+// directories introduced in the upgraded version (e.g. the HF cache dir
+// added for variant-aware SIF embeddings) still get created here instead
+// of failing the first formation start with a bind-mount error.
 func EnsureDirectories(baseDir string, config *Config) error {
 	// Normalize relative paths to absolute FIRST (before creating directories)
 	// This ensures all code using config paths gets absolute paths
@@ -456,6 +503,16 @@ func EnsureDirectories(baseDir string, config *Config) error {
 		config.Formations.FormationsDir,
 		filepath.Join(baseDir, "tmp"),
 	}
+
+	// HuggingFace cache dir — bind-mounted into every SIF at /opt/hf-cache.
+	// Computed via GetCacheDir so the MUXI_CACHE_DIR env override is honored
+	// here too; falling back to naive <baseDir>/cache would silently ignore
+	// the override and leave the overridden location uncreated.
+	cacheDir, err := GetCacheDir()
+	if err != nil {
+		return fmt.Errorf("failed to resolve cache directory: %w", err)
+	}
+	dirs = append(dirs, cacheDir)
 
 	for _, dir := range dirs {
 		if err := os.MkdirAll(dir, 0755); err != nil {

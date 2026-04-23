@@ -1,11 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/muxi-ai/server/pkg/dockerutil"
 	"github.com/rs/zerolog"
 )
 
@@ -345,9 +348,9 @@ func TestGetLinuxDistro_MockOSRelease(t *testing.T) {
 	osRelease := filepath.Join(tmpDir, "os-release")
 
 	testCases := []struct {
-		name     string
-		content  string
-		wantID   string
+		name    string
+		content string
+		wantID  string
 	}{
 		{
 			name: "Ubuntu",
@@ -409,5 +412,69 @@ VERSION_ID="9.1"`,
 				t.Errorf("Got ID=%q, want %q", gotID, tc.wantID)
 			}
 		})
+	}
+}
+
+// containsAnySpinnerFrame returns true if any frame from
+// dockerutil.SpinnerFrames appears anywhere in s. Used to verify the
+// downloadReporter's ticker paints a spinner character without pinning
+// the test to a specific frame (which depends on ticker scheduling).
+func containsAnySpinnerFrame(s string) bool {
+	for _, f := range dockerutil.SpinnerFrames {
+		if strings.Contains(s, f) {
+			return true
+		}
+	}
+	return false
+}
+
+// TestDownloadReporter_NoBytesNoOutput: the fast-path (model already
+// cached, EnsureLeanModel returns without writing) must produce zero
+// output. Any newline or stray character would corrupt the caller's
+// bullet/check-mark layout. Invariant is stateless — finish() without
+// any preceding Write must be a no-op, regardless of whether the
+// ticker goroutine got scheduled or not, so no sleep is needed.
+func TestDownloadReporter_NoBytesNoOutput(t *testing.T) {
+	var out bytes.Buffer
+	r := startDownloadReporter(&out)
+	r.finish()
+	if out.Len() != 0 {
+		t.Errorf("expected empty output on zero-byte path, got %q", out.String())
+	}
+}
+
+// TestDownloadReporter_BytesProduceProgress: when bytes do flow, we
+// expect (1) at least one spinner-framed "N.N MiB downloaded" line to
+// have been painted and (2) the output to terminate with a newline so
+// subsequent prints don't overwrite the progress line.
+//
+// Waits on the firstPaint signal channel rather than a wall-clock
+// sleep so this test is robust on heavily loaded CI runners — 2 s is
+// a generous upper bound that still fails fast on a real regression.
+func TestDownloadReporter_BytesProduceProgress(t *testing.T) {
+	var out bytes.Buffer
+	r := startDownloadReporter(&out)
+	blob := make([]byte, 1024*1024)
+	for i := 0; i < 8; i++ {
+		if _, err := r.Write(blob); err != nil {
+			t.Fatalf("Write: %v", err)
+		}
+	}
+	select {
+	case <-r.firstPaint:
+	case <-time.After(2 * time.Second):
+		t.Fatal("reporter did not paint within 2s after bytes flowed")
+	}
+	r.finish()
+
+	got := out.String()
+	if !strings.Contains(got, "MiB downloaded") {
+		t.Errorf("expected MiB-downloaded progress line, got %q", got)
+	}
+	if !containsAnySpinnerFrame(got) {
+		t.Errorf("expected at least one spinner frame, got %q", got)
+	}
+	if !strings.HasSuffix(got, "\n") {
+		t.Errorf("output must terminate with newline, got %q", got)
 	}
 }
