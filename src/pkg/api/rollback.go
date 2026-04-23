@@ -289,7 +289,7 @@ func (s *Server) HandleRollback(w http.ResponseWriter, r *http.Request) {
 
 	time.Sleep(2 * time.Second)
 
-	healthTimeout := 300 * time.Second
+	healthTimeout := resolveHealthTimeout(s.config)
 	healthInterval := 1 * time.Second
 	healthChecker := process.NewHealthChecker(healthTimeout, healthInterval)
 	healthChecker.Endpoint = "/v1/health"

@@ -3,7 +3,30 @@ package api
 import (
 	"os"
 	goruntime "runtime"
+	"time"
+
+	"github.com/muxi-ai/server/pkg/config"
 )
+
+// resolveHealthTimeout returns the configured total timeout for the
+// staging-health-check loop used by every spawn-and-wait handler
+// (deploy/update/restart/start/dev/rollback). Previously deploy and
+// update honored Formations.Deployment.HealthCheck.Timeout while the
+// other four handlers hardcoded 300s — meaning operators who shortened
+// the default 30s timeout in config.yaml got their setting silently
+// ignored on four of the six code paths, and tests that legitimately
+// expected fast failure (crashed python stub, no app.py) hung for
+// minutes in CI. One helper keeps all six in sync.
+//
+// Falls back to 300s only when the config field is zero — matches the
+// "5 minutes" comment already present in deploy.go/update.go, preserving
+// production behavior for operators who never touched the field.
+func resolveHealthTimeout(cfg *config.Config) time.Duration {
+	if cfg != nil && cfg.Formations.Deployment.HealthCheck.Timeout > 0 {
+		return time.Duration(cfg.Formations.Deployment.HealthCheck.Timeout) * time.Second
+	}
+	return 300 * time.Second
+}
 
 // isRunningInContainer checks if we're running inside a container
 func isRunningInContainer() bool {

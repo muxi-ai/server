@@ -19,6 +19,22 @@ func createTestServer(t *testing.T) *Server {
 	t.Helper()
 
 	cfg := config.DefaultConfig()
+	// Tests never spawn a real formation — the default `python app.py`
+	// fixture exits immediately with "No such file". Collapse the
+	// post-spawn health-check loop to 2s so handlers unblock fast via
+	// crash detection instead of waiting 300s for a service that
+	// never comes up.
+	cfg.Formations.Deployment.HealthCheck.Timeout = 2
+	// formation.Load() forces MuxiRuntime to "latest" when unset, which
+	// sends every spawn-and-wait handler (deploy, update, restart,
+	// start, rollback, dev) through the SIF download path —
+	// fetchLatestVersion hits github.com, then http.Get streams a real
+	// multi-GB SIF with no client timeout. Both TestHandleRollback and
+	// TestHandleBundleDeploy_ValidBundle hung for minutes on that
+	// download. Point SIFBaseURL at a non-routable loopback port so
+	// fetchLatestVersion's 10s timeout (or immediate connection
+	// refused) aborts the runtime path before it can stream bytes.
+	cfg.Runtime.SIFBaseURL = "http://127.0.0.1:1"
 	reg, err := registry.NewRegistry(8000, 9000)
 	if err != nil {
 		t.Fatalf("Failed to create registry: %v", err)

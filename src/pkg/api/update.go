@@ -504,10 +504,7 @@ func (s *Server) updateFromDirectory(
 	})
 
 	// Health check staging formation
-	healthTimeout := time.Duration(s.config.Formations.Deployment.HealthCheck.Timeout) * time.Second
-	if healthTimeout == 0 {
-		healthTimeout = 300 * time.Second // 5 minutes default
-	}
+	healthTimeout := resolveHealthTimeout(s.config)
 	healthInterval := time.Duration(s.config.Formations.Deployment.HealthCheck.Interval) * time.Second
 	if healthInterval == 0 {
 		healthInterval = 1 * time.Second // Default 1 second
