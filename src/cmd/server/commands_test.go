@@ -431,13 +431,12 @@ func containsAnySpinnerFrame(s string) bool {
 // TestDownloadReporter_NoBytesNoOutput: the fast-path (model already
 // cached, EnsureLeanModel returns without writing) must produce zero
 // output. Any newline or stray character would corrupt the caller's
-// bullet/check-mark layout.
+// bullet/check-mark layout. Invariant is stateless — finish() without
+// any preceding Write must be a no-op, regardless of whether the
+// ticker goroutine got scheduled or not, so no sleep is needed.
 func TestDownloadReporter_NoBytesNoOutput(t *testing.T) {
 	var out bytes.Buffer
 	r := startDownloadReporter(&out)
-	// Give the ticker goroutine enough time to fire at least twice so
-	// we're sure a zero-byte-tick would have had its chance to paint.
-	time.Sleep(250 * time.Millisecond)
 	r.finish()
 	if out.Len() != 0 {
 		t.Errorf("expected empty output on zero-byte path, got %q", out.String())
@@ -448,20 +447,24 @@ func TestDownloadReporter_NoBytesNoOutput(t *testing.T) {
 // expect (1) at least one spinner-framed "N.N MiB downloaded" line to
 // have been painted and (2) the output to terminate with a newline so
 // subsequent prints don't overwrite the progress line.
+//
+// Waits on the firstPaint signal channel rather than a wall-clock
+// sleep so this test is robust on heavily loaded CI runners — 2 s is
+// a generous upper bound that still fails fast on a real regression.
 func TestDownloadReporter_BytesProduceProgress(t *testing.T) {
 	var out bytes.Buffer
 	r := startDownloadReporter(&out)
-	// 8 MiB of dummy bytes — enough to cross the first MiB threshold
-	// regardless of how the ticker schedules its first paint.
 	blob := make([]byte, 1024*1024)
 	for i := 0; i < 8; i++ {
 		if _, err := r.Write(blob); err != nil {
 			t.Fatalf("Write: %v", err)
 		}
 	}
-	// Give the ticker at least a couple of cycles to observe the
-	// accumulated bytes. Tight: 250 ms is 2.5× the 100 ms spinnerTick.
-	time.Sleep(250 * time.Millisecond)
+	select {
+	case <-r.firstPaint:
+	case <-time.After(2 * time.Second):
+		t.Fatal("reporter did not paint within 2s after bytes flowed")
+	}
 	r.finish()
 
 	got := out.String()

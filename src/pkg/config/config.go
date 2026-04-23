@@ -401,9 +401,20 @@ func GetLogDir() (string, error) {
 // cache on a large NVMe volume separate from /var/lib) can relocate it
 // without moving the rest of the data dir. Everything else stays co-located.
 func GetCacheDir() (string, error) {
-	// 1. Environment override (highest priority)
+	// 1. Environment override (highest priority).
+	//
+	// Absolutized because the returned path is later fed to `apptainer
+	// --bind <dir>:/opt/hf-cache` and `docker -v <dir>:/opt/hf-cache`.
+	// Both tools accept relative paths but interpret them CWD-relative
+	// at exec time, which can differ from the CWD at init time —
+	// fragile across service restarts or supervisor configs that
+	// change working directory. filepath.Abs makes it durable.
 	if dir := os.Getenv("MUXI_CACHE_DIR"); dir != "" {
-		return dir, nil
+		abs, err := filepath.Abs(dir)
+		if err != nil {
+			return "", fmt.Errorf("MUXI_CACHE_DIR %q: %w", dir, err)
+		}
+		return abs, nil
 	}
 
 	// 2. Derive from data dir — the cache is conceptually part of the

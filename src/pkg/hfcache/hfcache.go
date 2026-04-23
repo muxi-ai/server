@@ -154,6 +154,13 @@ func EnsureModel(cacheDir, repoID string, files []string, progress io.Writer) (a
 		return false, fmt.Errorf("create model dir %q: %w", modelDir, err)
 	}
 
+	// One client for the whole model so Go's default transport can
+	// pool TCP+TLS connections across all 10 files of the lean model.
+	// A fresh client per file added a full handshake's latency to each
+	// file; shared client cuts that to one handshake total on typical
+	// HF CDN responses.
+	client := &http.Client{Timeout: defaultTimeout}
+
 	for _, rel := range files {
 		dest := filepath.Join(modelDir, rel)
 
@@ -164,7 +171,7 @@ func EnsureModel(cacheDir, repoID string, files []string, progress io.Writer) (a
 		}
 
 		url := fmt.Sprintf("%s/%s/resolve/main/%s", HFBaseURL, repoID, rel)
-		if err := downloadFileIfMissing(url, dest, progress); err != nil {
+		if err := downloadFileIfMissing(client, url, dest, progress); err != nil {
 			return false, fmt.Errorf("download %q: %w", rel, err)
 		}
 	}
@@ -183,12 +190,16 @@ func safeModelName(repoID string) string {
 // downloadFileIfMissing fetches url -> dest unless dest already exists
 // with non-zero size. Writes to a .tmp sibling and renames on success
 // so a partial file from a killed init never gets trusted on re-run.
-func downloadFileIfMissing(url, dest string, progress io.Writer) error {
+//
+// Takes the http.Client as a parameter so the caller can reuse a
+// single client across all files in a model — Go's default transport
+// then pools connections to the HF CDN, saving one TLS handshake per
+// file on the hot path.
+func downloadFileIfMissing(client *http.Client, url, dest string, progress io.Writer) error {
 	if stat, err := os.Stat(dest); err == nil && stat.Size() > 0 {
 		return nil
 	}
 
-	client := &http.Client{Timeout: defaultTimeout}
 	resp, err := client.Get(url)
 	if err != nil {
 		return fmt.Errorf("HTTP GET: %w", err)

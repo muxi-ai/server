@@ -900,18 +900,24 @@ func pullRuntimeRunner() error {
 // atomic-protected; we don't guard the final newline because finish()
 // synchronizes via a done-channel before returning.
 type downloadReporter struct {
-	out    io.Writer
-	bytes  atomic.Int64
-	stop   chan struct{}
-	done   chan struct{}
-	render bool // true once at least one repaint has happened; guards final newline
+	out   io.Writer
+	bytes atomic.Int64
+	stop  chan struct{}
+	done  chan struct{}
+	// firstPaint is closed the first time the ticker actually paints a
+	// progress line (i.e. bytes > 0 at a tick). Exists so tests can
+	// deterministically wait for real progress instead of guessing a
+	// sleep duration; production code ignores it.
+	firstPaint chan struct{}
+	render     bool // true once at least one repaint has happened; guards final newline
 }
 
 func startDownloadReporter(out io.Writer) *downloadReporter {
 	r := &downloadReporter{
-		out:  out,
-		stop: make(chan struct{}),
-		done: make(chan struct{}),
+		out:        out,
+		stop:       make(chan struct{}),
+		done:       make(chan struct{}),
+		firstPaint: make(chan struct{}),
 	}
 	go r.run()
 	return r
@@ -928,6 +934,7 @@ func (r *downloadReporter) run() {
 	defer ticker.Stop()
 
 	frame := 0
+	painted := false
 	for {
 		select {
 		case <-r.stop:
@@ -944,6 +951,10 @@ func (r *downloadReporter) run() {
 				dockerutil.SpinnerFrames[frame%len(dockerutil.SpinnerFrames)],
 				float64(n)/1024/1024)
 			frame++
+			if !painted {
+				close(r.firstPaint)
+				painted = true
+			}
 		}
 	}
 }
