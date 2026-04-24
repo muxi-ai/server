@@ -22,7 +22,7 @@ $version = "v0.20251024.0"  # Or check releases page
 $arch = "amd64"  # Or "arm64" for ARM64 Windows
 
 Invoke-WebRequest `
-  -Uri "https://releases.muxi.org/server/releases/download/$version/muxi-server-windows-$arch.exe" `
+  -Uri "https://pkg.muxi.org/server/$version/muxi-server-windows-$arch.exe" `
   -OutFile "muxi-server.exe"
 
 # Move to installation directory
@@ -511,22 +511,22 @@ $newPath = ($path.Split(';') | Where-Object { $_ -ne "$env:LOCALAPPDATA\muxi\bin
 
 ## FAQ
 
-**Q: Can I use MUXI Server in production on Windows?**  
+**Q: Can I use MUXI Server in production on Windows?**
 A: While it works, we recommend Linux or Docker for production deployments. Windows support is optimized for development.
 
-**Q: Do I need Docker Desktop?**  
+**Q: Do I need Docker Desktop?**
 A: Only if you're using SIF runtime. Native Python formations work without Docker.
 
-**Q: Can I run MUXI Server as a Windows Service?**  
+**Q: Can I run MUXI Server as a Windows Service?**
 A: Not yet. For now, use background process or Windows Terminal. Service support may come in a future release if there's demand.
 
-**Q: Does it work on Windows 11 ARM (Surface Pro X)?**  
+**Q: Does it work on Windows 11 ARM (Surface Pro X)?**
 A: Yes! We provide `windows-arm64` binaries.
 
-**Q: Can I use WSL instead?**  
+**Q: Can I use WSL instead?**
 A: Yes! If you prefer Linux environment, run MUXI Server in WSL 2. It will use native Linux binaries.
 
-**Q: How do I update MUXI Server?**  
+**Q: How do I update MUXI Server?**
 A: Re-run the install script: `irm https://muxi.org/install/windows.ps1 | iex`
 
 ---

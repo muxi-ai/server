@@ -230,7 +230,7 @@ func upgradeServerBinary(version string) error {
 		binaryName += ".exe"
 	}
 
-	url := fmt.Sprintf("https://releases.muxi.org/server/releases/download/v%s/%s", version, binaryName)
+	url := fmt.Sprintf("https://pkg.muxi.org/server/v%s/%s", version, binaryName)
 
 	// Get current executable path
 	exePath, err := os.Executable()
@@ -549,7 +549,7 @@ func cmdInit() error {
 			RestartDelay:   1,
 		},
 		Runtime: config.RuntimeConfig{
-			SIFBaseURL:         "https://github.com/muxi-ai/runtime/releases/download",
+			SIFBaseURL:         "https://pkg.muxi.org/runtime",
 			RuntimeRunnerImage: config.DefaultRuntimeRunnerImage,
 		},
 		RCE: config.RCEConfig{

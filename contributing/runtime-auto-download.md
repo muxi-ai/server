@@ -81,12 +81,12 @@ This document describes the auto-download flow for when these are missing.
 
 **Production:**
 ```
-https://releases.muxi.org/runtime/releases/download/v{VERSION}/muxi-runtime-{VERSION}-linux-{ARCH}.sif
+https://pkg.muxi.org/runtime/v{VERSION}/muxi-runtime-{VERSION}-linux-{ARCH}.sif
 ```
 
 **Examples:**
-- `https://releases.muxi.org/runtime/releases/download/v0.2025.0/muxi-runtime-0.2025.0-linux-amd64.sif`
-- `https://releases.muxi.org/runtime/releases/download/v0.2025.0/muxi-runtime-0.2025.0-linux-arm64.sif`
+- `https://pkg.muxi.org/runtime/v0.2025.0/muxi-runtime-0.2025.0-linux-amd64.sif`
+- `https://pkg.muxi.org/runtime/v0.2025.0/muxi-runtime-0.2025.0-linux-arm64.sif`
 
 **Local Development (configurable):**
 ```
@@ -121,10 +121,10 @@ Note: SIF files are always Linux containers. On macOS/Windows, they run inside D
 runtime:
   # Override SIF download URL (for development/testing)
   sif_base_url: "http://localhost:8080"
-  
-  # Override runtime-runner image (for development/testing)  
+
+  # Override runtime-runner image (for development/testing)
   runtime_runner_image: "ghcr.io/muxi-ai/runtime-runner:latest"
-  
+
   # Auto-download behavior
   auto_download: true  # Set to false to require manual installation
 ```

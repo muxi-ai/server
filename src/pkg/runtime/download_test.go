@@ -146,9 +146,9 @@ func TestDownloader_EnsureSIF_DirectURL(t *testing.T) {
 		t.Fatalf("EnsureSIF() error = %v", err)
 	}
 
-	// Verify URL format is direct (no version prefix)
+	// URL format: /{version}/{filename}
 	platform := getPlatform()
-	expectedPath := "/muxi-runtime-1.0.0-" + platform + ".sif"
+	expectedPath := "/1.0.0/muxi-runtime-1.0.0-" + platform + ".sif"
 	if requestedPath != expectedPath {
 		t.Errorf("Requested path = %s, want %s", requestedPath, expectedPath)
 	}
@@ -236,7 +236,7 @@ func TestDownloader_EnsureSIFForVariant_Download(t *testing.T) {
 	}
 
 	platform := getPlatform()
-	wantPath := "/muxi-runtime-1.0.0-pytorch-" + platform + ".sif"
+	wantPath := "/1.0.0/muxi-runtime-1.0.0-pytorch-" + platform + ".sif"
 	if requestedPath != wantPath {
 		t.Errorf("requested URL path = %q, want %q", requestedPath, wantPath)
 	}

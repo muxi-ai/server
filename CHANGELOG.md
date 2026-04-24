@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.20260424.0
+
+### Runtime-runner image config threading
+
+- **Single source of truth for the runtime-runner image**: new `config.DefaultRuntimeRunnerImage` constant. All 7 API handlers, `buildDockerSingularityCommand`, `validator.go`, and `cmdInit` now resolve from the config field or fall back to the constant — previously `spawn_common.go` hardcoded the image name, silently ignoring an operator's `runtime.runtime_runner_image` override in `config.yaml`.
+- **`SpawnConfig.RuntimeRunnerImage`** field threaded through all spawn paths including rollback's `finalSpawnConfig`.
+- **`ValidateRuntimeAvailable(runnerImage)`** and **`GetRuntimeInfo(wrapperImage)`** accept the configured image so startup validation and runtime-info reporting match what the spawn path actually uses.
+
+### SIF downloads from pkg.muxi.org
+
+- **Default SIF mirror changed** from `github.com/muxi-ai/runtime/releases/download` to `https://pkg.muxi.org/runtime`. URL scheme simplified to `{baseURL}/{version}/{filename}` — no more GitHub-specific redirect parsing.
+- **`fetchLatestVersion`** now reads a plain-text `latest.txt` from the mirror instead of parsing GitHub redirect headers. Simpler, no rate-limit concerns.
+- **Server self-update URL** changed from `releases.muxi.org` to `pkg.muxi.org/server`.
+
+### S3 release uploads
+
+- **Server binaries uploaded to S3** on release: `s3://BUCKET/server/VERSION/muxi-server-{os}-{arch}` with `--acl public-read`. Mirrors the runtime's existing S3 layout.
+- **Runtime `latest.txt`** uploaded to `s3://BUCKET/runtime/latest.txt` after each release so `fetchLatestVersion` can resolve "latest" from the S3 mirror.
+
+### Test stability
+
+- **`TestHandleRollback` and `TestHandleBundleDeploy_ValidBundle` no longer hang**: root cause was `formation.Load()` defaulting `MuxiRuntime` to `"latest"`, triggering a real SIF download from GitHub with no HTTP client timeout. Fixed by (1) pointing test `SIFBaseURL` at a non-routable address, (2) adding `DialContext` + `ResponseHeaderTimeout` to the downloader's HTTP transport, and (3) unifying health-check timeouts via `resolveHealthTimeout(cfg)` across all 6 spawn-and-wait handlers.
+
+### Platform fix
+
+- **SIF arch pinned to `linux-amd64` on macOS/Windows**: the runtime-runner Docker image is x86_64-only (Singularity ships no arm64 build), so Apple Silicon was downloading an arm64 SIF that the amd64 container couldn't load. `getPlatform()` now keys off `GOOS` instead of `GOARCH` on non-Linux hosts.
+
 ## 0.20260423.0
 
 ### Embedding model pre-download
