@@ -33,70 +33,36 @@ func NewDownloader(sifBaseURL, runtimeRunnerImage, runtimesDir string, logger *z
 	}
 }
 
-// fetchLatestVersion fetches the latest runtime version from GitHub
-// Uses redirect URL instead of API to avoid rate limiting
+// fetchLatestVersion resolves the "latest" alias to an actual version.
+//
+// The package mirror publishes a plain-text "latest.txt" file at the
+// base URL whenever a new release is pushed
+// (e.g. https://pkg.muxi.org/runtime/latest.txt contains "0.20260424.0").
+// A simple GET + string.TrimSpace is all that's needed — no redirect
+// parsing, no GitHub API, no rate-limit concerns.
 func (d *Downloader) fetchLatestVersion() (string, error) {
-	// Extract org/repo from sifBaseURL
-	// Expected: https://github.com/muxi-ai/runtime/releases/download
-	if !strings.Contains(d.sifBaseURL, "github.com") {
-		return "", fmt.Errorf("cannot fetch latest version from non-GitHub URL")
-	}
+	latestURL := strings.TrimSuffix(d.sifBaseURL, "/") + "/latest.txt"
 
-	// Parse: https://github.com/{org}/{repo}/releases/download
-	parts := strings.Split(d.sifBaseURL, "/")
-	var org, repo string
-	for i, p := range parts {
-		if p == "github.com" && i+2 < len(parts) {
-			org = parts[i+1]
-			repo = parts[i+2]
-			break
-		}
-	}
-	if org == "" || repo == "" {
-		return "", fmt.Errorf("could not parse GitHub org/repo from URL: %s", d.sifBaseURL)
-	}
-
-	// Use the "latest" redirect URL - no API call, no rate limit
-	// HEAD request to: https://github.com/{org}/{repo}/releases/latest/download/test.sif
-	// Returns redirect to: https://github.com/{org}/{repo}/releases/download/v{version}/test.sif
-	latestURL := fmt.Sprintf("https://github.com/%s/%s/releases/latest/download/version.txt", org, repo)
-
-	client := &http.Client{
-		Timeout: 10 * time.Second,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			// Don't follow redirects - we want to capture the redirect URL
-			return http.ErrUseLastResponse
-		},
-	}
-
-	resp, err := client.Head(latestURL)
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(latestURL)
 	if err != nil {
-		return "", fmt.Errorf("failed to fetch latest release: %w", err)
+		return "", fmt.Errorf("failed to fetch latest version from %s: %w", latestURL, err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusFound && resp.StatusCode != http.StatusMovedPermanently {
-		return "", fmt.Errorf("expected redirect, got status %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("latest.txt returned status %d (url: %s)", resp.StatusCode, latestURL)
 	}
 
-	// Parse version from redirect URL
-	// Location: https://github.com/{org}/{repo}/releases/download/v0.20260217.0/version.txt
-	location := resp.Header.Get("Location")
-	if location == "" {
-		return "", fmt.Errorf("no redirect location in response")
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 256))
+	if err != nil {
+		return "", fmt.Errorf("failed to read latest.txt: %w", err)
 	}
 
-	// Extract version from /download/v{version}/
-	idx := strings.Index(location, "/download/v")
-	if idx == -1 {
-		return "", fmt.Errorf("could not parse version from redirect URL: %s", location)
+	version := strings.TrimSpace(string(body))
+	if version == "" {
+		return "", fmt.Errorf("latest.txt is empty (url: %s)", latestURL)
 	}
-	rest := location[idx+len("/download/v"):]
-	endIdx := strings.Index(rest, "/")
-	if endIdx == -1 {
-		return "", fmt.Errorf("could not parse version from redirect URL: %s", location)
-	}
-	version := rest[:endIdx]
 
 	d.logger.Info().
 		Str("version", version).
@@ -155,20 +121,12 @@ func (d *Downloader) EnsureSIFForVariant(version, variant string) (string, strin
 		return "", "", false, fmt.Errorf("failed to create runtimes directory: %w", err)
 	}
 
-	// Build download URL
-	var url string
-	if strings.HasPrefix(d.sifBaseURL, "http://") || strings.HasPrefix(d.sifBaseURL, "https://") {
-		// Check if it's a GitHub releases URL or direct URL
-		if strings.Contains(d.sifBaseURL, "github.com") && strings.Contains(d.sifBaseURL, "releases/download") {
-			// GitHub releases format: baseURL/v{version}/{filename}
-			url = fmt.Sprintf("%s/v%s/%s", d.sifBaseURL, version, filename)
-		} else {
-			// Direct URL format: baseURL/{filename}
-			url = fmt.Sprintf("%s/%s", strings.TrimSuffix(d.sifBaseURL, "/"), filename)
-		}
-	} else {
+	// Build download URL: {baseURL}/{version}/{filename}
+	// e.g. https://pkg.muxi.org/runtime/0.20260424.0/muxi-runtime-0.20260424.0-linux-amd64.sif
+	if !strings.HasPrefix(d.sifBaseURL, "http://") && !strings.HasPrefix(d.sifBaseURL, "https://") {
 		return "", "", false, fmt.Errorf("invalid SIF base URL: %s", d.sifBaseURL)
 	}
+	url := fmt.Sprintf("%s/%s/%s", strings.TrimSuffix(d.sifBaseURL, "/"), version, filename)
 
 	d.logger.Info().
 		Str("url", url).
