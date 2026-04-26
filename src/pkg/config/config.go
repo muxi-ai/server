@@ -213,6 +213,13 @@ func (c *Config) applyDefaults() {
 	if c.Runtime.SIFBaseURL == "" {
 		c.Runtime.SIFBaseURL = defaults.Runtime.SIFBaseURL
 	}
+	// Migrate stale GitHub-releases URL left by pre-0.20260424 installs.
+	// The SIF mirror moved to pkg.muxi.org; the old URL will 404 on
+	// latest.txt and break every deploy. Auto-fix on load so operators
+	// don't need to hand-edit config.yaml after upgrading.
+	if c.Runtime.SIFBaseURL == "https://github.com/muxi-ai/runtime/releases/download" {
+		c.Runtime.SIFBaseURL = defaults.Runtime.SIFBaseURL
+	}
 	if c.Runtime.RuntimeRunnerImage == "" {
 		c.Runtime.RuntimeRunnerImage = defaults.Runtime.RuntimeRunnerImage
 	}
