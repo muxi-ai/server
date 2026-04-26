@@ -33,36 +33,57 @@ func NewDownloader(sifBaseURL, runtimeRunnerImage, runtimesDir string, logger *z
 	}
 }
 
-// fetchLatestVersion resolves the "latest" alias to an actual version.
+// fetchLatestVersion resolves the "latest" alias to an actual version
+// by probing GitHub's "latest release" redirect mechanism.
 //
-// The package mirror publishes a plain-text "latest.txt" file at the
-// base URL whenever a new release is pushed
-// (e.g. https://pkg.muxi.org/runtime/latest.txt contains "0.20260424.0").
-// A simple GET + string.TrimSpace is all that's needed — no redirect
-// parsing, no GitHub API, no rate-limit concerns.
+// HEAD https://github.com/muxi-ai/runtime/releases/latest/download/version.txt
+// returns a 302 whose Location header embeds the current version, e.g.
+//
+//	Location: https://github.com/muxi-ai/runtime/releases/download/v0.20260422.0/version.txt
+//
+// The version.txt file does not need to exist — only the redirect path is
+// parsed. This avoids GitHub's API rate limits (no token needed) and is
+// independent of the SIF mirror (sifBaseURL): SIFs themselves download
+// from pkg.muxi.org but version discovery still flows through the GitHub
+// release index, which is the canonical source of truth for what has
+// actually shipped.
 func (d *Downloader) fetchLatestVersion() (string, error) {
-	latestURL := strings.TrimSuffix(d.sifBaseURL, "/") + "/latest.txt"
+	const latestURL = "https://github.com/muxi-ai/runtime/releases/latest/download/version.txt"
 
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get(latestURL)
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			// Capture the redirect URL — don't follow.
+			return http.ErrUseLastResponse
+		},
+	}
+
+	resp, err := client.Head(latestURL)
 	if err != nil {
-		return "", fmt.Errorf("failed to fetch latest version from %s: %w", latestURL, err)
+		return "", fmt.Errorf("failed to fetch latest release: %w", err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("latest.txt returned status %d (url: %s)", resp.StatusCode, latestURL)
+	if resp.StatusCode != http.StatusFound && resp.StatusCode != http.StatusMovedPermanently {
+		return "", fmt.Errorf("expected redirect, got status %d", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 256))
-	if err != nil {
-		return "", fmt.Errorf("failed to read latest.txt: %w", err)
+	location := resp.Header.Get("Location")
+	if location == "" {
+		return "", fmt.Errorf("no redirect location in response")
 	}
 
-	version := strings.TrimSpace(string(body))
-	if version == "" {
-		return "", fmt.Errorf("latest.txt is empty (url: %s)", latestURL)
+	// Extract version from /download/v{version}/
+	idx := strings.Index(location, "/download/v")
+	if idx == -1 {
+		return "", fmt.Errorf("could not parse version from redirect URL: %s", location)
 	}
+	rest := location[idx+len("/download/v"):]
+	endIdx := strings.Index(rest, "/")
+	if endIdx == -1 {
+		return "", fmt.Errorf("could not parse version from redirect URL: %s", location)
+	}
+	version := rest[:endIdx]
 
 	d.logger.Info().
 		Str("version", version).
