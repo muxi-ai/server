@@ -7,25 +7,41 @@
 // from the runtime-SIF download in pkg/runtime. Keeping it isolated
 // means the rest of the server stays unaware of HuggingFace specifics.
 //
-// Layout on disk — we deliberately DO NOT replicate HuggingFace's
-// full hub cache layout (hub/models--<org>--<model>/snapshots/<sha>/
-// with blobs + symlinks + refs). That adds ~150 lines of filesystem
-// choreography for no practical gain: the consuming runtime can point
-// its model loader at a flat directory just as easily, and a flat dir
-// survives filesystems that don't support symlinks (Windows without
-// Developer Mode, some network-mounted volumes).
+// Layout on disk — we write the standard HuggingFace Hub cache layout
+// so huggingface_hub.hf_hub_download (used by onellm and every other
+// HF-using library inside the runtime) can read the cache without any
+// translation layer. Earlier versions of this package wrote a flat
+// custom layout (<org>--<repo>/...) which required a runtime-side shim
+// to project into HF Hub layout for offline embedding loads. The shim
+// still ships in the runtime as a backwards-compat fallback for legacy
+// flat caches, but new caches written by this package are HF Hub-native.
 //
 // Cache shape:
 //
-//	<cacheDir>/<org>--<model>/
-//	    config.json
-//	    tokenizer.json
-//	    ...
-//	    onnx/
-//	        model.onnx
+//	<cacheDir>/models--<org>--<repo>/
+//	    refs/
+//	        main          # contains the revision name (we use "main")
+//	    snapshots/
+//	        main/
+//	            config.json
+//	            tokenizer.json
+//	            ...
+//	            onnx/
+//	                model.onnx
 //
-// The runtime SIF is expected to bind-mount <cacheDir> at /opt/hf-cache
-// and load the model from /opt/hf-cache/<org>--<model>/.
+// We deliberately do NOT replicate the full HF Hub blob+symlink scheme
+// (blobs/<sha> + snapshots/<sha>/file -> ../../blobs/<sha>). hf_hub_download
+// happily resolves files placed directly under snapshots/<revision>/<file>
+// via the refs/<revision> -> revision-name indirection, so the simpler
+// layout is functionally equivalent and avoids two failure modes:
+//   - filesystems without symlink support (Windows w/o Developer Mode,
+//     some network-mounted volumes) breaking on the symlink layer
+//   - blob deduplication subtleties (the SHA in blob names is the git
+//     OID, which we'd have to fetch from the HF API per file)
+//
+// The runtime SIF bind-mounts <cacheDir> at /opt/hf-cache and the runtime
+// sets HF_HUB_CACHE=/opt/hf-cache, so hf_hub_download finds the layout
+// at /opt/hf-cache/models--<org>--<repo>/snapshots/main/<file>.
 package hfcache
 
 import (
@@ -85,6 +101,21 @@ var leanModelFiles = []string{
 // before it blocks init forever.
 const defaultTimeout = 10 * time.Minute
 
+// snapshotRevision is the directory name written under snapshots/ and
+// the contents of refs/main. HF Hub's standard would be the actual git
+// commit SHA fetched from the HF API; we deliberately use a stable
+// "main" placeholder because:
+//   - hf_hub_download(revision="main") reads refs/main to get the
+//     revision name and then looks at snapshots/<that-name>/, so the
+//     name itself is opaque to the resolver.
+//   - Using a stable name keeps the cache deterministic across runs and
+//     avoids an extra HF API round-trip just to learn an opaque string.
+//   - If two formations ever pin different commits of the same repo,
+//     they'd collide on snapshots/main/ — but the lean download path
+//     only ever fetches the default ("main") revision, so the
+//     collision is by construction impossible today.
+const snapshotRevision = "main"
+
 // EnsureLeanModel downloads the default lean embedding model into cacheDir.
 // Wraps EnsureModel with the baked-in repoID + file list so callers
 // (currently just cmdInit) don't need to know HuggingFace specifics.
@@ -104,10 +135,10 @@ func EnsureLeanModel(cacheDir string, progress io.Writer) (alreadyCached bool, e
 }
 
 // IsModelCached reports whether every file in `files` already exists under
-// <cacheDir>/<org>--<model>/ with non-zero size. Used as the fast-path
-// check inside EnsureModel, and exported so callers that want to render
-// a custom "skipping download, model present" UX can check without going
-// through the full EnsureModel codepath.
+// <cacheDir>/models--<org>--<repo>/snapshots/main/ with non-zero size. Used
+// as the fast-path check inside EnsureModel, and exported so callers that
+// want to render a custom "skipping download, model present" UX can check
+// without going through the full EnsureModel codepath.
 //
 // Non-zero size (rather than exact size match) is deliberate: a strict
 // match would require a HEAD request per file, which adds network
@@ -116,9 +147,9 @@ func EnsureLeanModel(cacheDir string, progress io.Writer) (alreadyCached bool, e
 // "cached" under this scheme, but `.tmp` sibling writes + atomic renames
 // in downloadFileIfMissing make that effectively unreachable in practice.
 func IsModelCached(cacheDir, repoID string, files []string) bool {
-	modelDir := filepath.Join(cacheDir, safeModelName(repoID))
+	snapshotDir := snapshotPath(cacheDir, repoID)
 	for _, rel := range files {
-		stat, err := os.Stat(filepath.Join(modelDir, rel))
+		stat, err := os.Stat(filepath.Join(snapshotDir, rel))
 		if err != nil || stat.Size() == 0 {
 			return false
 		}
@@ -128,8 +159,11 @@ func IsModelCached(cacheDir, repoID string, files []string) bool {
 
 // EnsureModel is the generic downloader. Every file in `files` is fetched
 // from HF's resolve endpoint for `repoID` and written to
-// <cacheDir>/<org>--<model>/<file>, preserving subdirectories (so
-// "onnx/model.onnx" lands at <modelDir>/onnx/model.onnx).
+// <cacheDir>/models--<org>--<repo>/snapshots/main/<file>, preserving
+// subdirectories (so "onnx/model.onnx" lands at
+// <snapshotDir>/onnx/model.onnx). A `refs/main` pointer is also written
+// so huggingface_hub.hf_hub_download(revision="main") can resolve the
+// snapshot directory.
 //
 // Returns alreadyCached=true when the fast-path check passes — i.e. no
 // HTTP work was needed. When false, at least one file was fetched (this
@@ -149,9 +183,22 @@ func EnsureModel(cacheDir, repoID string, files []string, progress io.Writer) (a
 		return true, nil
 	}
 
-	modelDir := filepath.Join(cacheDir, safeModelName(repoID))
-	if err := os.MkdirAll(modelDir, 0755); err != nil {
-		return false, fmt.Errorf("create model dir %q: %w", modelDir, err)
+	snapshotDir := snapshotPath(cacheDir, repoID)
+	if err := os.MkdirAll(snapshotDir, 0755); err != nil {
+		return false, fmt.Errorf("create snapshot dir %q: %w", snapshotDir, err)
+	}
+
+	// Write refs/main so hf_hub_download(revision="main") can resolve
+	// the snapshot directory name. The contents are the revision name
+	// (snapshotRevision); HF Hub treats this as opaque, but writing it
+	// idempotently keeps the cache layout self-describing.
+	refsDir := filepath.Join(modelDir(cacheDir, repoID), "refs")
+	if err := os.MkdirAll(refsDir, 0755); err != nil {
+		return false, fmt.Errorf("create refs dir %q: %w", refsDir, err)
+	}
+	refsMain := filepath.Join(refsDir, "main")
+	if err := os.WriteFile(refsMain, []byte(snapshotRevision), 0644); err != nil {
+		return false, fmt.Errorf("write refs/main %q: %w", refsMain, err)
 	}
 
 	// One client for the whole model so Go's default transport can
@@ -162,7 +209,7 @@ func EnsureModel(cacheDir, repoID string, files []string, progress io.Writer) (a
 	client := &http.Client{Timeout: defaultTimeout}
 
 	for _, rel := range files {
-		dest := filepath.Join(modelDir, rel)
+		dest := filepath.Join(snapshotDir, rel)
 
 		// Create subdirectories lazily so entries like "onnx/model.onnx"
 		// or "1_Pooling/config.json" don't fail on a missing parent.
@@ -178,13 +225,27 @@ func EnsureModel(cacheDir, repoID string, files []string, progress io.Writer) (a
 	return false, nil
 }
 
+// modelDir is the per-repo cache root, e.g.
+// <cacheDir>/models--nomic-ai--nomic-embed-text-v1.5.
+func modelDir(cacheDir, repoID string) string {
+	return filepath.Join(cacheDir, safeModelName(repoID))
+}
+
+// snapshotPath is the directory where actual file content lands, e.g.
+// <cacheDir>/models--nomic-ai--nomic-embed-text-v1.5/snapshots/main.
+// Centralized so IsModelCached and EnsureModel agree on the layout.
+func snapshotPath(cacheDir, repoID string) string {
+	return filepath.Join(modelDir(cacheDir, repoID), "snapshots", snapshotRevision)
+}
+
 // safeModelName converts "nomic-ai/nomic-embed-text-v1.5" to
-// "nomic-ai--nomic-embed-text-v1.5". Matches HuggingFace's own "models--"
-// convention (sans prefix) and guarantees a path-safe directory name on
-// all filesystems — slashes in model IDs would otherwise create an
+// "models--nomic-ai--nomic-embed-text-v1.5". Matches HuggingFace Hub's
+// own per-repo cache directory naming exactly so hf_hub_download finds
+// the cache without translation. Guarantees a path-safe directory name
+// on all filesystems — slashes in model IDs would otherwise create an
 // unintended nested directory.
 func safeModelName(repoID string) string {
-	return strings.ReplaceAll(repoID, "/", "--")
+	return "models--" + strings.ReplaceAll(repoID, "/", "--")
 }
 
 // downloadFileIfMissing fetches url -> dest unless dest already exists

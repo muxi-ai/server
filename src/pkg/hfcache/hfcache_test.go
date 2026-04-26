@@ -77,10 +77,15 @@ func TestEnsureModel_DownloadsEveryRequestedFile(t *testing.T) {
 		t.Errorf("alreadyCached = true on a cold cache; want false")
 	}
 
-	// Assert directory shape: <cache>/<org>--<model>/<file-preserving-subdirs>.
-	modelDir := filepath.Join(cacheDir, "nomic-ai--nomic-embed-text-v1.5")
+	// Assert directory shape: HF Hub layout
+	// <cache>/models--<org>--<model>/snapshots/main/<file-preserving-subdirs>.
+	snapshotDir := filepath.Join(
+		cacheDir,
+		"models--nomic-ai--nomic-embed-text-v1.5",
+		"snapshots", "main",
+	)
 	for relPath, wantBody := range fixtures {
-		got, err := os.ReadFile(filepath.Join(modelDir, relPath))
+		got, err := os.ReadFile(filepath.Join(snapshotDir, relPath))
 		if err != nil {
 			t.Errorf("missing file %q: %v", relPath, err)
 			continue
@@ -88,6 +93,18 @@ func TestEnsureModel_DownloadsEveryRequestedFile(t *testing.T) {
 		if string(got) != wantBody {
 			t.Errorf("body mismatch for %q: got %q, want %q", relPath, got, wantBody)
 		}
+	}
+
+	// refs/main must point to the snapshot revision so
+	// huggingface_hub.hf_hub_download(revision="main") resolves correctly.
+	refsMain := filepath.Join(
+		cacheDir, "models--nomic-ai--nomic-embed-text-v1.5", "refs", "main",
+	)
+	gotRef, err := os.ReadFile(refsMain)
+	if err != nil {
+		t.Errorf("refs/main missing: %v", err)
+	} else if string(gotRef) != "main" {
+		t.Errorf("refs/main = %q, want %q", gotRef, "main")
 	}
 }
 
@@ -143,10 +160,15 @@ func TestEnsureModel_FullyCachedSkipsAllHTTP(t *testing.T) {
 	repo := "nomic-ai/nomic-embed-text-v1.5"
 	files := []string{"config.json", "tokenizer.json", "onnx/model.onnx"}
 
-	// Pre-populate the cache as if a previous init had succeeded.
-	modelDir := filepath.Join(cacheDir, "nomic-ai--nomic-embed-text-v1.5")
+	// Pre-populate the cache as if a previous init had succeeded
+	// (HF Hub layout: snapshots/main/<file>).
+	snapshotDir := filepath.Join(
+		cacheDir,
+		"models--nomic-ai--nomic-embed-text-v1.5",
+		"snapshots", "main",
+	)
 	for _, f := range files {
-		dest := filepath.Join(modelDir, f)
+		dest := filepath.Join(snapshotDir, f)
 		if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
 			t.Fatal(err)
 		}
@@ -184,11 +206,11 @@ func TestIsModelCached_SignalsMissingAndPresent(t *testing.T) {
 	}
 
 	// One of two present → not cached.
-	modelDir := filepath.Join(cacheDir, "o--m")
-	if err := os.MkdirAll(modelDir, 0755); err != nil {
+	snapshotDir := filepath.Join(cacheDir, "models--o--m", "snapshots", "main")
+	if err := os.MkdirAll(snapshotDir, 0755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(modelDir, "config.json"), []byte("x"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(snapshotDir, "config.json"), []byte("x"), 0644); err != nil {
 		t.Fatal(err)
 	}
 	if IsModelCached(cacheDir, repo, files) {
@@ -196,7 +218,7 @@ func TestIsModelCached_SignalsMissingAndPresent(t *testing.T) {
 	}
 
 	// Both present → cached.
-	if err := os.WriteFile(filepath.Join(modelDir, "tokenizer.json"), []byte("y"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(snapshotDir, "tokenizer.json"), []byte("y"), 0644); err != nil {
 		t.Fatal(err)
 	}
 	if !IsModelCached(cacheDir, repo, files) {
@@ -205,7 +227,7 @@ func TestIsModelCached_SignalsMissingAndPresent(t *testing.T) {
 
 	// Zero-byte file → treated as not cached (guards the partial-write
 	// edge case).
-	if err := os.WriteFile(filepath.Join(modelDir, "tokenizer.json"), []byte{}, 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(snapshotDir, "tokenizer.json"), []byte{}, 0644); err != nil {
 		t.Fatal(err)
 	}
 	if IsModelCached(cacheDir, repo, files) {
@@ -227,11 +249,15 @@ func TestEnsureModel_PartialCacheResumesMissingOnly(t *testing.T) {
 	withBaseURL(t, srv.URL)
 
 	// Pre-create one file to simulate a partially completed prior init.
-	modelDir := filepath.Join(cacheDir, "nomic-ai--nomic-embed-text-v1.5")
-	if err := os.MkdirAll(modelDir, 0755); err != nil {
+	snapshotDir := filepath.Join(
+		cacheDir,
+		"models--nomic-ai--nomic-embed-text-v1.5",
+		"snapshots", "main",
+	)
+	if err := os.MkdirAll(snapshotDir, 0755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(modelDir, "config.json"), []byte(`{"a":1}`), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(snapshotDir, "config.json"), []byte(`{"a":1}`), 0644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -272,8 +298,10 @@ func TestEnsureModel_PropagatesHTTPFailure(t *testing.T) {
 	}
 
 	// Negative cache side-effect check: no .tmp leftovers.
-	modelDir := filepath.Join(cacheDir, "nonexistent--model")
-	entries, _ := os.ReadDir(modelDir)
+	snapshotDir := filepath.Join(
+		cacheDir, "models--nonexistent--model", "snapshots", "main",
+	)
+	entries, _ := os.ReadDir(snapshotDir)
 	for _, e := range entries {
 		if strings.HasSuffix(e.Name(), ".tmp") {
 			t.Errorf("leftover temp file after failed download: %s", e.Name())
@@ -307,9 +335,9 @@ func TestSafeModelName_FlatPathSafety(t *testing.T) {
 		repoID string
 		want   string
 	}{
-		{"nomic-ai/nomic-embed-text-v1.5", "nomic-ai--nomic-embed-text-v1.5"},
-		{"sentence-transformers/all-MiniLM-L6-v2", "sentence-transformers--all-MiniLM-L6-v2"},
-		{"no-slash-model", "no-slash-model"},
+		{"nomic-ai/nomic-embed-text-v1.5", "models--nomic-ai--nomic-embed-text-v1.5"},
+		{"sentence-transformers/all-MiniLM-L6-v2", "models--sentence-transformers--all-MiniLM-L6-v2"},
+		{"no-slash-model", "models--no-slash-model"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.repoID, func(t *testing.T) {
@@ -345,11 +373,15 @@ func TestEnsureLeanModel_WiresDefaultRepoAndFiles(t *testing.T) {
 		t.Fatalf("EnsureLeanModel() error = %v", err)
 	}
 
-	modelDir := filepath.Join(cacheDir, "nomic-ai--nomic-embed-text-v1.5")
-	if _, err := os.Stat(filepath.Join(modelDir, "config.json")); err != nil {
+	snapshotDir := filepath.Join(
+		cacheDir,
+		"models--nomic-ai--nomic-embed-text-v1.5",
+		"snapshots", "main",
+	)
+	if _, err := os.Stat(filepath.Join(snapshotDir, "config.json")); err != nil {
 		t.Errorf("lean model config.json missing: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(modelDir, "onnx", "model.onnx")); err != nil {
+	if _, err := os.Stat(filepath.Join(snapshotDir, "onnx", "model.onnx")); err != nil {
 		t.Errorf("lean model onnx/model.onnx missing: %v", err)
 	}
 }
