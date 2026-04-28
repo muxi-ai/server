@@ -646,15 +646,15 @@ func cmdInit() error {
 	// formations needing non-English retrieval don't stall on a first-
 	// run fetch. Same best-effort contract: a failure here is a slow
 	// first deploy, not a broken install.
-	fmt.Printf("\n%s Setting up multilingual embeddings...\n", bullet)
+	fmt.Printf("\n%s Setting up multilingual classification model...\n", bullet)
 	progress = startDownloadReporter(os.Stdout)
 	_, err = hfcache.EnsureMultilingualModel(cacheDir, progress)
 	progress.finish()
 	if err != nil {
-		fmt.Printf("%s Could not prepare multilingual embedding model: %v\n", crossMark, err)
+		fmt.Printf("%s Could not prepare multilingual classification model: %v\n", crossMark, err)
 		fmt.Println("  The model will be downloaded on first formation deploy.")
 	} else {
-		fmt.Printf("%s Multilingual embeddings ready\n", checkMark)
+		fmt.Printf("%s Multilingual classification model ready\n", checkMark)
 	}
 
 	// Success message
