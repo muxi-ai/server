@@ -70,6 +70,12 @@ var HFBaseURL = "https://huggingface.co"
 // pre-populating the cache.
 const LeanEmbeddingModel = "nomic-ai/nomic-embed-text-v1.5"
 
+// MultilingualEmbeddingModel is the multilingual ONNX embedding model
+// (Xenova-converted multilingual-e5-small) preloaded alongside the
+// default English-centric Nomic model so formations targeting non-
+// English content don't stall on a first-run download.
+const MultilingualEmbeddingModel = "Xenova/multilingual-e5-small"
+
 // leanModelFiles is the minimal set the ONNX runtime needs to tokenize and
 // run inference against nomic-embed-text-v1.5.
 //
@@ -93,6 +99,20 @@ var leanModelFiles = []string{
 	"1_Pooling/config.json",
 	"config_sentence_transformers.json",
 	"onnx/model.onnx",
+}
+
+// multilingualModelFiles is the minimal set for Xenova/multilingual-e5-small.
+// Xenova-converted models follow the transformers.js layout — they ship
+// only what the ONNX runtime needs (no pytorch_model.bin, no
+// sentence-transformers metadata files). The quantized ONNX is preferred
+// because it's ~3x smaller (~120MB vs ~470MB) with negligible quality
+// loss for retrieval-style use.
+var multilingualModelFiles = []string{
+	"config.json",
+	"tokenizer.json",
+	"tokenizer_config.json",
+	"special_tokens_map.json",
+	"onnx/model_quantized.onnx",
 }
 
 // defaultTimeout bounds the total time each file download can take.
@@ -132,6 +152,14 @@ const snapshotRevision = "main"
 // deploy, not a broken install.
 func EnsureLeanModel(cacheDir string, progress io.Writer) (alreadyCached bool, err error) {
 	return EnsureModel(cacheDir, LeanEmbeddingModel, leanModelFiles, progress)
+}
+
+// EnsureMultilingualModel downloads the multilingual ONNX embedding model
+// (Xenova/multilingual-e5-small) into cacheDir. Same best-effort contract
+// as EnsureLeanModel — the caller is expected to log on failure and let
+// the runtime fetch on first deploy if the cache is empty.
+func EnsureMultilingualModel(cacheDir string, progress io.Writer) (alreadyCached bool, err error) {
+	return EnsureModel(cacheDir, MultilingualEmbeddingModel, multilingualModelFiles, progress)
 }
 
 // IsModelCached reports whether every file in `files` already exists under

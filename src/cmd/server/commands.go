@@ -642,6 +642,21 @@ func cmdInit() error {
 		fmt.Printf("%s Embeddings ready\n", checkMark)
 	}
 
+	// Multilingual embedding model — pre-download alongside Nomic so
+	// formations needing non-English retrieval don't stall on a first-
+	// run fetch. Same best-effort contract: a failure here is a slow
+	// first deploy, not a broken install.
+	fmt.Printf("\n%s Setting up multilingual embeddings...\n", bullet)
+	progress = startDownloadReporter(os.Stdout)
+	_, err = hfcache.EnsureMultilingualModel(cacheDir, progress)
+	progress.finish()
+	if err != nil {
+		fmt.Printf("%s Could not prepare multilingual embedding model: %v\n", crossMark, err)
+		fmt.Println("  The model will be downloaded on first formation deploy.")
+	} else {
+		fmt.Printf("%s Multilingual embeddings ready\n", checkMark)
+	}
+
 	// Success message
 	fmt.Print("\n")
 	fmt.Println(strings.Repeat(boxH, 60))
