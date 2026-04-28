@@ -13,12 +13,12 @@
 #   7. Merge main back to develop
 #
 # S3 artifact layout:
-#   s3://BUCKET/server/VERSION/muxi-server-linux-amd64
-#   s3://BUCKET/server/VERSION/muxi-server-linux-arm64
-#   s3://BUCKET/server/VERSION/muxi-server-darwin-amd64
-#   s3://BUCKET/server/VERSION/muxi-server-darwin-arm64
-#   s3://BUCKET/server/VERSION/muxi-server-windows-amd64.exe
-#   s3://BUCKET/server/VERSION/muxi-server-windows-arm64.exe
+#   s3://BUCKET/server/vVERSION/muxi-server-linux-amd64
+#   s3://BUCKET/server/vVERSION/muxi-server-linux-arm64
+#   s3://BUCKET/server/vVERSION/muxi-server-darwin-amd64
+#   s3://BUCKET/server/vVERSION/muxi-server-darwin-arm64
+#   s3://BUCKET/server/vVERSION/muxi-server-windows-amd64.exe
+#   s3://BUCKET/server/vVERSION/muxi-server-windows-arm64.exe
 #
 # Tag is pushed AFTER binaries build but BEFORE GitHub Release,
 # so Docker only triggers once the build succeeds.
@@ -143,8 +143,8 @@ jobs:
           VERSION="${{ steps.version.outputs.VERSION }}"
           for f in dist/muxi-server-*; do
             FILENAME=$(basename "$f")
-            echo "Uploading $FILENAME to s3://...server/$VERSION/$FILENAME"
-            aws s3 cp "$f" "s3://${{ secrets.MUXI_S3_BUCKET }}/server/$VERSION/$FILENAME" --acl public-read
+            echo "Uploading $FILENAME to s3://...server/v$VERSION/$FILENAME"
+            aws s3 cp "$f" "s3://${{ secrets.MUXI_S3_BUCKET }}/server/v$VERSION/$FILENAME" --acl public-read
           done
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.MUXI_S3_ACCESS_KEY }}
