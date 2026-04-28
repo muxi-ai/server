@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.20260428.2
+
+### Multilingual classification model pre-download
+
+- **Second embedding model preloaded during `muxi-server init`**: `Xenova/multilingual-e5-small` joins `nomic-ai/nomic-embed-text-v1.5` in the cache. Formations that need non-English retrieval now skip the multi-hundred-MB first-deploy stall.
+- **Quantized ONNX only** (~125 MB): the multilingual file list is the transformers.js layout — `config.json`, `tokenizer.json`, `tokenizer_config.json`, `special_tokens_map.json`, `onnx/model_quantized.onnx`. No `pytorch_model.bin`, no sentence-transformers metadata.
+- **Same best-effort contract** as the Nomic download: failure prints a warning and lets the runtime fetch on first deploy. Both models share `<cacheDir>` and the bind-mount into formation containers, so any runtime variant picks them up automatically.
+- **Init UX**: a second `* Setting up multilingual classification model... / ✓ Multilingual classification model ready` section mirrors the existing embeddings section, including the spinner-driven progress line.
+
+### Self-update URL fix
+
+- **Server self-update no longer 404s**: download URL aligned with the v-prefixed S3 layout (`https://pkg.muxi.org/server/v{VERSION}/{binary}`). Both the release workflow's S3 upload path and the in-binary download URL now agree on the `v` prefix, matching the git tag and GitHub release naming.
+
 ## 0.20260424.0
 
 ### Runtime-runner image config threading
