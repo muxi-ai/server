@@ -230,7 +230,7 @@ func upgradeServerBinary(version string) error {
 		binaryName += ".exe"
 	}
 
-	url := fmt.Sprintf("https://pkg.muxi.org/server/%s/%s", version, binaryName)
+	url := fmt.Sprintf("https://pkg.muxi.org/server/v%s/%s", version, binaryName)
 
 	// Get current executable path
 	exePath, err := os.Executable()
