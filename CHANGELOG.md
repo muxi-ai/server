@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.20260514.1
+
+### Deploy bundle move fix
+
+- **Bundle extraction now lives under `<DataDir>/tmp`** instead of the system `$TMPDIR` (usually `/tmp`). On modern Linux distros `/tmp` is a tmpfs mount on a different filesystem than `/var/lib/muxi`, and the previous extract path forced an `os.Rename` from one to the other — which fails with `EXDEV` ("invalid cross-device link"). Both `deploy.go` (new formations) and `update.go` (existing-formation blue-green updates) were affected. Operators saw the failure as `Failed to move source to staging` with no underlying cause, because the deploy handler logged the real error to journald but only the masked message reached the client. `EnsureDirectories` already created `<DataDir>/tmp` at every server start, so this path is same-FS by construction; the change is a one-line `MkdirTemp` argument at each call site.
+- **`safeRename` helper** in `pkg/api/util.go` wraps `os.Rename` with a `copyTreePreservingMode` + `RemoveAll` fallback when the kernel returns `EXDEV`. Defense in depth for operators with non-standard layouts (e.g., `MUXI_DATA_DIR` bind-mounted onto a different mount than the rest of `/var`). Non-`EXDEV` rename errors propagate verbatim so the real cause still reaches the log instead of being masked behind a copy failure. `copyTreePreservingMode` preserves per-file modes — distinct from the simpler `copyDir` in `draft.go` which defaults files to `0644` and would silently widen a formation's `0600 secrets.enc` to world-readable on the fallback path.
+- **`os.MkdirAll(formationBaseDir, 0755)`** added at the top of update.go's directory-setup block. Closes the registry-without-dir window we hit during the 0.20260514.0 deploy: `muxi server delete cicd` wiped `/var/lib/muxi/formations/cicd` on disk while the registry auto-save raced and left the in-memory entry pointing at a now-missing path, so the subsequent deploy was routed through update.go (which previously assumed the dir existed) and `os.Rename(/tmp/extract-..., /var/lib/muxi/formations/cicd/staging)` failed with `ENOENT`, masked as the same generic "Failed to move source to staging" message. A trivial `MkdirAll` closes the hole without changing the happy path.
+- **Tests** in `pkg/api/util_test.go`: same-FS rename, EXDEV-stubbed fallback (verifies tree copy + `0600` and `0700` mode preservation + source cleanup), non-EXDEV error propagation, and `MUXI_DATA_DIR` env-override flow-through. The EXDEV branch is exercised by stubbing the package-level `renameFn` variable rather than requiring two physical filesystems in the test environment.
+
 ## 0.20260514.0
 
 ### Platform fix

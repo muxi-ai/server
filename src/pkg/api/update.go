@@ -125,8 +125,24 @@ func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 		Message: "Extracting bundle to staging...",
 	})
 
-	// Extract new version to temp directory
-	extractDir, err := os.MkdirTemp("", "formation-extract-*")
+	// Extract new version to a temp directory under <DataDir>/tmp so the
+	// subsequent rename into formations/<id>/staging is same-filesystem
+	// and won't fail with EXDEV. See getServerTmpDir for full rationale.
+	serverTmpDir, err := getServerTmpDir()
+	if err != nil {
+		s.logger.Error().Err(err).Msg("Failed to resolve server tmp dir")
+		if wantsSSE && sseInitialized {
+			progress.Error(ErrorEvent{
+				Error:   "ExtractDirError",
+				Message: "Failed to resolve server tmp dir",
+				Stage:   StageExtracting,
+			})
+		} else {
+			RespondError(w, http.StatusInternalServerError, "Failed to resolve server tmp dir")
+		}
+		return
+	}
+	extractDir, err := os.MkdirTemp(serverTmpDir, "formation-extract-*")
 	if err != nil {
 		s.logger.Error().Err(err).Msg("Failed to create extraction directory")
 		if wantsSSE && sseInitialized {
@@ -255,6 +271,20 @@ func (s *Server) updateFromDirectory(
 	previousDir := filepath.Join(formationBaseDir, "previous")
 	stagingDir := filepath.Join(formationBaseDir, "staging")
 
+	// Ensure the formation base dir exists. This guards against the
+	// registry-without-dir state we hit during the 0.20260514.0 deploy:
+	// `muxi server delete cicd` wiped /var/lib/muxi/formations/cicd on
+	// disk but auto-save raced and left the registry entry pointing at
+	// the now-missing dir, so the subsequent deploy was routed through
+	// the update path (which previously assumed the dir existed) and
+	// the rename below failed with ENOENT, masked as "Failed to move
+	// source to staging". A trivial MkdirAll closes that hole.
+	if err := os.MkdirAll(formationBaseDir, 0755); err != nil {
+		s.logger.Error().Err(err).Msg("Failed to ensure formation base dir")
+		respondErr(http.StatusInternalServerError, StageValidating, "DirectoryError", "Failed to ensure formation base directory")
+		return
+	}
+
 	// Remove old staging if exists
 	if _, err := os.Stat(stagingDir); err == nil {
 		if err := os.RemoveAll(stagingDir); err != nil {
@@ -264,8 +294,11 @@ func (s *Server) updateFromDirectory(
 		}
 	}
 
-	// Move source directory to staging/
-	if err := os.Rename(sourceDir, stagingDir); err != nil {
+	// Move source directory to staging/. safeRename falls back to a
+	// recursive copy + remove on EXDEV, so an operator with $TMPDIR on
+	// a different FS than MUXI_DATA_DIR still gets a working deploy
+	// (with a small perf hit) instead of a confusing rename failure.
+	if err := safeRename(sourceDir, stagingDir); err != nil {
 		s.logger.Error().Err(err).Msg("Failed to move source to staging")
 		respondErr(http.StatusInternalServerError, StageValidating, "MoveError", "Failed to move source to staging")
 		return

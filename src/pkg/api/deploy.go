@@ -148,8 +148,16 @@ func (s *Server) handleBundleDeploy(w http.ResponseWriter, r *http.Request) {
 		Message: "Extracting bundle...",
 	})
 
-	// Create temporary extraction directory
-	extractDir, err := os.MkdirTemp("", "formation-extract-*")
+	// Create temporary extraction directory under <DataDir>/tmp so the
+	// subsequent rename into formations/<id>/current is same-filesystem
+	// and won't fail with EXDEV. See getServerTmpDir for full rationale.
+	serverTmpDir, err := getServerTmpDir()
+	if err != nil {
+		s.logger.Error().Err(err).Msg("Failed to resolve server tmp dir")
+		respondErr(http.StatusInternalServerError, StageExtracting, "ExtractDirError", "Failed to resolve server tmp dir")
+		return
+	}
+	extractDir, err := os.MkdirTemp(serverTmpDir, "formation-extract-*")
 	if err != nil {
 		s.logger.Error().Err(err).Msg("Failed to create extraction directory")
 		respondErr(http.StatusInternalServerError, StageExtracting, "ExtractDirError", "Failed to create extraction directory")
@@ -303,8 +311,10 @@ func (s *Server) deployNewFromDirectory(
 		}
 	}
 
-	// Move source directory to current/
-	if err := os.Rename(sourceDir, currentDir); err != nil {
+	// Move source directory to current/. safeRename falls back to a
+	// recursive copy + remove on EXDEV, so deploys still work when
+	// $TMPDIR and MUXI_DATA_DIR land on different filesystems.
+	if err := safeRename(sourceDir, currentDir); err != nil {
 		s.logger.Error().Err(err).Msg("Failed to move formation to permanent location")
 		s.registry.ReleasePort(port)
 		respondErr(http.StatusInternalServerError, StageValidating, "MoveError", "Failed to move formation")
