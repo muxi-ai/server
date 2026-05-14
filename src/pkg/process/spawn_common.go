@@ -548,6 +548,43 @@ func buildNativeSingularityCommand(config SpawnConfig, logger *zerolog.Logger) *
 	return exec.Command(singularityBin, args...)
 }
 
+// sifPlatform derives the Docker --platform string ("linux/amd64" or
+// "linux/arm64") from a SIF file path, by parsing the architecture
+// suffix in the SIF filename.
+//
+// Why this exists: runtime-runner became a multi-arch image (amd64 +
+// arm64). On Apple Silicon, Docker resolves :latest to the arm64
+// manifest by default — and Apptainer running inside that arm64
+// container correctly refuses to launch an amd64 SIF with:
+//
+//	FATAL: ... the image's architecture (amd64) could not run on the host's (arm64)
+//
+// Pinning --platform on `docker run` keeps the runner architecture
+// locked to whatever the SIF requires, regardless of what Docker has
+// cached locally or which manifest the host's arch would otherwise
+// prefer.
+//
+// SIF filename convention (see runtime/sif.go::sifFilename):
+//
+//	muxi-runtime-<version>-linux-<arch>.sif                 (default/lean variant)
+//	muxi-runtime-<version>-<variant>-linux-<arch>.sif       (pytorch, cuda, …)
+//
+// Unparseable filenames (e.g. the test fixture "/path/to/runtime.sif")
+// fall back to linux/amd64 to preserve the historical assumption that
+// the runner shipped amd64-only. This keeps existing tests passing and
+// matches the pre-multi-arch behavior.
+func sifPlatform(sifPath string) string {
+	base := strings.TrimSuffix(filepath.Base(sifPath), ".sif")
+	switch {
+	case strings.HasSuffix(base, "-linux-arm64"):
+		return "linux/arm64"
+	case strings.HasSuffix(base, "-linux-amd64"):
+		return "linux/amd64"
+	default:
+		return "linux/amd64"
+	}
+}
+
 // buildDockerSingularityCommand builds a command for Docker-wrapped Singularity on macOS/Windows
 // Uses runtime-runner (Docker image with Singularity) to execute the SIF file
 func buildDockerSingularityCommand(config SpawnConfig, logger *zerolog.Logger) *exec.Cmd {
@@ -570,6 +607,12 @@ func buildDockerSingularityCommand(config SpawnConfig, logger *zerolog.Logger) *
 		"run",
 		"--rm",                  // Remove container after exit
 		"--name", containerName, // Named container for cleanup
+		// Pin --platform to the SIF's architecture, not the host's.
+		// runtime-runner is a multi-arch image (amd64 + arm64); without
+		// this pin, Docker on Apple Silicon resolves :latest to arm64,
+		// and Apptainer inside the arm64 container refuses to launch an
+		// amd64 SIF. See sifPlatform() above for the full rationale.
+		"--platform", sifPlatform(config.SIFPath),
 		"--privileged", // Required for Singularity user namespaces
 	}
 

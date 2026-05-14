@@ -10,17 +10,25 @@ import (
 
 // getPlatform returns the platform string for SIF filenames (linux-amd64 or linux-arm64).
 //
-// On native Linux the SIF runs directly under the host's Apptainer, so the
-// SIF arch must match GOARCH. On macOS / Windows the SIF runs inside the
-// runtime-runner Docker image — and runtime-runner is only published for
-// linux/amd64 (cmd/server/commands.go pullRuntimeRunner forces that
-// platform because Singularity ships x86_64 only). Downloading an arm64
-// SIF on Apple Silicon therefore fails at startup with:
+// On native Linux the SIF runs directly under the host's Apptainer, so
+// the SIF arch must match GOARCH.
 //
-//	FATAL: ... image's architecture (arm64) could not run on the host's (amd64)
+// On macOS / Windows the SIF runs inside the runtime-runner Docker
+// image. runtime-runner became a multi-arch image (amd64 + arm64); on
+// Apple Silicon, Docker now resolves :latest to the host-native arm64
+// manifest by default. That created an arch-mismatch regression where
+// Apptainer inside an arm64 runner refused to launch an amd64 SIF:
 //
-// Pin to linux-amd64 on non-Linux hosts so the SIF matches the x86_64
-// runtime-runner Apple Silicon runs under Docker's emulation layer.
+//	FATAL: ... image's architecture (amd64) could not run on the host's (arm64)
+//
+// The fix lives at the spawn layer (process/spawn_common.go pins
+// --platform to the SIF's architecture on every `docker run`), not
+// here — that keeps the runner and SIF in lockstep regardless of what
+// Docker has cached. This function still pins to linux-amd64 on
+// non-Linux hosts because we only publish amd64 SIFs today; once
+// linux-arm64 SIFs ship, this function (and pullRuntimeRunner) become
+// the next things to update so the resolver picks the native arch on
+// Apple Silicon and skips the Rosetta hop.
 func getPlatform() string {
 	if goruntime.GOOS != "linux" {
 		return "linux-amd64"

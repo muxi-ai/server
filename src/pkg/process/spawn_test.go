@@ -620,3 +620,128 @@ func TestBuildDockerSingularityCommand_WithoutHFCache(t *testing.T) {
 		}
 	}
 }
+
+// hasFlagValue reports whether args contains a single-token flag (e.g.
+// "--platform") immediately followed by a value equal to want. Mirrors
+// the hasBindArg / hasDashVArg helpers above, generalized so the
+// platform-pinning tests don't need yet another bespoke walker.
+func hasFlagValue(args []string, flag, want string) bool {
+	for i := 0; i < len(args)-1; i++ {
+		if args[i] == flag && args[i+1] == want {
+			return true
+		}
+	}
+	return false
+}
+
+func TestSifPlatform(t *testing.T) {
+	// Lock the SIF filename -> --platform mapping so the pin in
+	// buildDockerSingularityCommand can't silently drift from the
+	// resolver's filename convention (runtime/sif.go).
+	cases := []struct {
+		name string
+		path string
+		want string
+	}{
+		{
+			name: "lean variant amd64",
+			path: "/Users/u/.muxi/server/runtimes/muxi-runtime-0.20260508.0-linux-amd64.sif",
+			want: "linux/amd64",
+		},
+		{
+			name: "lean variant arm64",
+			path: "/Users/u/.muxi/server/runtimes/muxi-runtime-0.20260508.0-linux-arm64.sif",
+			want: "linux/arm64",
+		},
+		{
+			name: "pytorch variant amd64",
+			path: "/runtimes/muxi-runtime-1.2.3-pytorch-linux-amd64.sif",
+			want: "linux/amd64",
+		},
+		{
+			name: "cuda variant arm64",
+			path: "/runtimes/muxi-runtime-1.2.3-cuda-linux-arm64.sif",
+			want: "linux/arm64",
+		},
+		{
+			name: "unparseable fixture defaults to amd64",
+			path: "/path/to/runtime.sif",
+			want: "linux/amd64",
+		},
+		{
+			name: "empty path defaults to amd64",
+			path: "",
+			want: "linux/amd64",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := sifPlatform(tc.path); got != tc.want {
+				t.Errorf("sifPlatform(%q) = %q, want %q", tc.path, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestBuildDockerSingularityCommand_PinsPlatformAmd64(t *testing.T) {
+	// Regression: runtime-runner became multi-arch, and Docker on Apple
+	// Silicon started preferring the arm64 manifest by default. The
+	// docker-run builder must pin --platform to the SIF's architecture
+	// so the runner and SIF stay in lockstep. This test fails if anyone
+	// removes the --platform pin or moves it after the image arg.
+	logger := zerolog.Nop()
+	config := SpawnConfig{
+		ID:      "test-formation",
+		WorkDir: "/path/to/formation",
+		SIFPath: "/runtimes/muxi-runtime-0.20260508.0-linux-amd64.sif",
+		Port:    8080,
+	}
+
+	cmd := buildDockerSingularityCommand(config, &logger)
+
+	if !hasFlagValue(cmd.Args, "--platform", "linux/amd64") {
+		t.Errorf("missing --platform linux/amd64 pin, got args: %v", cmd.Args)
+	}
+
+	// --platform MUST appear before the image name; Docker ignores
+	// run-flags placed after the image. The image arg is whatever
+	// matches runtime-runner.
+	platformIdx, imageIdx := -1, -1
+	for i, arg := range cmd.Args {
+		if arg == "--platform" {
+			platformIdx = i
+		}
+		if containsStr(arg, "runtime-runner") {
+			imageIdx = i
+		}
+	}
+	if platformIdx == -1 {
+		t.Fatalf("expected --platform flag, got args: %v", cmd.Args)
+	}
+	if imageIdx == -1 {
+		t.Fatalf("expected runtime-runner image arg, got args: %v", cmd.Args)
+	}
+	if platformIdx > imageIdx {
+		t.Errorf("--platform must precede the image arg; got --platform at %d and image at %d", platformIdx, imageIdx)
+	}
+}
+
+func TestBuildDockerSingularityCommand_PinsPlatformArm64(t *testing.T) {
+	// Symmetric: when (eventually) an arm64 SIF is selected, the runner
+	// must be pinned to linux/arm64 — not silently fall back to amd64.
+	// This guards the future case where linux-arm64 SIFs start shipping
+	// and the resolver picks them on Apple Silicon.
+	logger := zerolog.Nop()
+	config := SpawnConfig{
+		ID:      "test-formation",
+		WorkDir: "/path/to/formation",
+		SIFPath: "/runtimes/muxi-runtime-0.20260508.0-linux-arm64.sif",
+		Port:    8080,
+	}
+
+	cmd := buildDockerSingularityCommand(config, &logger)
+
+	if !hasFlagValue(cmd.Args, "--platform", "linux/arm64") {
+		t.Errorf("missing --platform linux/arm64 pin, got args: %v", cmd.Args)
+	}
+}

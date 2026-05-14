@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.20260514.0
+
+### Platform fix
+
+- **`docker run --platform` pin in runtime-runner spawn**: the docker-wrapped Singularity path now passes `--platform linux/<arch>` derived from the SIF filename on every `docker run`. runtime-runner became a multi-arch image (amd64 + arm64); on Apple Silicon, Docker started resolving `:latest` to the host-native arm64 manifest, and Apptainer inside the arm64 container correctly refused to launch the amd64 SIF — `muxi up` failed with `FATAL: ... the image's architecture (amd64) could not run on the host's (arm64)`. The pin locks runner-arch to SIF-arch regardless of what Docker has cached locally, so a `docker pull` or `docker system prune` between server runs can no longer silently break the spawn path.
+- **`sifPlatform(path)` helper** in `process/spawn_common.go` parses the arch suffix from `muxi-runtime-<version>[-<variant>]-linux-<arch>.sif` (lean, pytorch, cuda variants all covered). Unparseable paths default to `linux/amd64` to preserve the previous behavior for test fixtures and any out-of-convention SIF names.
+- **Stale comment on `runtime/resolver.go::getPlatform`** updated: it claimed runtime-runner was amd64-only and cited `cmd/server/commands.go::pullRuntimeRunner` as the invariant. That stopped being true when the runner went multi-arch. The comment now points at `process/spawn_common.go` as the source of truth for arch pinning, and flags the next step (resolver should pick native linux-arm64 SIFs once those ship so Apple Silicon can skip the Rosetta hop).
+
 ## 0.20260428.2
 
 ### Multilingual classification model pre-download
