@@ -361,6 +361,22 @@ func (s *Server) HandleRollback(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Preserve runtime-owned tuning state (MUXI.md, PENDING-MUXI.md) the same
+	// way: learnings accumulate independently of code versions, so a rollback
+	// carries the newest files forward rather than reviving stale ones.
+	tuningPreserved, tuningFailures := preserveTuningFiles(currentDir, previousDir)
+	for _, name := range tuningPreserved {
+		s.logger.Info().
+			Str("id", formationID).
+			Str("file", name).
+			Msg("Preserved tuning file from current version during rollback")
+	}
+	for name, copyErr := range tuningFailures {
+		s.logger.Warn().Err(copyErr).
+			Str("file", name).
+			Msg("Failed to preserve tuning file during rollback (continuing anyway)")
+	}
+
 	// Three-way swap: current -> temp, previous -> current, temp -> previous
 	tempDir := filepath.Join(formationBaseDir, "temp")
 	if err := os.Rename(currentDir, tempDir); err != nil {
