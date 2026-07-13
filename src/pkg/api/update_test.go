@@ -322,3 +322,101 @@ func TestCopyFile(t *testing.T) {
 		}
 	})
 }
+
+func TestPreserveTuningFiles(t *testing.T) {
+	setupDirs := func(t *testing.T) (currentDir, stagingDir string) {
+		tmpDir := t.TempDir()
+		currentDir = filepath.Join(tmpDir, "current")
+		stagingDir = filepath.Join(tmpDir, "staging")
+		os.MkdirAll(currentDir, 0755)
+		os.MkdirAll(stagingDir, 0755)
+		return currentDir, stagingDir
+	}
+
+	t.Run("preserves MUXI.md and PENDING-MUXI.md", func(t *testing.T) {
+		currentDir, stagingDir := setupDirs(t)
+
+		os.WriteFile(filepath.Join(currentDir, "MUXI.md"), []byte("live learnings"), 0644)
+		os.WriteFile(filepath.Join(currentDir, "PENDING-MUXI.md"), []byte("pending suggestion"), 0644)
+
+		preserved, failures := preserveTuningFiles(currentDir, stagingDir)
+		if len(failures) != 0 {
+			t.Fatalf("Unexpected failures: %v", failures)
+		}
+		if len(preserved) != 2 {
+			t.Fatalf("Preserved = %v, want [MUXI.md PENDING-MUXI.md]", preserved)
+		}
+
+		content, err := os.ReadFile(filepath.Join(stagingDir, "MUXI.md"))
+		if err != nil {
+			t.Fatalf("MUXI.md not restored to staging: %v", err)
+		}
+		if string(content) != "live learnings" {
+			t.Errorf("MUXI.md content = %q, want %q", string(content), "live learnings")
+		}
+		if _, err := os.Stat(filepath.Join(stagingDir, "PENDING-MUXI.md")); err != nil {
+			t.Errorf("PENDING-MUXI.md not restored to staging: %v", err)
+		}
+	})
+
+	t.Run("live copy overwrites bundle copy", func(t *testing.T) {
+		currentDir, stagingDir := setupDirs(t)
+
+		os.WriteFile(filepath.Join(currentDir, "MUXI.md"), []byte("live learnings"), 0644)
+		os.WriteFile(filepath.Join(stagingDir, "MUXI.md"), []byte("stale bundle copy"), 0644)
+
+		preserved, failures := preserveTuningFiles(currentDir, stagingDir)
+		if len(failures) != 0 {
+			t.Fatalf("Unexpected failures: %v", failures)
+		}
+		if len(preserved) != 1 || preserved[0] != "MUXI.md" {
+			t.Fatalf("Preserved = %v, want [MUXI.md]", preserved)
+		}
+
+		content, _ := os.ReadFile(filepath.Join(stagingDir, "MUXI.md"))
+		if string(content) != "live learnings" {
+			t.Errorf("MUXI.md content = %q, want live copy to win over bundle copy", string(content))
+		}
+	})
+
+	t.Run("preserves lowercase muxi.md variant", func(t *testing.T) {
+		currentDir, stagingDir := setupDirs(t)
+
+		os.WriteFile(filepath.Join(currentDir, "muxi.md"), []byte("lowercase live"), 0644)
+
+		preserved, failures := preserveTuningFiles(currentDir, stagingDir)
+		if len(failures) != 0 {
+			t.Fatalf("Unexpected failures: %v", failures)
+		}
+		if len(preserved) != 1 || preserved[0] != "muxi.md" {
+			t.Fatalf("Preserved = %v, want [muxi.md]", preserved)
+		}
+	})
+
+	t.Run("no tuning files is a no-op", func(t *testing.T) {
+		currentDir, stagingDir := setupDirs(t)
+
+		preserved, failures := preserveTuningFiles(currentDir, stagingDir)
+		if len(preserved) != 0 || len(failures) != 0 {
+			t.Errorf("Expected no-op, got preserved=%v failures=%v", preserved, failures)
+		}
+		if _, err := os.Stat(filepath.Join(stagingDir, "MUXI.md")); !os.IsNotExist(err) {
+			t.Error("MUXI.md should not exist in staging")
+		}
+	})
+
+	t.Run("copy failure reported per file", func(t *testing.T) {
+		currentDir, _ := setupDirs(t)
+		missingStaging := filepath.Join(t.TempDir(), "does-not-exist")
+
+		os.WriteFile(filepath.Join(currentDir, "MUXI.md"), []byte("live"), 0644)
+
+		preserved, failures := preserveTuningFiles(currentDir, missingStaging)
+		if len(preserved) != 0 {
+			t.Errorf("Preserved = %v, want none", preserved)
+		}
+		if _, ok := failures["MUXI.md"]; !ok {
+			t.Errorf("Failures = %v, want MUXI.md entry", failures)
+		}
+	})
+}

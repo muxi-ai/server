@@ -36,6 +36,38 @@ func copyFile(src, dst string) error {
 	return err
 }
 
+// preserveTuningFiles copies runtime-owned tuning state (MUXI.md in either
+// casing the runtime accepts, plus PENDING-MUXI.md) from currentDir into
+// stagingDir, overwriting any copies shipped in the bundle: the live files
+// are written by the runtime's self-improvement pass and are always newer
+// than whatever an operator bundled. Missing files are skipped. Returns the
+// names copied and any per-file copy failures.
+func preserveTuningFiles(currentDir, stagingDir string) (preserved []string, failures map[string]error) {
+	// Match on-disk names exactly via ReadDir: a plain os.Stat per candidate
+	// would double-copy on case-insensitive filesystems (macOS APFS), where
+	// stat("muxi.md") also matches "MUXI.md".
+	wanted := map[string]bool{"MUXI.md": true, "muxi.md": true, "PENDING-MUXI.md": true}
+	entries, err := os.ReadDir(currentDir)
+	if err != nil {
+		return nil, nil
+	}
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !wanted[name] {
+			continue
+		}
+		if err := copyFile(filepath.Join(currentDir, name), filepath.Join(stagingDir, name)); err != nil {
+			if failures == nil {
+				failures = make(map[string]error)
+			}
+			failures[name] = err
+			continue
+		}
+		preserved = append(preserved, name)
+	}
+	return preserved, failures
+}
+
 // HandleUpdate handles PUT /rpc/formations/{id}
 // Updates a formation to a new version using zero-downtime blue-green deployment
 func (s *Server) HandleUpdate(w http.ResponseWriter, r *http.Request) {
@@ -321,6 +353,22 @@ func (s *Server) updateFromDirectory(
 					Msg("Preserved memory.db from current version")
 			}
 		}
+	}
+
+	// Preserve runtime-owned tuning state (MUXI.md, PENDING-MUXI.md) so the
+	// formation's accumulated learnings survive the version swap. Unlike
+	// memory.db this overwrites bundle copies: the live files always win.
+	tuningPreserved, tuningFailures := preserveTuningFiles(currentDir, stagingDir)
+	for _, name := range tuningPreserved {
+		s.logger.Info().
+			Str("id", formationID).
+			Str("file", name).
+			Msg("Preserved tuning file from current version")
+	}
+	for name, copyErr := range tuningFailures {
+		s.logger.Warn().Err(copyErr).
+			Str("file", name).
+			Msg("Failed to preserve tuning file (continuing anyway)")
 	}
 
 	// Emit validating progress
