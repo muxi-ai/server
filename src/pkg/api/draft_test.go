@@ -339,6 +339,48 @@ func TestDraftWrite_Base64(t *testing.T) {
 	}
 }
 
+func TestDraftWrite_ScriptIsExecutable(t *testing.T) {
+	server, tmpDir := setupDraftTestServer(t)
+	draftRequest(t, server, "test-formation", DraftRequest{Action: "init", Mode: "new"})
+	draftDir := filepath.Join(tmpDir, ".muxi", "server", "formations", "test-formation", "draft")
+
+	cases := []struct {
+		path    string
+		content string
+		exec    bool
+	}{
+		{"auth/stripe.py", "#!/usr/bin/env python3\nimport sys\n", true},
+		{"triggers/stripe.md", "---\nauth: ./auth/stripe.py\n---\nEvent\n", false},
+	}
+	for _, tc := range cases {
+		w := draftRequest(t, server, "test-formation", DraftRequest{Action: "write", Path: tc.path, Content: tc.content})
+		if w.Code != http.StatusOK {
+			t.Fatalf("write %s: status %d: %s", tc.path, w.Code, w.Body.String())
+		}
+		info, err := os.Stat(filepath.Join(draftDir, tc.path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := info.Mode().Perm()&0100 != 0; got != tc.exec {
+			t.Errorf("%s: executable = %v, want %v (mode %v)", tc.path, got, tc.exec, info.Mode())
+		}
+	}
+
+	// Overwriting an existing non-executable file with a script also sets the bit.
+	plain := filepath.Join(draftDir, "auth", "hubspot.py")
+	if err := os.WriteFile(plain, []byte("old"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	draftRequest(t, server, "test-formation", DraftRequest{Action: "write", Path: "auth/hubspot.py", Content: "#!/bin/sh\nexit 0\n"})
+	info, err := os.Stat(plain)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0755 {
+		t.Errorf("auth/hubspot.py mode = %v, want 0755", info.Mode().Perm())
+	}
+}
+
 func TestDraftDelete(t *testing.T) {
 	server, tmpDir := setupDraftTestServer(t)
 

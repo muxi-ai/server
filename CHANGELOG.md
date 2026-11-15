@@ -9,6 +9,10 @@
 - **Tests** in `pkg/api/update_test.go` (`TestPreserveTuningFiles`): both files preserved with content intact, live copy overwriting a bundle copy, lowercase variant, no-op when absent, and per-file failure reporting.
 - **Rollback carries tuning state forward too**: `HandleRollback` copies `MUXI.md`/`PENDING-MUXI.md` from `current/` into `previous/` right beside the existing `memory.db` preservation, before the three-way directory swap. Learnings accumulate independently of code versions, so rolling back a bad deploy must not revive week-old tuning state.
 
+### Draft scripts are saved executable
+
+- A file written to a draft (`POST /rpc/formations/{id}/draft/files`, action `write`) whose content starts with `#!` is now made executable, the way `chmod +x` would (`0644` becomes `0755`). A trigger's `auth:` script (runtime per-trigger auth, muxi-ai/runtime#382) must be executable or the runtime refuses to load the formation, and the Console had no way to set the bit: a script it created was saved as `0644`. Other files are written as before.
+
 ## 0.20260514.1
 
 ### Deploy bundle move fix

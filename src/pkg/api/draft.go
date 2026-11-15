@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -387,6 +388,18 @@ func (s *Server) draftWrite(w http.ResponseWriter, formationID string, req Draft
 		return
 	}
 
+	// A script (content starting with "#!") is made executable, the way
+	// `chmod +x` would: a trigger's `auth:` script must be executable or the
+	// runtime refuses to load the formation, and the Console has no other way
+	// to set the bit.
+	if bytes.HasPrefix(content, []byte("#!")) {
+		if err := makeExecutable(targetFile); err != nil {
+			s.respondDraftError(w, http.StatusInternalServerError, "WriteError",
+				fmt.Sprintf("Failed to make script executable: %v", err), formationID)
+			return
+		}
+	}
+
 	s.logger.Debug().Str("id", formationID).Str("path", reqPath).Int("size", len(content)).Msg("Wrote draft file")
 
 	s.respondDraftSuccess(w, http.StatusOK, map[string]interface{}{
@@ -394,6 +407,17 @@ func (s *Server) draftWrite(w http.ResponseWriter, formationID string, req Draft
 		"size":    len(content),
 		"written": true,
 	}, formationID)
+}
+
+// makeExecutable adds the execute bit wherever the file is readable
+// (0644 -> 0755, 0600 -> 0700).
+func makeExecutable(path string) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	perm := info.Mode().Perm()
+	return os.Chmod(path, perm|(perm&0444)>>2)
 }
 
 // draftDelete deletes a file or directory from the draft
